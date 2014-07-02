@@ -20,7 +20,7 @@ try:
     bus = dbus.SystemBus()
     proxy = bus.get_object("org.freedesktop.systemd1","/org/freedesktop/systemd1")
     iface = dbus.Interface(proxy, "org.freedesktop.systemd1.Manager")
-    units = ["agodatalogger.service", "agoevent.service", "agoresolver.service", "agorpc.service", "agoscenario.service", "agotimer.service"]
+    units = ["qpidd.service", "agodatalogger.service", "agoevent.service", "agoresolver.service", "agorpc.service", "agoscenario.service", "agotimer.service"]
     for unit in units:
         tmp = {}
         tmp["name"] = unit
@@ -33,7 +33,7 @@ except:
 if error:
     try:
         #try more generic way to detect running processes
-        units = {"agodatalogger":False, "agoevent":False, "agoresolver":False, "agorpc":False, "agoscenario":False, "agotimer":False}
+        units = {"qpidd":False, "agodatalogger":False, "agoevent":False, "agoresolver":False, "agorpc":False, "agoscenario":False, "agotimer":False}
 
         #search for all 'ago...' services
         for proc in psutil.get_process_list():
