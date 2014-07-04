@@ -27,7 +27,30 @@ static pthread_t securityThread;
 bool isSecurityThreadRunning = false;
 qpid::types::Variant::Map securitymap;
 
-// example map: {"housemode":"armed","zones":{"armed":[{"zone":"hull","delay":12}]}}
+/* example map: 
+
+{
+    "housemode": "armed",
+    "zones": {
+        "away": [
+            {
+                "delay": 15,
+                "zone": "foyer"
+            }
+        ],
+        "armed": [
+            {
+                "delay": 12,
+                "zone": "hull"
+            },
+            {
+                "delay": 0,
+                "zone": "garden"
+            }
+        ]
+    }
+
+*/
 bool checkPin(std::string _pin) {
 	stringstream pins(getConfigOption("security", "pin", "0815"));
 	string pin;
@@ -131,10 +154,19 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
 				returnval["result"] = -1;
 			}
 
-		} else if (content["command"] == "triggerzone") {
+		} else if (content["command"] == "gethousemode") {
+            		if (!(securitymap["housemode"].isVoid())) {
+				returnval["housemode"] = securitymap["housemode"];
+				returnval["result"]=0;
+			} else {
+				returnval["result"] = -1;
+				returnval["error"] = "No housemode set";
+			}
+	  	} else if (content["command"] == "triggerzone") {
 			std::string zone = content["zone"];
 			qpid::types::Variant::Map zonemap;
 			std::string housemode = securitymap["housemode"];
+			std::cout << "Housemode: " << housemode << " Zone: " << zone << std::endl;
 			if (!(securitymap["zones"].isVoid())) zonemap = securitymap["zones"].asMap();
 			if (!(zonemap[housemode].isVoid())) {
 				if (zonemap[housemode].getType() == qpid::types::VAR_LIST) {
@@ -154,22 +186,36 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
 							cout << "alarmthread already running" << endl;
 							returnval["result"] = 0;
 						}
+					} else {
+						returnval["result"] = -1;
+						returnval["error"] = "no such zone in this housemode";
 					}
-				}	
-
-			}
-		} else if (content["command"] == "setzones") {
-			// TODO: this might need some kind of protection
-			try {
-				cout << "setzones request" << endl;
-				qpid::types::Variant::Map newzones = content["zonemap"].asMap();
-				cout << "zone content:" << newzones << endl;
-				securitymap["zones"] = newzones;
-				if (variantMapToJSONFile(securitymap, SECURITYMAPFILE)) {
-					returnval["result"] = 0;
 				} else {
 					returnval["result"] = -1;
-					returnval["error"]="cannot save securitymap";
+					returnval["error"] = "invalid map, zonemap[housemode] is not a list!";
+				}	
+			} else {
+				returnval["result"] = -1;
+				returnval["error"] = "invalid map, zonemap[housemode] is void!";
+			}
+		} else if (content["command"] == "setzones") {
+			try {
+				cout << "setzones request" << endl;
+			
+				if (checkPin(content["pin"].asString())) {
+					qpid::types::Variant::Map newzones = content["zonemap"].asMap();
+					cout << "zone content:" << newzones << endl;
+					securitymap["zones"] = newzones;
+					if (variantMapToJSONFile(securitymap, SECURITYMAPFILE)) {
+						returnval["result"] = 0;
+					} else {
+						returnval["result"] = -1;
+						returnval["error"]="cannot save securitymap";
+					}
+				} else {
+					cout << "ERROR: invalid pin" << endl;
+					returnval["result"] = -1;
+					returnval["error"] = "invalid pin";
 				}
 			} catch (qpid::types::InvalidConversion) {
                                 returnval["result"] = -1;

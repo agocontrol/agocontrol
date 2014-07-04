@@ -26,7 +26,7 @@ function dashBoard() {
 		}
 		return false;
 	    }
-	    
+
 	    return true;
 	});
 	return list;
@@ -85,6 +85,7 @@ function dashBoard() {
     };
 
     buildfloorPlanList(this);
+    buildPluginNamesList(this);
 }
 
 /**

@@ -184,3 +184,23 @@ Package: agocontrol-scheduler
 Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-dateutil
 Description: agocontrol scheduler
+
+Package: agocontrol-ping
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Description: Host IP Pinger
+
+Package: agocontrol-mysensors
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libagoclient1.0
+Description: MySensors interface driver
+
+Package: agocontrol-rrdtool
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python-rrdtool
+Description: agocontrol advanced graphing system based on rrdtool
+
+Package: agocontrol-zmcam
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libcurl3
+Description: zmcam device

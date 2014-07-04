@@ -1,7 +1,7 @@
 /**
  * Model class
  * 
- * @returns {roomConfig}
+ * @returns {variablesConfig}
  */
 function variablesConfig() {
     this.hasNavigation = ko.observable(true);
@@ -41,11 +41,11 @@ function variablesConfig() {
 	content.command = 'setvariable';
 	content.uuid = agoController;
 	sendCommand(content, function(res) {
-	    console.log(res);
 	    if (res.result && res.result.returncode == 0) {
 		self.variables.push({
 		    variable : content.variable,
-		    value : content.value
+		    value : content.value,
+		    action : ""
 		});
 	    } else {
 		alert("Error while creating variable!");
@@ -89,6 +89,7 @@ function variablesConfig() {
 		self.variables.remove(function(e) {
 		    return e.variable == item.variable;
 		});
+		delete localStorage.inventoryCache;
 	    } else {
 		alert("Error while deleting variable!");
 	    }

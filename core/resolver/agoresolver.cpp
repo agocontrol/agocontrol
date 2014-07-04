@@ -69,6 +69,7 @@ Variant::Map inventory; // used to hold device registrations
 Variant::Map schema;  
 Variant::Map systeminfo; // holds system information
 Variant::Map variables; // holds global variables
+Variant::Map environment; // holds global environment like position, weather conditions, ..
 
 Inventory *inv;
 unsigned int discoverdelay;
@@ -152,17 +153,34 @@ void handleEvent(Variant::Map *device, string subject, Variant::Map *content) {
 		(*device)["state"].setEncoding("utf8");
 		saveDevicemap();
 		// (*device)["state"]  = valuesToString(values);
+	} else if (subject == "event.environment.positionchanged") {
+		Variant::Map value;
+		stringstream timestamp;
+
+		value["unit"] = (*content)["unit"];
+		value["latitude"] = (*content)["latitude"];
+		value["longitude"] = (*content)["longitude"];
+
+		timestamp << time(NULL);
+		value["timestamp"] = timestamp.str();
+
+		(*values)["position"] = value;
+		saveDevicemap();
+
 	} else if ((subject.find("event.environment.") != std::string::npos) && (subject.find("changed")!= std::string::npos)) {
 		Variant::Map value;
+		stringstream timestamp;
 		string quantity = subject;
+
 		quantity.erase(quantity.begin(),quantity.begin()+18);
 		quantity.erase(quantity.end()-7,quantity.end());
 
 		value["unit"] = (*content)["unit"];
 		value["level"] = (*content)["level"];
-		stringstream timestamp;
+
 		timestamp << time(NULL);
 		value["timestamp"] = timestamp.str();
+
 		(*values)[quantity] = value;
 		saveDevicemap();
 	}
@@ -304,6 +322,7 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
 			get_sysinfo();
 			reply["system"] = systeminfo;
 			reply["variables"] = variables;
+			reply["environment"] = environment;
 			reply["returncode"] = 0;
 		}
 	}
@@ -370,6 +389,10 @@ void eventHandler(std::string subject, qpid::types::Variant::Map content) {
 		variables["minute"] = content["minute"].asString();
 		variables["month"] = content["month"].asString();
 	} else {
+		if (subject == "event.environment.positionchanged") {
+			environment["latitude"] = content["latitude"];
+			environment["longitude"] = content["longitude"];
+		}
 		if (content["uuid"].asString() != "") {
 			string uuid = content["uuid"];
 			// see if we have that device in the inventory already, if yes handle the event
@@ -400,34 +423,47 @@ int main(int argc, char **argv) {
 	agoConnection->addEventHandler(eventHandler);
 	agoConnection->setFilter(false);
 
-	string schemafile;
+	string schemaPrefix;
 
 //	clog << agocontrol::kLogNotice << "starting up" << std::endl;
 
-	schemafile=getConfigOption("system", "schema", CONFDIR "/schema.yaml");
+	schemaPrefix=getConfigOption("system", "schemapath", CONFDIR "/schema.d/");
 	discoverdelay=atoi(getConfigOption("system", "discoverdelay", "300").c_str());
 	if (atoi(getConfigOption("system","devicepersistence", "0").c_str()) != 1) persistence=false;
 
 	systeminfo["uuid"] = getConfigOption("system", "uuid", "00000000-0000-0000-000000000000");
 	systeminfo["version"] = AGOCONTROL_VERSION;
 
-	clog << agocontrol::kLogDebug << "parsing schema file" << std::endl;
-	schema = parseSchema(schemafile.c_str());
-
-	fs::path schemadir(CONFDIR "/schema.d");
+	// generate vector of all schema files
+	std::vector<std::string> schemaArray;
+	fs::path schemadir(schemaPrefix.c_str());
 	if (fs::exists(schemadir)) {
 		fs::recursive_directory_iterator it(schemadir);
 		fs::recursive_directory_iterator endit;
 		while (it != endit) {
 			if (fs::is_regular_file(*it) && (it->path().extension().string() == ".yaml")) {
-				clog << agocontrol::kLogDebug << "parsing additional schema file:" << it->path().filename().string() << std::endl;
-				schema = mergeMap(schema, parseSchema(it->path().c_str()));
+				schemaArray.push_back(it->path().filename().string());
 			}
 			++it;
 		}
 	}
+	if (schemaArray.size() < 1) {
+		clog << agocontrol::kLogEmerg << "Can't read schema, aborting!" << std::endl;
+		exit(1);
+	}
 
-//	clog << agocontrol::kLogDebug << "reading inventory" << std::endl;
+	// load schema files in proper order
+	std::sort(schemaArray.begin(), schemaArray.end());
+	std::string schemaFile = schemaPrefix + schemaArray.front();
+	schema = parseSchema(schemaFile.c_str());
+	clog << agocontrol::kLogDebug << "parsing schema file:" << schemaFile << std::endl;
+	for (int i=1; i < schemaArray.size(); i++) {
+		schemaFile = schemaPrefix + schemaArray[i];
+		clog << agocontrol::kLogDebug << "parsing additional schema file:" << schemaFile << std::endl;
+		schema = mergeMap(schema, parseSchema(schemaFile.c_str()));
+	}
+
+	clog << agocontrol::kLogDebug << "reading inventory" << std::endl;
 	inv = new Inventory(CONFDIR "/db/inventory.db");
 
 	variables = jsonFileToVariantMap(VARIABLESMAPFILE);
@@ -439,7 +475,7 @@ int main(int argc, char **argv) {
 	pthread_create(&discoverThread,NULL,discover,NULL);
 	
 	// discover devices
-//	clog << agocontrol::kLogDebug << "discovering devices" << std::endl;
+	clog << agocontrol::kLogDebug << "discovering devices" << std::endl;
 	agoConnection->run();	
 }
 

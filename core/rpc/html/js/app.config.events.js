@@ -1,7 +1,7 @@
 /**
  * Model class
  * 
- * @returns
+ * @returns {eventConfig}
  */
 function eventConfig() {
     this.hasNavigation = ko.observable(true);
@@ -318,7 +318,8 @@ function eventConfig() {
 		    if (nameRes.result && nameRes.result.returncode == "0") {
 			self.events.push({
 			    name : cnt.name,
-			    uuid : res.result.event
+			    uuid : res.result.event,
+			    action : ""
 			});
 			self.initBuilder();
 		    }
@@ -367,6 +368,7 @@ function eventConfig() {
 		self.events.remove(function(e) {
 		    return e.uuid == item.uuid;
 		});
+		delete localStorage.inventoryCache;
 	    } else {
 		alert("Error while deleting event!");
 	    }
@@ -453,7 +455,7 @@ function eventConfig() {
 	var paramList = document.getElementsByClassName("cmdParam");
 	if (paramList) {
 	    for ( var i = 0; i < paramList.length; i++) {
-		self.map.action[paramList[i].id] = paramList[i].value;
+		self.map.action[paramList[i].name] = paramList[i].value;
 	    }
 	}
     };
@@ -1046,7 +1048,7 @@ function eventConfig() {
 
 		    if (cmd.parameters[param].type == 'option') {
 			var select = document.createElement("select");
-			select.name = cmd.parameters[param].name;
+			select.name = param;
 			select.className = "cmdParam";
 			select.id = cmd.parameters[param].name;
 			for ( var i = 0; i < cmd.parameters[param].options.length; i++)

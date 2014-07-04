@@ -202,18 +202,17 @@
                         </block>
                     </value>
                 </block>
-                <!--<block type="agocontrol_contentCondition">
-                    <value name="EVENT">
-                        <block type="agocontrol_eventAll">
-                        </block>
-                    </value>
-                </block>-->
-                <!--<block type="agocontrol_eventPropertyValue">
+                <block type="agocontrol_eventPropertyValue">
                     <value name="PROP">
                         <block type="agocontrol_eventProperty">
                         </block>
                     </value>
-                </block>-->
+                </block>
+            </category>
+            <category name="Property">
+                <block type="agocontrol_time"></block>
+                <block type="agocontrol_timeOffset"></block>
+                <block type="agocontrol_range"></block>
             </category>
             <category name="Device">
                 <block type="agocontrol_device"></block>
@@ -283,11 +282,9 @@
         }
     };
   
-    //var schema = YAML.load('http://192.168.1.1/schema.yaml');
-    var schema = YAML.load('http://git.agocontrol.com/agocontrol/agocontrol/raw/master/conf/schema.yaml');
-    //var deviceMap = YAML.load('http://192.168.1.1/deviceMap.yaml');
-    var deviceMap = YAML.load('http://git.agocontrol.com/agocontrol/agocontrol/raw/master/devices/blockly/deviceMap.yaml');
-    var variables = YAML.load('http://git.agocontrol.com/agocontrol/agocontrol/raw/master/devices/blockly/variables.yaml');
+    var schema = YAML.load('http://www.agocontrol.com/trac/browser/agocontrol.git/conf/schema.yaml?format=txt');
+    var deviceMap = YAML.load('http://192.168.1.1/deviceMap.yaml');
+    var variables = YAML.load('http://www.agocontrol.com/trac/browser/agocontrol.git/devices/blockly/variables.yaml?format=txt');
     console.log("schema:");
     console.log(schema);
     console.log("deviceMap:");

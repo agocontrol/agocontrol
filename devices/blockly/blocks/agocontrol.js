@@ -123,8 +123,9 @@ window.BlocklyAgocontrol = {
     },
 
     //get device properties
-    getDeviceProperties: function(deviceType) {
+    getDeviceProperties: function(deviceType, deviceUuid) {
         var props = {};
+        var statePropFound = false;
         if( this.schema.devicetypes[deviceType]!==undefined && this.schema.devicetypes[deviceType].properties!==undefined )
         {
             var prop;
@@ -142,10 +143,54 @@ window.BlocklyAgocontrol = {
                                 content[item] = this.schema.values[prop][item];
                         }
                         props[prop] = content;
+                        if( prop==='state' )
+                            statePropFound = true;
                     }
                 }
             }
         }
+        
+        if( deviceUuid )
+        {
+            //searching for device object
+            var device = null;
+            for( var i=0; i<this.devices.length; i++)
+            {
+                if( this.devices[i].uuid===deviceUuid )
+                {
+                    device = this.devices[i];
+                    break;
+                }
+            }
+
+            //append properties in values array
+            if( device!==null && goog.isFunction(device.valueList) )
+            {
+                var found = false;
+                var name;
+                for ( var k=0; k<device.valueList().length; k++)
+                {
+                    found = false;
+                    name = device.valueList()[k].name.toLowerCase();
+                    for( var prop in props )
+                    {
+                        if( prop.toLowerCase()===name )
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if( !found )
+                    {
+                        props[name] = {'name':name, 'description':name+' value', 'type':'dynamic'};
+                    }
+                }
+            }
+        }
+        
+        //append default state property
+        if( !statePropFound )
+            props['state'] = {'name':'state', 'description':'device state', 'type':'integer'};
         return props;
     },
 
@@ -576,6 +621,7 @@ Blockly.Blocks['agocontrol_deviceProperty'] = {
         //members
         this.lastType = undefined;
         this.lastDevice = undefined;
+        this.properties = undefined;
 
         //block definition
         //this.setHelpUrl('TODO');
@@ -615,10 +661,10 @@ Blockly.Blocks['agocontrol_deviceProperty'] = {
             var props = [];
             if( currentDevice.length>0 )
             {
-                var properties = window.BlocklyAgocontrol.getDeviceProperties(currentType);
-                for( var prop in properties )
+                this.properties = window.BlocklyAgocontrol.getDeviceProperties(currentType, currentDevice);
+                for( var prop in this.properties )
                 {
-                    props.push([properties[prop].name, prop]);
+                    props.push([this.properties[prop].name, prop]);
                 }
                 if( props.length===0 )
                     props.push(['','']);
@@ -676,6 +722,12 @@ Blockly.Blocks['agocontrol_eventProperty'] = {
         //update event blocks
         window.BlocklyAgocontrol.updateEventBlocks(this);
         
+        //check if block is nested in "content" block
+        if( !this.inContent )
+            this.setWarningText('Property event block MUST be nested in a "content" block (agocontrol->logic->triggered event is)');
+        else
+            this.setWarningText(null);
+            
         //update properties list
         var currentEvent = this.getFieldValue("EVENT");
         if( this.lastEvent!=currentEvent )
@@ -744,10 +796,7 @@ Blockly.Blocks['agocontrol_sendMessage'] = {
         var fields = {};
         for( var i=0; i<this.customFields.length; i++)
         {
-            if( this.customFields[i]!='empty' && this.customFields[i]!='text' )
-            {
-                fields["CUSTOM_"+this.customFields[i]] = this.customFields[i];
-            }
+            fields["CUSTOM_"+this.customFields[i]] = this.customFields[i];
         }
         return fields;
     },

@@ -11,6 +11,7 @@ templates/configuration/events.xml.in
 templates/configuration/variables.xml.in
 templates/configuration/devices.xml.in
 templates/configuration/plugins.xml.in
+templates/configuration/security.xml.in
 templates/devices/multilevelsensor.xml.in
 templates/details/multilevelsensor.xml.in
 templates/devices/switch.xml.in
@@ -18,3 +19,5 @@ templates/devices/thermostat.xml.in
 plugins/agoblockly/templates/agoblockly.xml.in
 plugins/agoalert/templates/agoalert.xml.in
 plugins/agoscheduler/templates/agoscheduler.xml.in
+plugins/zwave/templates/zwaveConfig.xml.in
+plugins/zwave/templates/zwaveDashboard.xml.in
