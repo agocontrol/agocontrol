@@ -1,3 +1,16 @@
+agocontrol (1.0-871) testing; urgency=low
+
+  * version increase
+
+ -- Hari <hari@pluto.vt100.intra>  Sun, 06 Jul 2014 23:13:18 +0200
+
+agocontrol (1.0-870.1) testing; urgency=low
+
+  * Non-maintainer upload.
+  * version increase
+
+ -- Hari <hari@pluto.vt100.intra>  Sun, 06 Jul 2014 17:37:34 +0200
+
 agocontrol (1.0-870) testing; urgency=low
 
   * version jump
