@@ -9,7 +9,6 @@ function agoBlocklyPlugin(deviceMap) {
     self.availableScripts = ko.observableArray([]);
     self.selectedScript = ko.observable('');
     self.scriptName = ko.observable('untitled');
-    self.scriptsCount = ko.observable(0);
     self.scriptSaved = ko.observable(true);
     self.scriptLoaded = false;
 
@@ -234,10 +233,9 @@ function agoBlocklyPlugin(deviceMap) {
                     //only keep agoblockly scripts
                     if( res.result.scriptlist[i].indexOf('blockly_')===0 )
                     {
-                        self.availableScripts.push(res.result.scriptlist[i].replace('blockly_',''));
+                        self.availableScripts.push({'name':res.result.scriptlist[i].replace('blockly_','')});
                     }
                 }
-                self.scriptsCount(self.availableScripts().length);
 
                 //callback
                 if( callback!==undefined )
@@ -309,6 +307,58 @@ function agoBlocklyPlugin(deviceMap) {
         });
     };
 
+    //rename a script
+    self.renameScript = function(item, oldScript, newScript) {
+        var content = {
+            uuid: self.luaControllerUuid,
+            command: 'renscript',
+            oldname: 'blockly_'+oldScript,
+            newname: 'blockly_'+newScript
+        };
+        sendCommand(content, function(res) {
+            console.log(res);
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+            {
+                if( res.result.result===0 )
+                {   
+                    item.attr('data-oldname', newScript);
+                    notif.success('#rss');
+                    return true;
+                }
+                else
+                {
+                    notif.error('#rsf');
+                    return false;
+                }
+            }
+            else
+            {
+                notif.fatal('#nr');
+                return false;
+            }
+        });
+    };
+
+    //Add default blocks
+    self.addDefaultBlocks = function() {
+        //create blocks
+        var ifBlock = Blockly.Block.obtain(Blockly.mainWorkspace, 'controls_if');
+        ifBlock.initSvg();
+        var contentBlock = Blockly.Block.obtain(Blockly.mainWorkspace, 'agocontrol_content');
+        contentBlock.initSvg();
+        var eventBlock = Blockly.Block.obtain(Blockly.mainWorkspace, 'agocontrol_eventAll');
+        eventBlock.initSvg();
+
+        //connect each others
+        ifBlock.getInput('IF0').connection.connect(contentBlock.outputConnection);
+        contentBlock.getInput('EVENT').connection.connect(eventBlock.outputConnection);
+
+        //render blocks
+        ifBlock.render();
+        contentBlock.render();
+        eventBlock.render();
+    };
+
     //============================
     //ui events
     //============================
@@ -320,6 +370,7 @@ function agoBlocklyPlugin(deviceMap) {
             Blockly.mainWorkspace.clear();
             self.scriptName('untitled');
             self.scriptSaved(true);
+            self.addDefaultBlocks();
         }
     };
 
@@ -406,6 +457,47 @@ function agoBlocklyPlugin(deviceMap) {
 
     //load code
     self.load = function() {
+        //init upload
+        $('#fileupload').fileupload({
+            dataType: 'json',
+            formData: { 
+                uuid: self.luaControllerUuid
+            },
+            done: function (e, data) {
+                if( data.result && data.result.result )
+                {
+                    if( data.result.result.error.len>0 )
+                    {
+                        notif.error('Unable to import script');
+                        console.log('Unable to upload script: '+data.result.result.error);
+                    }
+                    else
+                    {
+                        if( data.result.result.count>0 )
+                        {
+                            $.each(data.result.result.files, function (index, file) {
+                                notif.success('Script "'+file.name+'" imported successfully');
+                            });
+                            self.loadScripts();
+                        }
+                        else
+                        {
+                            //no file uploaded
+                            notif.error('Script import failed: '+data.result.result.error);
+                        }
+                    }
+                }
+                else
+                {
+                    notif.fatal('Unable to import script: internal error');
+                }
+            },
+            progressall: function (e, data) {
+                var progress = parseInt(data.loaded / data.total * 100, 10);
+                $('#progress .bar').css('width', progress+'%');
+            }
+        });
+
         //load scripts
         self.loadScripts(function()
         {
@@ -413,61 +505,11 @@ function agoBlocklyPlugin(deviceMap) {
             $( "#loadDialog" ).dialog({
                 modal: true,
                 title: "Load script",
-                height: 400,
-                width: 600,
+                height: 700,
+                width: 700,
                 buttons: {
-                    "Load": function() {
-                        var popup = this;
-                        if( self.selectedScript()===undefined || self.selectedScript().length===0 )
-                        {
-                            notif.info('#pss');
-                            return;
-                        }
-                                
-                        var content2 = {
-                            uuid: self.luaControllerUuid,
-                            command: 'getscript',
-                            name: 'blockly_'+self.selectedScript()
-                        };
-                        sendCommand(content2, function(res)
-                        {
-                            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
-                            {
-                                if( res.result.result===0 )
-                                {
-                                    self.loadScript(res.result.name ,res.result.script);
-                                }
-                                else
-                                {
-                                    //error occured
-                                    notif.error(res.result.error);
-                                }
-                            }
-                            else
-                            {
-                                notif.fatal('#nr');
-                            }
-                            $(popup).dialog("close");
-                        });
-                    },
-                    Cancel: function() {
+                    Close: function() {
                         $(this).dialog("close");
-                    },
-                    "Delete": function() {
-                        if( self.selectedScript()===undefined || self.selectedScript().length===0 )
-                        {
-                            notif.info('#pss');
-                            return;
-                        }
-
-                        var msg = $('#cd').html();
-                        if( confirm(msg) )
-                        {
-                            self.deleteScript('blockly_'+self.selectedScript(), function() {
-                                self.selectedScript('');
-                                self.loadScripts();
-                            });
-                        }
                     }
                 }
             });
@@ -499,9 +541,75 @@ function agoBlocklyPlugin(deviceMap) {
         });
     };
 
+    //load script
+    self.uiLoadScript = function(script) {
+        var content = {
+            uuid: self.luaControllerUuid,
+            command: 'getscript',
+            name: 'blockly_'+script
+        };
+        sendCommand(content, function(res)
+        {
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+            {
+                if( res.result.result===0 )
+                {
+                    self.loadScript(res.result.name ,res.result.script);
+                }
+                else
+                {
+                  //error occured
+                  notif.error(res.result.error);
+                }
+            }
+            else
+            {
+               notif.fatal('#nr');
+            }
+            $("#loadDialog").dialog("close");
+        });
+    };
+
+    //rename script
+    self.uiRenameScript = function(row, item) {
+        window.setTimeout(function()
+        {
+            $(row).find('td.rename_script').editable(function(value, settings)
+            {
+                self.renameScript($(this), $(this).attr('data-oldname'), value);
+                return value;
+            },
+            {
+                data : function(value, settings)
+                {
+                    return value;
+                },
+                onblur : "cancel"
+            });
+        }, 1);
+    };
+
+    //delete script
+    self.uiDeleteScript = function(script) {
+        var msg = $('#cd').html();
+        if( confirm(msg) )
+        {
+            self.deleteScript('blockly_'+script, function() {
+                self.loadScripts();
+            });
+        }
+    };
+
+    //export script
+    self.uiExportScript = function(script) {
+        downloadurl = location.protocol + "//" + location.hostname + (location.port && ":" + location.port) + "/download?filename="+script+"&uuid="+self.luaControllerUuid;
+        window.open(downloadurl, '_blank');
+    };
+
     //view model
     this.blocklyViewModel = new ko.blockly.viewModel({
-        onWorkspaceChanged: self.onWorkspaceChanged
+        onWorkspaceChanged: self.onWorkspaceChanged,
+        addDefaultBlocks: self.addDefaultBlocks
     });
 }
 
@@ -513,6 +621,7 @@ function init_plugin()
     ko.blockly = {
         viewModel: function(config) {
             this.onWorkspaceChanged = config.onWorkspaceChanged;
+            this.addDefaultBlocks = config.addDefaultBlocks;
         }
     };
 
@@ -535,6 +644,8 @@ function init_plugin()
             {
                 notif.error('Unable to configure Blockly! Event builder shouldn\'t work.');
             }
+            //init blocks
+            viewmodel().addDefaultBlocks();
         }
     };
 

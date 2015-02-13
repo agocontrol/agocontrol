@@ -1,54 +1,54 @@
-infuser.defaults.templateUrl = "/templates";
+infuser.defaults.templateUrl = "templates";
 
 Array.prototype.chunk = function(chunkSize) {
     var array = this;
     return [].concat.apply([], array.map(function(elem, i) {
-	return i % chunkSize ? [] : [ array.slice(i, i + chunkSize) ];
+        return i % chunkSize ? [] : [ array.slice(i, i + chunkSize) ];
     }));
 };
 
 if (!Date.prototype.toISOString) {
     (function() {
 
-	function pad(number) {
-	    var r = String(number);
-	    if (r.length === 1) {
-		r = '0' + r;
-	    }
-	    return r;
-	}
+        function pad(number) {
+            var r = String(number);
+            if (r.length === 1) {
+                r = '0' + r;
+            }
+            return r;
+        }
 
-	Date.prototype.toISOString = function() {
-	    return this.getUTCFullYear() + '-' + pad(this.getUTCMonth() + 1) + '-' + pad(this.getUTCDate()) + 'T' + pad(this.getUTCHours()) + ':' + pad(this.getUTCMinutes()) + ':'
-		    + pad(this.getUTCSeconds()) + '.' + String((this.getUTCMilliseconds() / 1000).toFixed(3)).slice(2, 5) + 'Z';
-	};
+        Date.prototype.toISOString = function() {
+            return this.getUTCFullYear() + '-' + pad(this.getUTCMonth() + 1) + '-' + pad(this.getUTCDate()) + 'T' + pad(this.getUTCHours()) + ':' + pad(this.getUTCMinutes()) + ':'
+                + pad(this.getUTCSeconds()) + '.' + String((this.getUTCMilliseconds() / 1000).toFixed(3)).slice(2, 5) + 'Z';
+        };
 
     }());
 }
 
 ko.bindingHandlers.slider = {
     init : function(element, valueAccessor, allBindingsAccessor) {
-	var options = allBindingsAccessor().sliderOptions || {};
-	$(element).slider(options);
-	ko.utils.registerEventHandler(element, "slidechange", function(event, ui) {
-	    var observable = valueAccessor();
-	    observable(ui.value);
-	    // Hack to avoid setting the level on startup
-	    // So we call the syncLevel method when we have
-	    // a mouse event (means user triggered).
-	    if (options.dev && event.clientX) {
-		options.dev.syncLevel();
-	    }
-	});
-	ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
-	    $(element).slider("destroy");
-	});
+        var options = allBindingsAccessor().sliderOptions || {};
+        $(element).slider(options);
+        ko.utils.registerEventHandler(element, "slidechange", function(event, ui) {
+            var observable = valueAccessor();
+            observable(ui.value);
+            // Hack to avoid setting the level on startup
+            // So we call the syncLevel method when we have
+            // a mouse event (means user triggered).
+            if (options.dev && event.clientX) {
+                options.dev.syncLevel();
+            }
+        });
+        ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
+            $(element).slider("destroy");
+        });
     },
     update : function(element, valueAccessor) {
-	var value = valueAccessor();
-	if (isNaN(value))
-	    value = 0;
-	$(element).slider("value", value);
+        var value = valueAccessor();
+        if (isNaN(value))
+            value = 0;
+        $(element).slider("value", value);
     }
 };
 
@@ -64,7 +64,7 @@ function getPage() {
 }
 
 var subscription = null;
-var url = "/jsonrpc";
+var url = "jsonrpc";
 
 var schema = {};
 var deviceMap = [];
@@ -82,30 +82,31 @@ var eventController = null;
 var dataLoggerController = null;
 var scenarioController = null;
 var alertControler = null;
-var rrdtoolController = null;
 var model = null;
 var initialized = false;
 
 var supported_devices = [];
+var deferredThumbsLoading = [];
+var thumbs = [];
 
 function buildfloorPlanList(model) {
     model.floorPlans = ko.observableArray([]);
     for ( var k in floorPlans) {
-	model.floorPlans.push({
-	    uuid : k,
-	    name : floorPlans[k].name,
-	    action : '', // dummy for table
+        model.floorPlans.push({
+            uuid : k,
+            name : floorPlans[k].name,
+            action : '', // dummy for table
 
-	    /* Called from link onClick in navigation/main.html */
-	    showFloorplan : function(data, event) {
-		if (getPage() !== 'floorplan')
-		    return true; // Let href act instead; no support for
-		// reloading page-script
+                /* Called from link onClick in navigation/main.html */
+            showFloorplan : function(data, event) {
+                if (getPage() !== 'floorplan')
+                    return true; // Let href act instead; no support for
+                // reloading page-script
 
-		setFloorPlan(this.uuid);
-		return false;
-	    }
-	});
+                setFloorPlan(this.uuid);
+                return false;
+            }
+        });
     }
 }
 
@@ -128,7 +129,7 @@ function buildPluginNamesList(model) {
 var deferredInit = null;
 
 function loadPlugin(fromDashboard) {
-    // lock uia
+    // lock ui
     $.blockUI({
         message : '<div>Please wait ...</div>',
         css : {
@@ -146,77 +147,78 @@ function loadPlugin(fromDashboard) {
     }
     name = name.replace(/\//g, "");
     $.getScript("plugins/" + name + "/plugin.js", function() {
-    $.ajax({
-	    url : "/cgi-bin/pluginlist.cgi",
-        method : "GET",
-        async : true,
-    }).done(function(result) {
-        var plugin = result.filter(function(p) {
-            return p._name.toLowerCase() == name.toLowerCase();
-        })[0];
-        templatePath = "../plugins/" + name + "/templates/";
-        /* Load the plugins resources if any */
-        if (plugin.resources) {
-            var resources = [];
-            if (plugin.resources.css && plugin.resources.css.length > 0) {
-                for ( var i = 0; i < plugin.resources.css.length; i++) {
-                    resources.push("plugins/" + name + "/" + plugin.resources.css[i]);
+        $.ajax({
+            url : "cgi-bin/pluginlist.cgi",
+            method : "GET",
+            async : true,
+        }).done(function(result) {
+            var plugin = result.filter(function(p) {
+                return p._name.toLowerCase() == name.toLowerCase();
+            })[0];
+            templatePath = "../plugins/" + name + "/templates/";
+            /* Load the plugins resources if any */
+            if (plugin.resources) {
+                var resources = [];
+                if (plugin.resources.css && plugin.resources.css.length > 0) {
+                    for ( var i = 0; i < plugin.resources.css.length; i++) {
+                        resources.push("plugins/" + name + "/" + plugin.resources.css[i]);
+                    }
                 }
-            }
-            if (plugin.resources.js && plugin.resources.js.length > 0) {
-                for ( var i = 0; i < plugin.resources.js.length; i++) {
-                    resources.push("plugins/" + name + "/" + plugin.resources.js[i]);
+                if (plugin.resources.js && plugin.resources.js.length > 0) {
+                    for ( var i = 0; i < plugin.resources.js.length; i++) {
+                        resources.push("plugins/" + name + "/" + plugin.resources.js[i]);
+                    }
                 }
-            }
-            if (resources.length > 0) {
-                yepnope({
-                    load : resources,
-                    complete : function() {
-                        // here, all resources are really loaded
-                        var model = init_plugin(fromDashboard);
-                        if( model )
-                        {
-                            if( (!model.hasNavigation || (model.hasNavigation && model.hasNavigation()==true)) && !model.navigation )
+                if (resources.length > 0) {
+                    yepnope({
+                        load : resources,
+                        complete : function() {
+                            // here, all resources are really loaded
+                            var model = init_plugin(fromDashboard);
+                            if( model )
                             {
-                                //force default navigation
-                                model.navigation = function() {
-                                    return "../templates/navigation/configuration";
-                                }.bind(model);
-                                if( !model.hasNavigation )
+                                if( (!model.hasNavigation || (model.hasNavigation && model.hasNavigation()==true)) && !model.navigation )
                                 {
-                                    model.hasNavigation = ko.observable(true);
+                                    //force default navigation
+                                    model.navigation = function() {
+                                        return "../templates/navigation/configuration";
+                                    }.bind(model);
+                                    if( !model.hasNavigation )
+                                    {
+                                        model.hasNavigation = ko.observable(true);
+                                    }
                                 }
+                                ko.applyBindings(model);
                             }
-                            ko.applyBindings(model);
+                            // unlock ui
+                            $.unblockUI();
                         }
-                        // unlock ui
-                        $.unblockUI();
-                    }
-                });
-            }
-        } else {
-            var model = init_plugin(fromDashboard);
-            if( model )
-            {
-                if( (!model.hasNavigation || (model.hasNavigation && model.hasNavigation()==true)) && !model.navigation )
-                {
-                    //force default navigation
-                    model.navigation = function() {
-                        return "../templates/navigation/configuration";
-                    }.bind(model);
-                    if( !model.hasNavigation )
-                    {
-                        model.hasNavigation = ko.observable(true);
-                    }
+                    });
                 }
-                ko.applyBindings(model);
+            } else {
+                var model = init_plugin(fromDashboard);
+                if( model )
+                {
+                    if( (!model.hasNavigation || (model.hasNavigation && model.hasNavigation()==true)) && !model.navigation )
+                    {
+                        //force default navigation
+                        model.navigation = function() {
+                            return "../templates/navigation/configuration";
+                        }.bind(model);
+                        if( !model.hasNavigation )
+                        {
+                            model.hasNavigation = ko.observable(true);
+                        }
+                    }
+                    ko.applyBindings(model);
+                }
+                $.unblockUI();
             }
-            $.unblockUI();
-        }
-    });
-    }).fail(function() {
+        });
+    }).fail(function(jqXHR, textStatus, errorThrown) {
         $.unblockUI();
         notif.fatal("Error: Failed to load plugin!");
+        console.log("Unable to load plugin: ["+textStatus+"] "+errorThrown.message);
     });
 }
 function loadPluginDashboard() {
@@ -225,7 +227,7 @@ function loadPluginDashboard() {
 
 function getPluginNames() {  
     $.ajax({
-        url : "/cgi-bin/pluginlist.cgi",
+        url : "cgi-bin/pluginlist.cgi",
         method : "GET",
         async : false,
     }).done(function(result) {
@@ -236,60 +238,60 @@ function getPluginNames() {
 function initGUI() {
     var page = getPage();
     if (page == "dashboard") {
-	//load plugin names only in dashboard
-	getPluginNames();
-	deferredInit = init_dashBoard;
+        //load plugin names only in dashboard
+        getPluginNames();
+        deferredInit = init_dashBoard;
     } else if (page == "floorplan") {
-	deferredInit = init_floorPlan;
+        deferredInit = init_floorPlan;
     } else if (page == "roomConfig") {
-	init_roomConfig();
+        init_roomConfig();
     } else if (page == "variablesConfig") {
-	init_variablesConfig();
+        init_variablesConfig();
     } else if (page == "floorplanConfig") {
-	init_floorplanConfig();
+        init_floorplanConfig();
     } else if (page == "configuration") {
-	deferredInit = init_configuration;
+        deferredInit = init_configuration;
     } else if (page == "cloudConfig") {
-	deferredInit = init_cloudConfig;
+        deferredInit = init_cloudConfig;
     } else if (page == "deviceConfig") {
-	init_deviceConfig();
+        init_deviceConfig();
     } else if (page == "systemConfig") {
-	deferredInit = init_systemConfig;
+        deferredInit = init_systemConfig;
     } else if (page == "eventConfig") {
-	init_eventConfig();
+        init_eventConfig();
     } else if (page == "scenarioConfig") {
-	init_scenarioConfig();
+        init_scenarioConfig();
     } else if (page == "securityConfig") {
-	init_securityConfig();
+        init_securityConfig();
     } else if (page == "inventoryView") {
-	deferredInit = init_inventoryView;
+        deferredInit = init_inventoryView;
     } else if (page == "systemStatus") {
-	init_systemStatus();
+        init_systemStatus();
     } else if (page == "pluginsConfig") {
-	deferredInit = init_pluginsConfig;
+        deferredInit = init_pluginsConfig;
     } else if (page == "plugin") {
-	deferredInit = loadPlugin;
+        deferredInit = loadPlugin;
     } else if (page == "pluginDashboard") {
-	deferredInit = loadPluginDashboard;
+        deferredInit = loadPluginDashboard;
     }
 
     /* Parse floorplan uuid */
     var fp = window.location.search.substring(1);
     var tmp = fp.split("&");
     for ( var i = 0; i < tmp.length; i++) {
-	if (tmp[i].indexOf("fp=") == 0) {
-	    fp = tmp[i].split("=")[1];
-	}
+        if (tmp[i].indexOf("fp=") == 0) {
+            fp = tmp[i].split("=")[1];
+        }
     }
 
     // When inventory is ready, assign initial floorplan
     if (!fp)
-	return;
+        return;
 
     var obs = inventory.subscribe(function(inv) {
-	// Never push state on page-load
-	setFloorPlan(fp, true);
-	obs.dispose();
+        // Never push state on page-load
+        setFloorPlan(fp, true);
+        obs.dispose();
     });
 }
 
@@ -297,35 +299,35 @@ function getStartJSFile() {
     var page = getPage();
 
     if (page == "dashboard") {
-	return "js/app.dashboard.js";
+        return "js/app.dashboard.js";
     } else if (page == "floorplan") {
-	return "js/app.floorplan.js";
+        return "js/app.floorplan.js";
     } else if (page == "roomConfig") {
-	return "js/app.config.rooms.js";
+        return "js/app.config.rooms.js";
     } else if (page == "variablesConfig") {
-	return "js/app.config.variables.js";
+        return "js/app.config.variables.js";
     } else if (page == "floorplanConfig") {
-	return "js/app.config.floorplan.js";
+        return "js/app.config.floorplan.js";
     } else if (page == "configuration") {
-	return "js/app.configuration.js";
+        return "js/app.configuration.js";
     } else if (page == "cloudConfig") {
-	return "js/app.config.cloud.js";
+        return "js/app.config.cloud.js";
     } else if (page == "deviceConfig") {
-	return "js/app.config.devices.js";
+        return "js/app.config.devices.js";
     } else if (page == "systemConfig") {
-	return "js/app.config.system.js";
+        return "js/app.config.system.js";
     } else if (page == "eventConfig") {
-	return "js/app.config.events.js";
+        return "js/app.config.events.js";
     } else if (page == "scenarioConfig") {
-	return "js/app.config.scenarios.js";
+        return "js/app.config.scenarios.js";
     } else if (page == "inventoryView") {
-	return "js/app.inventory.js";
+        return "js/app.inventory.js";
     } else if (page == "systemStatus") {
-	return "js/app.systemstatus.js";
+        return "js/app.systemstatus.js";
     } else if (page == "pluginsConfig") {
-	return "js/app.config.plugins.js";
+        return "js/app.config.plugins.js";
     } else if (page == "securityConfig") {
-	return "js/app.config.security.js";
+        return "js/app.config.security.js";
     }
 
     return null;
@@ -341,19 +343,19 @@ function loadInterface(msg) {
     sessionStorage.supported_devices = JSON.stringify(msg);
     var startfile = getStartJSFile();
     if (startfile !== null) {
-	$.getScript(startfile, function() {
-	    initGUI();
-	    if (localStorage.inventoryCache) {
-		handleInventory(null);
-	    }
-	    subscribe();
-	});
+        $.getScript(startfile, function() {
+            initGUI();
+            if (localStorage.inventoryCache) {
+                handleInventory(null);
+            }
+            subscribe();
+        });
     } else {
-	initGUI();
-	if (localStorage.inventoryCache) {
-	    handleInventory(null);
-	}
-	subscribe();
+        initGUI();
+        if (localStorage.inventoryCache) {
+            handleInventory(null);
+        }
+        subscribe();
     }
 }
 
@@ -362,8 +364,8 @@ if (sessionStorage.supported_devices) {
     loadInterface(JSON.parse(sessionStorage.supported_devices));
 } else {
     $.ajax({
-	url : "/cgi-bin/listing.cgi?devices=1",
-	type : "GET"
+        url : "cgi-bin/listing.cgi?devices=1",
+        type : "GET"
     }).done(loadInterface);
 }
 
@@ -371,77 +373,86 @@ if (sessionStorage.supported_devices) {
 
 var securityPromted = false;
 
-function handleEvent(response) {
-    if (response.result.event == "event.security.countdown" && !securityPromted) {
-        securityPromted = true;
-        var pin = window.prompt("Alarm please entry pin:");
-        var content = {};
-        content.command = "cancel";
-        content.uuid = response.result.uuid;
-        content.pin = pin;
-        sendCommand(content, function(res) {
-            if (res.result.error) {
-                notif.error(res.result.error);
-            }
-            securityPromted = false;
-        });
-        return;
-    } else if (response.result.event == "event.security.intruderalert") {
-        notif.error("INTRODUCER ALERT!");
-        return;
-    }
-    for ( var i = 0; i < deviceMap.length; i++) {
-    	if (deviceMap[i].uuid == response.result.uuid ) {
-            // update device last seen datetime
-            deviceMap[i].timeStamp(formatDate(new Date()));
-            //update device level
-            if( response.result.level !== undefined) {
-                // update custom device member
-                if (response.result.event.indexOf('event.device') != -1 && response.result.event.indexOf('changed') != -1) {
-                    // event that update device member
-                    var member = response.result.event.replace('event.device.', '').replace('changed', '');
-                    if (deviceMap[i][member] !== undefined) {
-                        deviceMap[i][member](response.result.level);
-                    }
+function handleEvent(requestSucceed, response) {
+    if( requestSucceed )
+    {
+        if (response.result.event == "event.security.countdown" && !securityPromted) {
+            securityPromted = true;
+            var pin = window.prompt("Alarm please entry pin:");
+            var content = {};
+            content.command = "cancel";
+            content.uuid = response.result.uuid;
+            content.pin = pin;
+            sendCommand(content, function(res) {
+                if (res.result.error) {
+                    notif.error(res.result.error);
                 }
-                // Binary sensor has its own event
-                else if (response.result.event == "event.security.sensortriggered") {
-                    if (deviceMap[i]['state'] !== undefined) {
-                        deviceMap[i]['state'](response.result.level);
-                    }
-                }
-            }
-            //update quantity
-            if (response.result.quantity) {
-                var values = deviceMap[i].values();
-                /* We have no values so reload from inventory */
-                if (values[response.result.quantity] === undefined) {
-                    getInventory(function(inv) {
-                        var tmpInv = cleanInventory(inv.result.devices);
-                        if (tmpInv[response.result.uuid] !== undefined) {
-                            if (tmpInv[response.result.uuid].values) {
-                                deviceMap[i].values(tmpInv[response.result.uuid].values);
-                            }
+                securityPromted = false;
+            });
+            return;
+        } else if (response.result.event == "event.security.intruderalert") {
+            notif.error("INTRODUCER ALERT!");
+            return;
+        }
+        for ( var i = 0; i < deviceMap.length; i++) {
+            if (deviceMap[i].uuid == response.result.uuid ) {
+                // update device last seen datetime
+                deviceMap[i].timeStamp(formatDate(new Date()));
+                //update device level
+                if( response.result.level !== undefined) {
+                    // update custom device member
+                    if (response.result.event.indexOf('event.device') != -1 && response.result.event.indexOf('changed') != -1) {
+                        // event that update device member
+                        var member = response.result.event.replace('event.device.', '').replace('changed', '');
+                        if (deviceMap[i][member] !== undefined) {
+                            deviceMap[i][member](response.result.level);
                         }
-                    });
-                    break;
-                }
-                if( response.result.level !== undefined ) {
-                    if( response.result.quantity==='forecast' && typeof response.result.level=="string" )
-                    {
-                        //update forecast value for barometer sensor only if string specified
-                        deviceMap[i].forecast(response.result.level);
                     }
-                    //save new level
-                    values[response.result.quantity].level = response.result.level;
+                    // Binary sensor has its own event
+                    else if (response.result.event == "event.security.sensortriggered") {
+                        if (deviceMap[i]['state'] !== undefined) {
+                            deviceMap[i]['state'](response.result.level);
+                        }
+                    }
                 }
-                else if( response.result.latitude!==undefined && response.result.longitude!==undefined ) {
-                    values[response.result.quantity].latitude = response.result.latitude;
-                    values[response.result.quantity].longitude = response.result.longitude;
+                //update device stale
+                if( response.result.event=="event.device.stale" && response.result.stale!==undefined )
+                {
+                    console.log('device '+response.result.internalid+' stale='+response.result.stale);
+                    deviceMap[i]['stale'](response.result.stale);
                 }
-                deviceMap[i].values(values);
+                //update quantity
+                if (response.result.quantity) {
+                    var values = deviceMap[i].values();
+                    /* We have no values so reload from inventory */
+                    if (values[response.result.quantity] === undefined) {
+                        getInventory(function(inv) {
+                            var tmpInv = cleanInventory(inv.result.devices);
+                            if (tmpInv[response.result.uuid] !== undefined) {
+                                if (tmpInv[response.result.uuid].values) {
+                                    deviceMap[i].values(tmpInv[response.result.uuid].values);
+                                }
+                            }
+                        });
+                        break;
+                    }
+                    if( response.result.level !== undefined ) {
+                        if( response.result.quantity==='forecast' && typeof response.result.level=="string" )
+                        {
+                            //update forecast value for barometer sensor only if string specified
+                            deviceMap[i].forecast(response.result.level);
+                        }
+                        //save new level
+                        values[response.result.quantity].level = response.result.level;
+                    }
+                    else if( response.result.latitude!==undefined && response.result.longitude!==undefined ) {
+                        values[response.result.quantity].latitude = response.result.latitude;
+                        values[response.result.quantity].longitude = response.result.longitude;
+                    }
+                    deviceMap[i].values(values);
+                }
+                break;
             }
-            break;
         }
     }
     getEvent();
@@ -455,31 +466,63 @@ function getEvent() {
     request.id = 1;
     request.jsonrpc = "2.0";
 
-    $.post(url, JSON.stringify(request), handleEvent, "json");
+    $.post(url, JSON.stringify(request), null, "json")
+        .done( function(data, textStatus, jqXHR) {
+            //request succeed
+            if( data.error!==undefined )
+            {
+                if(data.error.code == -32602) {
+                    // Subscription not found, server restart or we've been gone
+                    // for too long. Setup new subscription
+                    subscribe();
+                    return;
+                }
+
+                // request timeout (server side), continue polling
+                handleEvent(false, data);
+            }
+            else
+            {
+                handleEvent(true, data);
+            }
+        })
+    .fail(function(jqXHR, textStatus, errorThrown) {
+        //request failed, retry in a bit
+        setTimeout(function(){
+            getEvent();
+        }, 1000);
+    });
 }
 
 function cleanInventory(data) {
-    for ( var k in data) {
-	if (!data[k]) {
-	    delete data[k];
-	}
+    for ( var k in data)
+    {
+        if (!data[k])
+        {
+            delete data[k];
+        }
     }
-
     return data;
 }
 
-function handleInventory(response) {
+/* Mark the local cache as invalid */
+function purgeInventoryCache() {
+    delete localStorage.inventoryCache;
+}
+
+function handleInventory(response)
+{
     if (response != null && response.result.match !== undefined && response.result.match(/^exception/)) {
-	notif.error("RPC ERROR: " + response.result);
-	return;
+        notif.error("RPC ERROR: " + response.result);
+        return;
     }
 
     if (response == null) {
-	response = {
-	    result : JSON.parse(localStorage.inventoryCache)
-	};
+        response = {
+            result : JSON.parse(localStorage.inventoryCache)
+        };
     } else {
-	localStorage.inventoryCache = JSON.stringify(response.result);
+        localStorage.inventoryCache = JSON.stringify(response.result);
     }
 
     rooms = response.result.rooms;
@@ -491,103 +534,128 @@ function handleInventory(response) {
 
     var inv = cleanInventory(response.result.devices);
     var found;
-    for ( var uuid in inv) {
-	if (inv[uuid].room !== undefined && inv[uuid].room) {
-	    inv[uuid].roomUID = inv[uuid].room;
-	    if (rooms[inv[uuid].room] !== undefined) {
-		inv[uuid].room = rooms[inv[uuid].room].name;
-	    } else {
-		inv[uuid].room = "";
-	    }
+    for ( var uuid in inv)
+    {
+        if (inv[uuid].room !== undefined && inv[uuid].room)
+        {
+            inv[uuid].roomUID = inv[uuid].room;
+            if (rooms[inv[uuid].room] !== undefined)
+            {
+                inv[uuid].room = rooms[inv[uuid].room].name;
+            }
+            else
+            {
+                inv[uuid].room = "";
+            }
+        }
+        else
+        {
+            inv[uuid].room = "";
+        }
 
-	} else {
-	    inv[uuid].room = "";
-	}
-
-	found = false;
-	for ( var i = 0; i < deviceMap.length; i++) {
-	    if (deviceMap[i].uuid === uuid) {
-		// device already exists in deviceMap array. Update its content
-		deviceMap[i].update(inv[uuid], uuid);
-		found = true;
-		break;
-	    }
-	}
-	if (!found) {
-	    deviceMap.push(new device(inv[uuid], uuid));
-	}
+        found = false;
+        for ( var i = 0; i < deviceMap.length; i++)
+        {
+            if (deviceMap[i].uuid === uuid)
+            {
+                // device already exists in deviceMap array. Update its content
+                deviceMap[i].update(inv[uuid], uuid);
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            deviceMap.push(new device(inv[uuid], uuid));
+        }
     }
 
     // Notify global observable about new inventory
     inventory(inv);
 
-    if (deferredInit && !initialized) {
-	deferredInit();
-	initialized = true;
+    if (deferredInit && !initialized)
+    {
+        deferredInit();
+        initialized = true;
     }
 
-    if (!model) {
-	return;
+    if (!model)
+    {
+        return;
     }
 
-    if (model.deviceCount !== undefined) {
-	if (deviceMap.length != model.deviceCount()) {
-	    model.deviceCount(deviceMap.length);
-	}
+    if (model.deviceCount !== undefined)
+    {
+        if (deviceMap.length != model.deviceCount())
+        {
+            model.deviceCount(deviceMap.length);
+        }
     }
 
-    if (model.devices !== undefined) {
-	if (JSON.stringify(deviceMap) != JSON.stringify(model.devices())) {
-	    model.devices(deviceMap);
-	}
+    if (model.devices !== undefined)
+    {
+        if (JSON.stringify(deviceMap) != JSON.stringify(model.devices()))
+        {
+            model.devices(deviceMap);
+        }
     }
 
-    if (model.inventory !== undefined) {
-	if (JSON.stringify(response.result) != JSON.stringify(model.inventory())) {
-	    model.inventory(response.result);
-	}
+    if (model.inventory !== undefined)
+    {
+        if (JSON.stringify(response.result) != JSON.stringify(model.inventory()))
+        {
+            model.inventory(response.result);
+        }
     }
 
-    if (model.rooms !== undefined && model.rooms.slice !== undefined) {
-	/* get uuid into rooms */
-	model.rooms([]);
-	for ( var uuid in rooms) {
-	    var tmp = rooms[uuid];
-	    tmp.uuid = uuid;
-	    tmp.action = ''; // dummy for table
-	    model.rooms.push(tmp);
-	}
+    if (model.rooms !== undefined && model.rooms.slice !== undefined)
+    {
+        /* get uuid into rooms */
+        model.rooms([]);
+        for ( var uuid in rooms)
+        {
+            var tmp = rooms[uuid];
+            tmp.uuid = uuid;
+            tmp.action = ''; // dummy for table
+            model.rooms.push(tmp);
+        }
     }
 
-    if (model.floorplans !== undefined) {
-	/* get uuid into floorplans */
-	var fpList = [];
-	for ( var uuid in floorPlans) {
-	    var tmp = floorPlans[uuid];
-	    tmp.uuid = uuid;
-	    tmp.action = ''; // dummy for table
-	    fpList.push(tmp);
-	}
+    if (model.floorplans !== undefined)
+    {
+        /* get uuid into floorplans */
+        var fpList = [];
+        for ( var uuid in floorPlans)
+        {
+            var tmp = floorPlans[uuid];
+            tmp.uuid = uuid;
+            tmp.action = ''; // dummy for table
+            fpList.push(tmp);
+        }
 
-	if (JSON.stringify(fpList) != JSON.stringify(model.floorplans())) {
-	    model.floorplans(fpList);
-	}
+        if (JSON.stringify(fpList) != JSON.stringify(model.floorplans()))
+        {
+            model.floorplans(fpList);
+        }
     }
 
-    if (model.variables !== undefined) {
-	/* build variable pairs */
-	var varList = [];
-	for ( var key in variables) {
-	    var tmp = {};
-	    tmp.variable = key;
-	    tmp.value = variables[key];
-	    tmp.action = ''; // dummy for table
-	    varList.push(tmp);
-	}
+    if (model.variables !== undefined)
+    {
+        /* build variable pairs */
+        var varList = [];
+        for ( var key in variables)
+        {
+            var tmp = {};
+            tmp.variable = key;
+            tmp.value = variables[key];
+            tmp.action = ''; // dummy for table
+            varList.push(tmp);
+        }
 
-	if (JSON.stringify(varList) != JSON.stringify(model.variables())) {
-	    model.variables(varList);
-	}
+        if (JSON.stringify(varList) != JSON.stringify(model.variables()))
+        {
+            model.variables(varList);
+        }
     }
 }
 
@@ -603,37 +671,37 @@ function handleInventory(response) {
 function setFloorPlan(fp, replaceState) {
     // No change?
     if (currentFloorPlan().uuid === fp)
-	return;
+        return;
 
     for ( var k in floorPlans) {
-	if (k == fp) {
-	    var tmp;
-	    tmp = floorPlans[k];
-	    tmp.uuid = k;
-	    currentFloorPlan(tmp);
-	    break;
-	}
+        if (k == fp) {
+            var tmp;
+            tmp = floorPlans[k];
+            tmp.uuid = k;
+            currentFloorPlan(tmp);
+            break;
+        }
     }
 
     if (replaceState === null)
-	return;
+        return;
 
     // Not a floor plan page so don't do anything
     if (getPage() != "floorplan") {
-	return;
+        return;
     }
 
     // HTML5 push/pop-state support
     try {
-	if (history && history.pushState && history.replaceState) {
-	    var fn = replaceState ? history.replaceState : history.pushState;
-	    fn.apply(history, [ {
-		page : 'floorplan',
-		fp : fp
-	    }, document.title, '?floorplan&fp=' + fp ]);
-	}
+        if (history && history.pushState && history.replaceState) {
+            var fn = replaceState ? history.replaceState : history.pushState;
+            fn.apply(history, [ {
+                page : 'floorplan',
+                fp : fp
+            }, document.title, '?floorplan&fp=' + fp ]);
+        }
     } catch (e) {
-	console.error(e);
+        console.error(e);
     }
 }
 
@@ -644,7 +712,7 @@ function setFloorPlan(fp, replaceState) {
  */
 window.onpopstate = function(event) {
     if (event.state && event.state.page === 'floorplan') {
-	setFloorPlan(event.state.fp, null);
+        setFloorPlan(event.state.fp, null);
     }
 };
 
@@ -669,12 +737,12 @@ function unsubscribe() {
 
 function handleSubscribe(response) {
     if (response.result) {
-	subscription = response.result;
-	getInventory();
-	getEvent();
-	window.onbeforeunload = function(event) {
-	    unsubscribe();
-	};
+        subscription = response.result;
+        getInventory();
+        getEvent();
+        window.onbeforeunload = function(event) {
+            unsubscribe();
+        };
     }
 }
 
@@ -684,22 +752,22 @@ function sendCommand(content, callback, timeout) {
     request.params = {};
     request.params.content = content;
     if (timeout) {
-	request.params.replytimeout = timeout;
+        request.params.replytimeout = timeout;
     }
     request.id = 1;
     request.jsonrpc = "2.0";
 
     $.ajax({
-	type : 'POST',
-	url : url,
-	data : JSON.stringify(request),
-	success : function(r) {
-	    if (callback !== undefined) {
-		callback(r);
-	    }
-	},
-	dataType : "json",
-	async : true
+        type : 'POST',
+        url : url,
+        data : JSON.stringify(request),
+        success : function(r) {
+            if (callback !== undefined) {
+                callback(r);
+            }
+        },
+        dataType : "json",
+        async : true
     });
 }
 
@@ -714,26 +782,26 @@ function subscribe() {
 
 $(function() {
     $("#colorPickerDialog").dialog({
-	autoOpen : false,
-	modal : true,
-	minHeight : 300,
-	minWidth : 300,
-	buttons : {
-	    Cancel : function() {
-		$(this).dialog("close");
-	    },
-	    OK : function() {
-		var content = {};
-		content.uuid = $("#colorPickerDialog").data('uuid');
-		content.command = "setcolor";
-		var color = $('#colorValue').val();
-		content.red = ~~(parseInt(color.substring(0, 2), 16) * 100 / 255);
-		content.green = ~~(parseInt(color.substring(2, 4), 16) * 100 / 255);
-		content.blue = ~~(parseInt(color.substring(4, 6), 16) * 100 / 255);
-		sendCommand(content);
-		$(this).dialog("close");
-	    }
-	}
+        autoOpen : false,
+        modal : true,
+        minHeight : 300,
+        minWidth : 300,
+        buttons : {
+            Cancel : function() {
+                $(this).dialog("close");
+            },
+            OK : function() {
+                var content = {};
+                content.uuid = $("#colorPickerDialog").data('uuid');
+                content.command = "setcolor";
+                var color = $('#colorValue').val();
+                content.red = ~~(parseInt(color.substring(0, 2), 16) * 100 / 255);
+                content.green = ~~(parseInt(color.substring(2, 4), 16) * 100 / 255);
+                content.blue = ~~(parseInt(color.substring(4, 6), 16) * 100 / 255);
+                sendCommand(content);
+                $(this).dialog("close");
+            }
+        }
     });
 });
 
@@ -752,14 +820,14 @@ function openColorPicker(uuid) {
 function showDetails(device, environment) {
     /* Check if we have a template if yes use it otherwise fall back to default */
     $.ajax({
-	type : 'HEAD',
-	url : "templates/details/" + device.devicetype + ".html",
-	success : function() {
-	    doShowDetails(device, device.devicetype, environment);
-	},
-	error : function() {
-	    doShowDetails(device, "default");
-	}
+        type : 'HEAD',
+        url : "templates/details/" + device.devicetype + ".html",
+        success : function() {
+            doShowDetails(device, device.devicetype, environment);
+        },
+        error : function() {
+            doShowDetails(device, "default");
+        }
     });
 }
 
@@ -792,32 +860,32 @@ function showCommandList(container, device) {
     }
 
     commandSelect.onchange = function() {
-	if (commandSelect.options.length == 0) {
-	    return 0;
-	}
-	var cmd = schema.commands[commandSelect.options[commandSelect.selectedIndex].value];
-	commandParams.innerHTML = "";
-	if (cmd.parameters !== undefined) {
-	    commandParams.style.display = "";
-	    for ( var param in cmd.parameters) {
-		if (cmd.parameters[param].type == 'option') {
-		    var select = document.createElement("select");
-		    select.name = param;
-		    select.className = "cmdParam";
-		    for ( var i = 0; i < cmd.parameters[param].options.length; i++)
-			select.options[select.options.length] = new Option(cmd.parameters[param].options[i], cmd.parameters[param].options[i]);
-		    commandParams.appendChild(select);
-		} else {
-		    var input = document.createElement("input");
-		    input.name = param;
-		    input.className = "cmdParam";
-		    input.placeholder = cmd.parameters[param].name;
-		    commandParams.appendChild(input);
-		}
-	    }
-	} else {
-	    commandParams.style.display = "none";
-	}
+        if (commandSelect.options.length == 0) {
+            return 0;
+        }
+        var cmd = schema.commands[commandSelect.options[commandSelect.selectedIndex].value];
+        commandParams.innerHTML = "";
+        if (cmd.parameters !== undefined) {
+            commandParams.style.display = "";
+            for ( var param in cmd.parameters) {
+                if (cmd.parameters[param].type == 'option') {
+                    var select = document.createElement("select");
+                    select.name = param;
+                    select.className = "cmdParam";
+                    for ( var i = 0; i < cmd.parameters[param].options.length; i++)
+                        select.options[select.options.length] = new Option(cmd.parameters[param].options[i], cmd.parameters[param].options[i]);
+                    commandParams.appendChild(select);
+                } else {
+                    var input = document.createElement("input");
+                    input.name = param;
+                    input.className = "cmdParam";
+                    input.placeholder = cmd.parameters[param].name;
+                    commandParams.appendChild(input);
+                }
+            }
+        } else {
+            commandParams.style.display = "none";
+        }
     };
 
     commandSelect.onchange();
@@ -853,112 +921,344 @@ function datetimeToString(dt) {
  * @param template
  * @param environment
  */
-function doShowDetails(device, template, environment) {
+function doShowDetails(device, template, environment)
+{
     ko.renderTemplate("details/" + template, device, {
-	afterRender : function() {
-	    var dialogWidth = 800;
-	    var dialogHeight = 300;
+        afterRender : function() {
+            var dialogWidth = 800;
+            var dialogHeight = 300;
 
-	    if (document.getElementById('commandList')) {
-		showCommandList(document.getElementById('commandList'), device);
-	    }
-
-	    if (device.devicetype == "camera") {
-		dialogHeight = 620;
-		device.getVideoFrame();
-	    }
-
-	    if (document.getElementById('graph') && ((device.valueList && device.valueList() && device.valueList().length) || device.devicetype == "binarysensor")) {
-            //refresh button
-            $('#get_graph').click(function() {
-                renderGraph(device, document.getElementById('graph')._environment);
-            });
-
-		/* Setup start date */
-		var start = new Date((new Date()).getTime() - 24 * 3600 * 1000);
-        var startEl = $('#start_date');
-        startEl.val($.datepicker.formatDate('dd.mm.yy', start) + ' 00:00');
-        startEl.datetimepicker({
-            closeOnDateSelect: true,
-            //value: $.datepicker.formatDate('dd.mm.yy', start) + ' 00:00',
-            format: 'd.m.Y H:i',
-            onChangeDateTime: function(dp,$input) {
-                //check date
-                var sd = stringToDatetime($('#start_date').val());
-                var ed = stringToDatetime($('#end_date').val());
-                if( sd.getTime()>ed.getTime() ) {
-                    //invalid date
-                    notif.warning('Specified datetime is invalid');
-                    sd = new Date(ed.getTime() - 24 * 3600 * 1000);
-                    $('#start_date').val( datetimeToString(sd) );
-                }
+            if (document.getElementById('commandList'))
+            {
+                showCommandList(document.getElementById('commandList'), device);
             }
-        });
 
-		/* Setup end date */
-        var endEl = $('#end_date');
-        endEl.val($.datepicker.formatDate('dd.mm.yy', new Date())+' 23:59');
-        endEl.datetimepicker({
-            closeOnDateSelect: true,
-            format:'d.m.Y H:i',
-            onChangeDateTime: function(dp,$input) {
-                //check date
-                var sd = stringToDatetime($('#start_date').val());
-                var ed = stringToDatetime($('#end_date').val());
-                if( sd.getTime()>ed.getTime() ) {
-                    //invalid date
-                    notif.warning('Specified datetime is invalid');
-                    ed = new Date(sd.getTime() + 24 * 3600 * 1000);
-                    $('#end_date').val( datetimeToString(ed) );
-                }
+            if (device.devicetype == "camera")
+            {
+                dialogHeight = 620;
+                device.getVideoFrame();
             }
-        });
 
-		if (device.devicetype == "binarysensor") {
-		    environment = "device.state";
-		}
+            if (document.getElementById('graph') && ((device.valueList && device.valueList() && device.valueList().length) || device.devicetype == "binarysensor" || device.devicetype=="multigraph"))
+            {
+                //refresh button
+                $('#get_graph').click(function() {
+                    renderGraph(device, document.getElementById('graph')._environment);
+                });
 
-		renderGraph(device, environment ? environment : device.valueList()[0].name);
+                /* Setup start date */
+                var start = new Date((new Date()).getTime() - 24 * 3600 * 1000);
+                var startEl = $('#start_date');
+                startEl.val($.datepicker.formatDate('dd.mm.yy', start) + ' 00:00');
+                startEl.datetimepicker({
+                    closeOnDateSelect: true,
+                    //value: $.datepicker.formatDate('dd.mm.yy', start) + ' 00:00',
+                    format: 'd.m.Y H:i',
+                    onChangeDateTime: function(dp,$input) {
+                        //check date
+                        var sd = stringToDatetime($('#start_date').val());
+                        var ed = stringToDatetime($('#end_date').val());
+                        if( sd.getTime()>ed.getTime() )
+                        {
+                            //invalid date
+                            notif.warning('Specified datetime is invalid');
+                            sd = new Date(ed.getTime() - 24 * 3600 * 1000);
+                            $('#start_date').val( datetimeToString(sd) );
+                        }
+                    }
+                });
 
-		document.getElementsByName("displayType")[0].onchange = function() {
-		    renderGraph(device, environment ? environment : device.valueList()[0].name);
-		};
+                /* Setup end date */
+                var endEl = $('#end_date');
+                endEl.val($.datepicker.formatDate('dd.mm.yy', new Date())+' 23:59');
+                endEl.datetimepicker({
+                    closeOnDateSelect: true,
+                    format:'d.m.Y H:i',
+                    onChangeDateTime: function(dp,$input) {
+                        //check date
+                        var sd = stringToDatetime($('#start_date').val());
+                        var ed = stringToDatetime($('#end_date').val());
+                        if( sd.getTime()>ed.getTime() ) {
+                            //invalid date
+                            notif.warning('Specified datetime is invalid');
+                            ed = new Date(sd.getTime() + 24 * 3600 * 1000);
+                            $('#end_date').val( datetimeToString(ed) );
+                        }
+                    }
+                });
 
-		document.getElementsByName("displayType")[1].onchange = function() {
-		    renderGraph(device, environment ? environment : device.valueList()[0].name);
-		};
+                if (device.devicetype == "binarysensor")
+                {
+                    environment = "device.state";
+                }
+                else if (device.devicetype == "multigraph")
+                {
+                    environment = "device.state";
+                }
 
-		var reset = function() {
-		    if (device !== undefined)
-			device.reset();
-		};
+                renderGraph(device, environment ? environment : device.valueList()[0].name);
 
-		dialogWidth = 1000;
-		dialogHeight = 720;
-	    }
+                for( var i=0; i<document.getElementsByName("displayType").length; i++ )
+                {
+                    document.getElementsByName("displayType")[i].onchange = function() {
+                        renderGraph(device, environment ? environment : device.valueList()[0].name);
+                    }
+                }
 
-	    if (document.getElementById("detailsTitle")) {
-		$("#detailsPage").dialog({
-		    title : document.getElementById("detailsTitle").innerHTML,
-		    modal : true,
-		    width : Math.min(dialogWidth, Math.round(screen.width * 0.8)),
-		    height : Math.min(dialogHeight, Math.round(screen.height * 0.8)),
-		    close : function() {
-			var graphContainer = document.getElementById('graph');
-			if (graphContainer) {
-			    graphContainer.parentNode.removeChild(graphContainer);
-			}
-		    },
-		    open : function() {
-			$("#detailsPage").css("overflow", "visible");
-			if (device.dialogopened !== undefined)
-			    device.dialogopened(this);
-		    }
-		});
-	    }
+                var reset = function()
+                {
+                    if (device !== undefined)
+                        device.reset();
+                };
 
-	}
+                dialogWidth = 1000;
+                dialogHeight = 720;
+            }
+
+            if (document.getElementById("detailsTitle"))
+            {
+                $("#detailsPage").dialog({
+                    title : document.getElementById("detailsTitle").innerHTML,
+                    modal : true,
+                    width : Math.min(dialogWidth, Math.round(screen.width * 0.8)),
+                    height : Math.min(dialogHeight, Math.round(screen.height * 0.8)),
+                    close : function() {
+                        var graphContainer = document.getElementById('graph');
+                        if (graphContainer)
+                        {
+                            graphContainer.parentNode.removeChild(graphContainer);
+                        }
+                    },
+                    open : function() {
+                        $("#detailsPage").css("overflow", "visible");
+                        if (device.dialogopened !== undefined)
+                            device.dialogopened(this);
+                    }
+                });
+            }
+        }
     }, document.getElementById("detailsPage"));
+}
+
+/**
+ * Render RRDtool graph
+ */
+function renderRRDgraph(device, startDate, endDate)
+{
+    //fix end date
+    now = new Date();
+    if( endDate.getTime()>now.getTime() )
+        endDate = now;
+
+    //prepare content
+    $('#graph').empty();
+    var img = $('<img src="" id="graphRRD" style="display: none"/>');
+    $('#graph').append(img);
+
+    //get graph
+    device.getRrdGraph(device.uuid, Math.round(startDate.getTime()/1000), Math.round(endDate.getTime()/1000));
+
+    unblockDiv("#graph");
+}
+
+/**
+ * Render plots graph
+ */
+function renderPlots(device, environment, unit, data, values, startDate, endDate)
+{
+    //need data to render something else
+    var max_ticks = 25; // User option?
+
+    /* Split the values into buckets */
+    var num_buckets = Math.max(1, Math.floor(values.length / max_ticks));
+    var buckets = values.chunk(num_buckets);
+    var labels = [];
+    var i = 0;
+
+    /*
+     * Compute average for each bucket and pick a representative time to
+     * display
+     */
+    for ( var j = 0; j < buckets.length; j++)
+    {
+        var bucket = buckets[j];
+        var ts = bucket[0].time + (bucket[bucket.length - 1].time - bucket[0].time) / 2;
+        labels.push(new Date(Math.floor(ts) * 1000));
+        var value = 0;
+        for ( var k = 0; k < bucket.length; k++)
+        {
+            value += bucket[k].level;
+        }
+        data.push([ i, value / k ]);
+        i++;
+    }
+
+    /* Render the graph */
+    var container = document.getElementById('graph');
+    container._environment = environment;
+    Flotr.draw(container, [ data ], {
+        HtmlText : false,
+        title : environment,
+        mode : "time",
+        yaxis : {
+            tickFormatter : function(x) {
+                return x + " " + unit;
+            },
+        },
+        mouse : {
+            track : true,
+            relative : true,
+            trackFormatter : function(o) {
+                return formatDate(labels[Math.round(o.x)]) + " - " + o.y + " " + unit;
+            }
+        },
+        xaxis : {
+            noTicks : i,
+            labelsAngle : 90,
+            tickDecimals : 0,
+            tickFormatter : function(x) {
+                return formatDate(labels[x]);
+            }
+        }
+    });
+
+    /* We have no data ... */
+    if (data.length == 0)
+    {
+        var canvas = document.getElementsByClassName("flotr-overlay")[0];
+        var context = canvas.getContext("2d");
+        var x = canvas.width / 2;
+        var y = canvas.height / 2;
+
+        context.font = "30pt Arial";
+        context.textAlign = "center";
+        context.fillStyle = "red";
+        context.fillText('No data found for given time frame!', x, y);
+    }
+
+    unblockDiv("#graph");
+}
+
+/**
+ * Render data list
+ */
+function renderList(device, environment, unit, data, values, startDate, endDate)
+{
+    values.sort(function(a, b) {
+        return b.time - a.time;
+    });
+
+    if( values.length>0 )
+    {
+        if( values[0].level )
+        {
+            for ( var i = 0; i < values.length; i++)
+            {
+                values[i].date = formatDate(new Date(values[i].time * 1000));
+                values[i].value = values[i].level + " " + unit;
+                delete values[i].level;
+            }
+        }
+        else if( values[0].latitude && values[0].longitude )
+        {
+            for ( var i = 0; i < values.length; i++)
+            {
+                values[i].date = formatDate(new Date(values[i].time * 1000));
+                values[i].value = values[i].latitude + "," + values[i].longitude;
+                delete values[i].latitude;
+                delete values[i].longitude;
+            }
+        }
+    }
+
+    ko.renderTemplate("details/datalist", {
+        data : values,
+        environment : environment
+    }, {}, document.getElementById("dataList"));
+
+    unblockDiv("#dataList");
+}
+
+/*
+ * Render map to display GPS positions
+ */
+function renderMap(values)
+{
+    //load openlayers lib only when needed
+    yepnope({
+        load : 'js/libs/OpenLayers/OpenLayers.js',
+        complete : function() {
+            //configure openlayers lib
+            OpenLayers.ImgPath = 'js/libs/OpenLayers/img/';
+
+            //clear container
+
+            if( values.length>0 )
+            {
+                //create map, layers and projection
+                var map = new OpenLayers.Map('graph');
+                var layer = new OpenLayers.Layer.OSM();
+                var markers = new OpenLayers.Layer.Markers("Markers");
+                var vectors = new OpenLayers.Layer.Vector("Lines");
+                var fromProjection = new OpenLayers.Projection("EPSG:4326");
+                var toProjection = new OpenLayers.Projection("EPSG:900913");
+                var lineStyle = { strokeColor: '#FF0000',
+                    strokeOpacity: 0.5,
+                    strokeWidth: 5 };
+
+                //add layers
+                map.addLayer(layer);
+                map.addLayer(markers);
+                map.addLayer(vectors);
+
+                //add markers
+                var prevPoint = null;
+                var features = [];
+                for( var i=0; i<values.length; i++ )
+                {
+                    var position = new OpenLayers.LonLat(values[i].longitude, values[i].latitude).transform(fromProjection, toProjection);
+                    var point = new OpenLayers.Geometry.Point(values[i].longitude, values[i].latitude).transform(fromProjection, toProjection);
+                    markers.addMarker(new OpenLayers.Marker(position));
+                    if( prevPoint )
+                    {
+                        //join markers
+                        var line = new OpenLayers.Geometry.LineString([prevPoint, point]);
+                        features.push( new OpenLayers.Feature.Vector(line, null, lineStyle) );
+                    }
+                    prevPoint = point;
+                }
+                vectors.addFeatures(features);
+
+                //center map to first position
+                var zoom = 13;
+                map.setCenter( new OpenLayers.LonLat(values[0].longitude, values[0].latitude).transform(fromProjection, toProjection), zoom);
+            }
+            else
+            {
+                notif.error('No data to display');
+            }
+            //show container
+            unblockDiv("#graph");
+        }
+    });
+}
+
+/**
+ * Block/unblock specified div
+ */
+function blockDiv(divName)
+{
+    $(divName).empty();
+    $(divName).block({
+        message : '<div>Please wait ...</div>',
+        css : { 
+            border : '3px solid #a00'
+        }
+    });
+}
+function unblockDiv(divName)
+{
+    $(divName).unblock();
 }
 
 /**
@@ -967,225 +1267,82 @@ function doShowDetails(device, template, environment) {
  * @param device
  * @param environment
  */
-function renderGraph(device, environment) {
-
+function renderGraph(device, environment)
+{
     var renderType = $($('input[name="displayType"]:checked')[0]).val();
-
-    $('#graph').show();
-    $('#dataList').hide();
-
-    $('#graph').block({
-	message : '<div>Please wait ...</div>',
-	css : {
-	    border : '3px solid #a00'
-	}
-    });
 
     var endDate = stringToDatetime($('#end_date').val());
     var startDate = stringToDatetime($('#start_date').val());
+    var renderType = $($('input[name="displayType"]:checked')[0]).val();
 
-    //check if agorrdtool is installed
-    if( rrdtoolController && renderType=="graph" ) {
-        //fix end date
-        now = new Date();
-        if( endDate.getTime()>now.getTime() )
-           endDate = now;
-        //prepare content
-        $('#graph').empty();
-        var img = $('<img src="" id="graphRRD" style="display: none"/>');
-        $('#graph').append(img);
-        //get graph
-        device.getRrdGraph(device.uuid, Math.round(startDate.getTime()/1000), Math.round(endDate.getTime()/1000));
-        //do not generate other graph
-        return;
+    blockDiv("#graph");
+
+    if( renderType=="graph" )
+    {
+        //render rrdtool graph
+        $("#graph").show();
+        $("#dataList").hide();
+        renderRRDgraph(device, startDate, endDate);
     }
+    else
+    {
 
-    var max_ticks = 25; // User option?
+        var content = {};
+        content.uuid = dataLoggerController;
+        content.command = "getdata";
+        content.deviceid = device.uuid;
+        content.start = startDate.toISOString();
+        content.end = endDate.toISOString();
+        content.env = environment.toLowerCase();
 
-    var content = {};
-    content.uuid = dataLoggerController;
-    content.command = "getdata";
-    content.deviceid = device.uuid;
-    content.start = startDate.toISOString();
-    content.end = endDate.toISOString();
-    content.env = environment.toLowerCase();
+        sendCommand(content, function(res) {
+            if (!res.result || !res.result.result || !res.result.result.values)
+            {
+                notif.fatal("Error while loading Graph!");
+                unblockDiv('#graph');
+                return;
+            }
 
-    sendCommand(content, function(res) {
-	if (!res.result || !res.result.result || !res.result.result.values) {
-	    notif.fatal("Error while loading Graph!");
-	    $('#graph').unblock();
-	    return;
-	}
-
-	/* Get the unit */
-	var unit = "";
-	for ( var k = 0; k < device.valueList().length; k++) {
-	    if (device.valueList()[k].name == environment) {
-		unit = device.valueList()[k].unit;
-		break;
-	    }
-	}
-
-	/* Prepare the data */
-	var data = [];
-	var values = res.result.result.values;
-
-    if (renderType == "list") {
-        values.sort(function(a, b) {
-            return b.time - a.time;
-        });
-
-        if( values.length>0 ) {
-            if( values[0].level ) {
-                for ( var i = 0; i < values.length; i++) {
-                    values[i].date = formatDate(new Date(values[i].time * 1000));
-                    values[i].value = values[i].level + " " + unit;
-                    delete values[i].level;
+            /* Get the unit */
+            var unit = "";
+            for ( var k = 0; k < device.valueList().length; k++)
+            {
+                if (device.valueList()[k].name == environment)
+                {
+                    unit = device.valueList()[k].unit;
+                    break;
                 }
             }
-            else if( values[0].latitude && values[0].longitude ) {
-                for ( var i = 0; i < values.length; i++) {
-                    values[i].date = formatDate(new Date(values[i].time * 1000));
-                    values[i].value = values[i].latitude + "," + values[i].longitude;
-                    delete values[i].latitude;
-                    delete values[i].longitude;
-                }
+
+            /* Prepare the data */
+            var data = [];
+            var values = res.result.result.values;
+
+            if (renderType == "list")
+            {
+                $("#graph").hide();
+                $("#dataList").show();
+                blockDiv("#dataList");
+                renderList(device, environment, unit, data, values, startDate, endDate);
+                unblockDiv("#dataList");
             }
-        }
-
-        ko.renderTemplate("details/datalist", {
-            data : values,
-            environment : environment
-        }, {}, document.getElementById("dataList"));
-        $('#graph').unblock();
-        $("#graph").hide();
-        $('#dataList').show();
-        return;
-    }
-    else if( renderType=="map" ) {
-        //load openlayers lib only when needed
-        yepnope({
-            load : 'js/libs/OpenLayers/OpenLayers.js',
-            complete : function() {
-                //configure openlayers lib
-                OpenLayers.ImgPath = '/js/libs/OpenLayers/img/';
-
-                //clear container
-                $('#graph').empty();
-
-                if( values.length>0 ) {
-                    //create map, layers and projection
-                    var map = new OpenLayers.Map('graph');
-                    var layer = new OpenLayers.Layer.OSM();
-                    var markers = new OpenLayers.Layer.Markers("Markers");
-                    var vectors = new OpenLayers.Layer.Vector("Lines");
-                    var fromProjection = new OpenLayers.Projection("EPSG:4326");
-                    var toProjection = new OpenLayers.Projection("EPSG:900913");
-                    var lineStyle = { strokeColor: '#FF0000',
-                                      strokeOpacity: 0.5,
-                                      strokeWidth: 5 };
-        
-                    //add layers
-                    map.addLayer(layer);
-                    map.addLayer(markers);
-                    map.addLayer(vectors);
-
-                    //add markers
-                    var prevPoint = null;
-                    var features = [];
-                    for( var i=0; i<values.length; i++ ) {
-                        var position = new OpenLayers.LonLat(values[i].longitude, values[i].latitude).transform(fromProjection, toProjection);
-                        var point = new OpenLayers.Geometry.Point(values[i].longitude, values[i].latitude).transform(fromProjection, toProjection);
-                        markers.addMarker(new OpenLayers.Marker(position));
-                        if( prevPoint ) {
-                            //join markers
-                            var line = new OpenLayers.Geometry.LineString([prevPoint, point]);
-                            features.push( new OpenLayers.Feature.Vector(line, null, lineStyle) );
-                        }
-                        prevPoint = point;
-                    }
-                    vectors.addFeatures(features);
-
-                    //center map to first position
-                    var zoom = 13;
-                    map.setCenter( new OpenLayers.LonLat(values[0].longitude, values[0].latitude).transform(fromProjection, toProjection), zoom);
-                }
-                else {
-                    notif.error('No data to display');
-                }
-                //show container
-        	    $('#graph').unblock();
-                $('#graph').show();
+            else if( renderType=="map" )
+            {
+                $("#graph").show();
+                $("#dataList").hide();
+                blockDiv("#graph");
+                renderMap(valuest);
+                unblockDiv("#graph");
             }
-        });
-        return;
+            else if( renderType=="plots" )
+            {
+                $("#graph").show();
+                $("#dataList").hide();
+                blockDiv("#graph");
+                renderPlots(device, environment, unit, data, values, startDate, endDate);
+                unblockDiv("#graph");
+            }
+        }, 30);
     }
-
-	/* Split the values into buckets */
-	var num_buckets = Math.max(1, Math.floor(values.length / max_ticks));
-	var buckets = values.chunk(num_buckets);
-	var labels = [];
-	var i = 0;
-
-	/*
-	 * Compute averange for each bucket and pick a representative time to
-	 * display
-	 */
-	for ( var j = 0; j < buckets.length; j++) {
-	    var bucket = buckets[j];
-	    var ts = bucket[0].time + (bucket[bucket.length - 1].time - bucket[0].time) / 2;
-	    labels.push(new Date(Math.floor(ts) * 1000));
-	    var value = 0;
-	    for ( var k = 0; k < bucket.length; k++) {
-		value += bucket[k].level;
-	    }
-	    data.push([ i, value / k ]);
-	    i++;
-	}
-
-	/* Render the graph */
-	var container = document.getElementById('graph');
-	container._environment = environment;
-	Flotr.draw(container, [ data ], {
-	    HtmlText : false,
-	    title : environment,
-	    mode : "time",
-	    yaxis : {
-		tickFormatter : function(x) {
-		    return x + " " + unit;
-		},
-	    },
-	    mouse : {
-		track : true,
-		relative : true,
-
-		trackFormatter : function(o) {
-		    return formatDate(labels[Math.round(o.x)]) + " - " + o.y + " " + unit;
-		}
-	    },
-	    xaxis : {
-		noTicks : i,
-		labelsAngle : 90,
-		tickDecimals : 0,
-		tickFormatter : function(x) {
-		    return formatDate(labels[x]);
-		}
-	    }
-	});
-
-	/* We have no data ... */
-	if (data.length == 0) {
-	    var canvas = document.getElementsByClassName("flotr-overlay")[0];
-	    var context = canvas.getContext("2d");
-	    var x = canvas.width / 2;
-	    var y = canvas.height / 2;
-
-	    context.font = "30pt Arial";
-	    context.textAlign = "center";
-	    context.fillStyle = "red";
-	    context.fillText('No data found for given time frame!', x, y);
-	}
-
-	$('#graph').unblock();
-    }, 30);
 }
+

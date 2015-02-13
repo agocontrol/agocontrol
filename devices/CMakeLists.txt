@@ -1,6 +1,8 @@
 cmake_minimum_required (VERSION 2.6)
 
 set (AGODEVICES
+#  onvif
+  example
   enocean3
   blinkm
   chromoflex
@@ -37,7 +39,25 @@ set (AGODEVICES
   MySensors
   rrdtool
   zmcam
+  ETAtouch
+  yamaha
+  gammu
 )
+
+IF (FREEBSD)
+	# These does not build on FreeBSD currently
+	list(REMOVE_ITEM AGODEVICES
+	  blinkm
+	  firmata
+	  i2c
+	  irtrans_ethernet
+	  knx
+	  agodmx
+	  PLCBUS
+	  zmcam
+      onvif
+  )
+ENDIF (FREEBSD)
 
 foreach (device ${AGODEVICES})
     # options what to build

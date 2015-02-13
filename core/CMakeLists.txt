@@ -8,9 +8,15 @@ configure_file (
     @ONLY
 )
 
+set_property( DIRECTORY
+	APPEND PROPERTY
+	COMPILE_OPTIONS
+	-Werror)
+
 install (PROGRAMS myavahi.py agoctrl.sh DESTINATION ${BINDIR})
 install (DIRECTORY DESTINATION ${CONFDIR}/schema.d)
 install (DIRECTORY DESTINATION ${CONFDIR}/maps)
+install (DIRECTORY DESTINATION ${CONFDIR}/lua)
 
 OPTION(BUILD_CORE_drain "Build agodrain" ON)
 if (BUILD_CORE_drain)
@@ -60,5 +66,10 @@ endif()
 OPTION(BUILD_CORE_security "Build agosecurity" ON)
 if (BUILD_CORE_security)
   add_subdirectory (security)
+endif()
+
+OPTION(BUILD_CORE_system "Build agosystem" ON)
+if (BUILD_CORE_system)
+  add_subdirectory (system)
 endif()
 

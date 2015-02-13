@@ -26,16 +26,24 @@ window.BlocklyAgocontrol = {
         }
     },
 
-    //shorten event name to not overload block
-    shortenedEvent: function(event) {
-        var out = event.replace("event.", "");
-        out = out.replace("environment", "env");
-        out = out.replace("device", "dev");
-        out = out.replace("mediaplayer", "mplay");
-        out = out.replace("proximity", "prox");
-        out = out.replace("telecom", "tel");
-        out = out.replace("security", "sec");
-        return out;
+    //shortens event name to not overload block
+    shortensEventName: function(event) {
+        if( event.indexOf("system.")==0 )
+        {
+            //system event, drop it
+            return "";
+        }
+        else
+        {
+            var out = event.replace("event.", "");
+            out = out.replace("environment", "env");
+            out = out.replace("device", "dev");
+            out = out.replace("mediaplayer", "mplay");
+            out = out.replace("proximity", "prox");
+            out = out.replace("telecom", "tel");
+            out = out.replace("security", "sec");
+            return out;
+        }
     },
 
     //get devices
@@ -64,7 +72,7 @@ window.BlocklyAgocontrol = {
         for( var i=0; i<this.devices.length; i++ )
         {
             device = this.devices[i];
-            if( device.name.length>0 && duplicates.indexOf(device.devicetype)==-1 )
+            if( device.name.length>0 && duplicates.indexOf(device.devicetype)===-1 )
             {
                 types.push([device.devicetype, device.devicetype]);
                 duplicates.push(device.devicetype);
@@ -72,8 +80,32 @@ window.BlocklyAgocontrol = {
         }
         //prevent from js crash
         if( types.length===0 )
+        {
             types.push(['', '']);
+        }
         return types;
+    },
+
+    //get device names
+    getDeviceNames: function(deviceType) {
+        var names = [];
+        var duplicates = [];
+        var device;
+        for( var i=0; i<this.devices.length; i++ )
+        {
+            device = this.devices[i];
+            if( device.name.length>0 && device.devicetype===deviceType && duplicates.indexOf(device.name)===-1 )
+            {
+                names.push([device.name, device.name]);
+                duplicates.push(device.name);
+            }
+        }
+        //prevent from js crash
+        if( names.length===0 )
+        {
+            names.push(['', '']);
+        }
+        return names;
     },
 
     //get all events
@@ -82,7 +114,13 @@ window.BlocklyAgocontrol = {
         for( var event in this.schema.events )
         {
             if( event!==undefined )
-                events.push([this.shortenedEvent(event), event]);
+            {
+                var evtName = this.shortensEventName(event);
+                if( evtName.length>0 )
+                {
+                    events.push([evtName, event]);
+                }
+            }
         }
         //prevent from js crash
         if( events.length===0 )
@@ -97,7 +135,11 @@ window.BlocklyAgocontrol = {
         {
             for( var i=0; i<this.schema.devicetypes[deviceType].events.length; i++ )
             {
-                events.push([this.shortenedEvent(this.schema.devicetypes[deviceType].events[i]), this.schema.devicetypes[deviceType].events[i]]);
+                var evtName = this.shortensEventName(this.schema.devicetypes[deviceType].events[i]);
+                if( evtName.length>0 )
+                {
+                    events.push([evtName, this.schema.devicetypes[deviceType].events[i]]);
+                }
             }
         }
         //prevent from js crash
@@ -268,7 +310,15 @@ window.BlocklyAgocontrol = {
         if( eventName.length>0 )
         {
             output.name = eventName;
-            output.shortName = this.shortenedEvent(eventName);
+            var shortName = this.shortensEventName(eventName);
+            if( shortName.length==0 )
+            {
+                output.shortName = shortName;
+            }
+            else
+            {
+                output.shortName = eventName;
+            }
             output.properties = this.getEventProperties(eventName);
         }
         return output;
@@ -360,7 +410,8 @@ window.BlocklyAgocontrol = {
                 }
             }
         }
-        else if( child.type==="agocontrol_deviceEvent" || child.type==="agocontrol_eventAll" || child.type==="agocontrol_eventProperty" )
+        //else if( child.type==="agocontrol_deviceEvent" || child.type==="agocontrol_eventAll" || child.type==="agocontrol_eventProperty" || child.type==="agocontrol_contentproperty" )
+        else if( child.type==="agocontrol_contentProperty" )
         {
             //update blocks array
             if( output.master && output.master.id!==child.id )
@@ -453,12 +504,12 @@ Blockly.Blocks['agocontrol_deviceNo'] = {
         this.appendDummyInput()
             .appendField("No device");
         this.setOutput(true, "Device");
-        this.setTooltip('No device');
+        this.setTooltip('Return empty device uuid');
     }
 };
 
-//device block
-Blockly.Blocks['agocontrol_device'] = {
+//device name
+Blockly.Blocks['agocontrol_deviceName'] = {
     init: function() {
         //members
         this.firstRun = true;
@@ -468,12 +519,62 @@ Blockly.Blocks['agocontrol_device'] = {
         //this.setHelpUrl('TODO');
         this.setColour(20);
         this.container = this.appendDummyInput()
-            //.appendField("device")
+            .appendField("name")
+            .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getDeviceTypes()), "TYPE")
+            .appendField(new Blockly.FieldDropdown([['','']]), "DEVICE");
+        this.setInputsInline(true);
+        this.setOutput(true, "String");
+        this.setTooltip('Return device name');
+    },
+
+    onchange: function() {
+        if( !this.workspace )
+            return;
+        var currentType = this.getFieldValue("TYPE");
+        var currentDevice = null;
+        if( this.firstRun )
+        {
+            currentDevice = this.getFieldValue("DEVICE");
+        }
+        if( this.lastType!=currentType )
+        {
+            this.lastType = currentType;
+            var names = window.BlocklyAgocontrol.getDeviceNames(currentType);
+            if( names.length===0 )
+                names.push(['','']);
+            this.container.removeField("DEVICE");
+            this.container.appendField(new Blockly.FieldDropdown(names), "DEVICE");
+            if( currentDevice )
+            {
+                var field = this.getField_("DEVICE");
+                if( field )
+                {
+                    field.setValue(currentDevice);
+                }
+            }
+        }
+        
+        this.firstRun = false;
+    }
+};
+
+//device block
+Blockly.Blocks['agocontrol_deviceUuid'] = {
+    init: function() {
+        //members
+        this.firstRun = true;
+        this.lastType = undefined;
+
+        //block definition
+        //this.setHelpUrl('TODO');
+        this.setColour(20);
+        this.container = this.appendDummyInput()
+            .appendField("uuid")
             .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getDeviceTypes()), "TYPE")
             .appendField(new Blockly.FieldDropdown([['','']]), "DEVICE");
         this.setInputsInline(true);
         this.setOutput(true, "Device");
-        this.setTooltip('A device');
+        this.setTooltip('Return device uuid');
     },
 
     onchange: function() {
@@ -515,7 +616,7 @@ Blockly.Blocks['agocontrol_eventNo'] = {
         this.appendDummyInput()
             .appendField("No event");
         this.setOutput(true, "Event");
-        this.setTooltip('No event');
+        this.setTooltip('Return empty event name');
     }
 };
 
@@ -531,14 +632,14 @@ Blockly.Blocks['agocontrol_deviceEvent'] = {
         //this.setHelpUrl('TODO');
         this.setColour(65);
         this.container = this.appendDummyInput()
-            //.appendField("event")
+            .appendField("event")
             .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getDeviceTypes()), "TYPE")
             .appendField(new Blockly.FieldDropdown([['','']]), "DEVICE")
             .appendField("", "SEP")
             .appendField(new Blockly.FieldDropdown([['','']]), "EVENT");
         this.setInputsInline(true);
         this.setOutput(true, "Event");
-        this.setTooltip('A device event');
+        this.setTooltip('Return event name');
     },
 
     onchange: function() {
@@ -627,11 +728,11 @@ Blockly.Blocks['agocontrol_eventAll'] = {
         //this.setHelpUrl('TODO');
         this.setColour(65);
         this.container = this.appendDummyInput()
-            //.appendField("event")
+            .appendField("event")
             .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getAllEvents()), "EVENT");
         this.setInputsInline(true);
         this.setOutput(true, "Event");
-        this.setTooltip('An event');
+        this.setTooltip('Return event name');
     },
     
     //return current event
@@ -670,14 +771,14 @@ Blockly.Blocks['agocontrol_deviceProperty'] = {
         //this.setHelpUrl('TODO');
         this.setColour(140);
         this.container = this.appendDummyInput()
-            //.appendField("property")
+            .appendField("device value")
             .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getDeviceTypes()), "TYPE")
             .appendField(new Blockly.FieldDropdown([['','']]), "DEVICE")
             .appendField(" ", "SEP")
             .appendField(new Blockly.FieldDropdown([['','']]), "PROP");
         this.setInputsInline(true);
         this.setOutput(true, "DeviceProperty");
-        this.setTooltip('A device property');
+        this.setTooltip('Return device property value');
     },
 
     //onchange event
@@ -761,12 +862,12 @@ Blockly.Blocks['agocontrol_eventProperty'] = {
         //this.setHelpUrl('TODO');
         this.setColour(140);
         this.container = this.appendDummyInput()
-            //.appendField("property")
+            .appendField("event prop")
             .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getAllEvents()), "EVENT")
             .appendField(new Blockly.FieldDropdown([['','']]), "PROP");
         this.setInputsInline(true);
         this.setOutput(true, "EventProperty");
-        this.setTooltip('An event property');
+        this.setTooltip('Return event property name');
     },
   
     //force event selected in dropdown
@@ -792,10 +893,10 @@ Blockly.Blocks['agocontrol_eventProperty'] = {
         window.BlocklyAgocontrol.updateEventBlocks(this);
         
         //check if block is nested in "content" block
-        if( !this.inContent )
+        /*if( !this.inContent )
             this.setWarningText('Property event block MUST be nested in a "content" block (agocontrol->logic->triggered event is)');
         else
-            this.setWarningText(null);
+            this.setWarningText(null);*/
             
         //update properties list
         var currentEvent = this.getFieldValue("EVENT");
@@ -1086,7 +1187,7 @@ Blockly.Blocks['agocontrol_getVariable'] = {
         this.appendDummyInput()
             .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getVariables()), "VARIABLE");
         this.setOutput(true, "String");
-        this.setTooltip('Return the value of selected agocontrol variable (string format!)');
+        this.setTooltip('Return agocontrol variable value (string format!)');
     },
     
     //return selected variable name
@@ -1102,14 +1203,14 @@ Blockly.Blocks['agocontrol_setVariable'] = {
         //this.setHelpUrl('TODO');
         this.setColour(330);
         this.appendValueInput("VALUE")
-            .setCheck(null)
+            .setCheck("String")
             .appendField("set")
             .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getVariables()), "VARIABLE")
             .appendField("to");
         this.setInputsInline(true);
         this.setPreviousStatement(true, "null");
         this.setNextStatement(true, "null");
-        this.setTooltip('Set this agocontrol variable to be equal to the input');
+        this.setTooltip('Set agocontrol variable value');
     },
     
     //return selected variable name
@@ -1130,7 +1231,7 @@ Blockly.Blocks['agocontrol_fixedItemsList'] = {
         this.setOutput(true, 'String');
         this.container = this.appendDummyInput()
             .appendField(new Blockly.FieldDropdown(this.items), 'LIST');
-        this.setTooltip("Return the selected list item");
+        this.setTooltip("Return selected list item");
     },
   
     //set list items
@@ -1205,7 +1306,7 @@ Blockly.Blocks['agocontrol_content'] = {
             .setCheck("Event")
             .appendField("triggered event is");
         this.setOutput(true, "Boolean");
-        this.setTooltip('Return true if event is triggered one');
+        this.setTooltip('Condition on triggered event');
         this.setMutator(new Blockly.Mutator(['agocontrol_contentConditionMutator']));
     },
     
@@ -1318,8 +1419,87 @@ Blockly.Blocks['agocontrol_contentConditionMutator'] = {
             .appendField("property condition");
         this.setPreviousStatement(true);
         this.setNextStatement(true);
-        this.setTooltip("Add condition based on event property");
+        this.setTooltip("Add condition");
         this.contextMenu = false;
+    }
+};
+
+//get triggered event property (content in agocontrol language)
+Blockly.Blocks['agocontrol_contentProperty'] = {
+    init: function() {
+        //members
+        this.firstRun = true;
+        this.properties = undefined;
+        this.lastEvent = undefined;
+
+        //block definition
+        //this.setHelpUrl('TODO');
+        this.setColour(140);
+        this.container = this.appendDummyInput()
+            .appendField("content prop")
+            .appendField(new Blockly.FieldDropdown(window.BlocklyAgocontrol.getAllEvents()), "EVENT")
+            .appendField(new Blockly.FieldDropdown([['','']]), "PROP");
+        this.setInputsInline(true);
+        this.setOutput(true, "EventProperty");
+        this.setTooltip('Return content property');
+    },
+  
+    //force event selected in dropdown
+    setEvent: function(newEvent) {
+        var field = this.getField_("EVENT");
+        if( field )
+        {
+            return field.setValue(newEvent);
+        }
+    },
+  
+    //return current event
+    getEvent: function() {
+        return this.getFieldValue("EVENT");
+    },
+
+    //onchange event
+    onchange: function() {
+        if( !this.workspace )
+            return;
+            
+        //update event blocks
+        window.BlocklyAgocontrol.updateEventBlocks(this);
+        
+        //check if block is nested in "content" block
+        if( !this.inContent )
+            this.setWarningText('Content property block MUST be nested in a "content" logic block');
+        else
+            this.setWarningText(null);
+            
+        //update properties list
+        var currentEvent = this.getFieldValue("EVENT");
+        var currentProp = null;
+        if( this.firstRun )
+        {
+            currentProp = this.getFieldValue("PROP");
+        }
+        if( this.lastEvent!=currentEvent )
+        {
+            this.lastEvent = currentEvent;
+            var events = window.BlocklyAgocontrol.getEventProperties(currentEvent);
+            if( events.length===0 )
+                events.push(['','']);
+            this.container.removeField("PROP");
+            this.container.appendField(new Blockly.FieldDropdown(events), "PROP");
+            
+            //select property value if necessary
+            if( currentProp )
+            {
+                var field = this.getField_("PROP");
+                if( field )
+                {
+                    field.setValue(currentProp);
+                }
+            }
+        }
+        
+        this.firstRun = false;
     }
 };
 
@@ -1394,5 +1574,4 @@ Blockly.Blocks['agocontrol_valueOptions'] = {
         return this.getFieldValue("OPTIONS") || '';
     }
 };
-
 

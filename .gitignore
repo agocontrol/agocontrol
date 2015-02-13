@@ -1,7 +1,16 @@
 *.so
 *.so.*
+*.a
 *.pyc
 *.o
 CMakeFiles
 cmake_install.cmake
 CMakeCache.txt
+build/
+Makefile
+*.core
+scripts/agososreport.sh
+shared/agoclient/_directories.py
+version.h
+CTestTestfile.cmake
+Testing/

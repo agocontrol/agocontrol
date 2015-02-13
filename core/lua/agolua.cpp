@@ -1,27 +1,27 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <pthread.h>
-
 #include <string>
 #include <iostream>
 #include <sstream>
 #include <cerrno>
 
 #define BOOST_FILESYSTEM_VERSION 3
-#define BOOST_FILESYSTEM_NO_DEPRECATED 
+#define BOOST_FILESYSTEM_NO_DEPRECATED
 #include "boost/filesystem.hpp"
 #include "boost/regex.hpp"
-//#include "boost/filesystem/operations.hpp"
 
 #ifndef SCRIPTSINFOSFILE
-#define SCRIPTSINFOSFILE CONFDIR "/maps/agolua.json"
+#define SCRIPTSINFOSFILE "maps/agolua.json"
+#endif
+
+#ifndef LUA_SCRIPT_DIR
+#define LUA_SCRIPT_DIR "lua"
 #endif
 
 #include "base64.h"
 
-#include "agoclient.h"
+#include "agoapp.h"
 
 namespace fs = ::boost::filesystem;
 
@@ -34,143 +34,367 @@ using namespace agocontrol;
 #include "lua5.2/lua.hpp"
 #endif
 
-#ifndef LUA_SCRIPT_DIR
-#define LUA_SCRIPT_DIR CONFDIR "/lua/"
-#endif
+const char reAll[] = "--.*--\\[\\[(.*)\\]\\](.*)";
+const char reEvent[] = "(event\\.\\w+\\.\\w+)";
 
-qpid::types::Variant::Map inventory;
-bool refreshInventory = true; //optimize script execution (0.2s to get all inventory)
-qpid::types::Variant::Map scriptsInfos;
-const char reAll[] = "--.*--\\[\\[(.*)\\]\\](.*)"; 
-const char reEvent[] = "(event\\.\\w+\\.\\w+)"; 
-boost::regex exprAll(reAll);
-boost::regex exprEvent(reEvent);
-AgoConnection *agoConnection;
-std::string agocontroller;
-int filterByEvents = 1;
+class AgoLua: public AgoApp {
+private:
+    qpid::types::Variant::Map inventory;
+    bool refreshInventory; //optimize script execution (0.2s to get all inventory)
+    qpid::types::Variant::Map scriptsInfos;
+    boost::regex exprAll;
+    boost::regex exprEvent;
+    std::string agocontroller;
+    int filterByEvents;
+    fs::path scriptdir;
+    qpid::types::Variant::Map scriptContexts;
 
-static const luaL_Reg loadedlibs[] = {
-  {"_G", luaopen_base},
-  {LUA_TABLIBNAME, luaopen_table},
-  {LUA_STRLIBNAME, luaopen_string},
-  {LUA_MATHLIBNAME, luaopen_math},
-  {NULL, NULL}
+    fs::path construct_script_name(fs::path input) ;
+    void pushTableFromMap(lua_State *L, qpid::types::Variant::Map content) ;
+    void pullTableToMap(lua_State *L, qpid::types::Variant::Map& table);
+
+    void searchEvents(const fs::path& scriptPath, qpid::types::Variant::List* foundEvents) ;
+    void purgeScripts() ;
+    void runScript(qpid::types::Variant::Map content, const fs::path &script);
+    bool canRunScript(qpid::types::Variant::Map content, const fs::path &script);
+    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
+    void eventHandler(std::string subject, qpid::types::Variant::Map content) ;
+
+    void setupApp();
+
+public:
+    AGOAPP_CONSTRUCTOR_HEAD(AgoLua)
+        , refreshInventory(true)
+        , exprAll(reAll)
+        , exprEvent(reEvent)
+        , filterByEvents(1)
+        {}
+
+    // called from global static wrapper functions, thus public
+    int luaAddDevice(lua_State *l);
+    int luaSendMessage(lua_State *l);
+    int luaSetVariable(lua_State *L);
+    int luaGetVariable(lua_State *L);
+    int luaGetDeviceInventory(lua_State *L);
+    int luaGetInventory(lua_State *L);
+    int luaPause(lua_State *L);
 };
 
+
+#define LUA_WRAPPER(method_name) \
+    static int method_name ## _wrapper(lua_State *l) { \
+        AgoLua *inst = (AgoLua*) lua_touserdata(l, lua_upvalueindex(1));\
+        return inst->method_name(l);\
+    }
+
+LUA_WRAPPER(luaSendMessage);
+LUA_WRAPPER(luaSetVariable);
+LUA_WRAPPER(luaGetVariable);
+LUA_WRAPPER(luaGetDeviceInventory);
+LUA_WRAPPER(luaGetInventory);
+LUA_WRAPPER(luaPause);
+
+const luaL_Reg loadedlibs[] = {
+    {"_G", luaopen_base},
+    {LUA_TABLIBNAME, luaopen_table},
+    {LUA_STRLIBNAME, luaopen_string},
+    {LUA_MATHLIBNAME, luaopen_math},
+    {NULL, NULL}
+};
+
+fs::path AgoLua::construct_script_name(fs::path input)
+{
+    fs::path out = (scriptdir / input);
+    // replace == add/append
+    out.replace_extension(".lua");
+    return out;
+}
+
 // read file into string. credits go to "insane coder" - http://stackoverflow.com/questions/2602013/read-whole-ascii-file-into-c-stdstring
-std::string get_file_contents(const char *filename) {
-	std::ifstream in(filename, std::ios::in | std::ios::binary);
-	if (in)
-	{
-		std::string contents;
-		in.seekg(0, std::ios::end);
-		contents.resize(in.tellg());
-		in.seekg(0, std::ios::beg);
-		in.read(&contents[0], contents.size());
-		in.close();
-		return(contents);
-	}
-	throw(errno);
+static std::string get_file_contents(const fs::path &filename)
+{
+    std::ifstream in(filename.c_str(), std::ios::in | std::ios::binary);
+    if (in)
+    {
+        std::string contents;
+        in.seekg(0, std::ios::end);
+        contents.resize(in.tellg());
+        in.seekg(0, std::ios::beg);
+        in.read(&contents[0], contents.size());
+        in.close();
+        return(contents);
+    }
+    throw(errno);
 }
 
-int luaAddDevice(lua_State *l) { // DRAFT
-	int argc = lua_gettop(l);
-	if (argc != 2) return 0;
+void AgoLua::pushTableFromMap(lua_State *L, qpid::types::Variant::Map content)
+{
+    lua_createtable(L, 0, 0);
+    for (qpid::types::Variant::Map::const_iterator it=content.begin(); it!=content.end(); it++)
+    {
+        switch (it->second.getType())
+        {
+            case qpid::types::VAR_INT8:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asInt8());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_INT16:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asInt16());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_INT32:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asInt32());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_INT64:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asInt64());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_UINT8:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asUint8());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_UINT16:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asUint16());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_UINT32:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asUint32());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_UINT64:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asUint64());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_FLOAT:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asFloat());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_DOUBLE:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnumber(L,it->second.asDouble());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_STRING:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushstring(L,it->second.asString().c_str());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_UUID:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushstring(L,it->second.asString().c_str());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_MAP:
+                lua_pushstring(L,it->first.c_str());
+                pushTableFromMap(L,it->second.asMap());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_LIST:
+                // TODO: push list
+                break;
+            case qpid::types::VAR_BOOL:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushboolean(L,it->second.asBool());
+                lua_settable(L, -3);
+                break;
+            case qpid::types::VAR_VOID:
+                lua_pushstring(L,it->first.c_str());
+                lua_pushnil(L);
+                lua_settable(L, -3);
+                break;
+            //default:
+                //lua_pushstring(L,it->first.c_str());
+                //lua_pushstring(L,"unhandled");
+                //AGO_TRACE() << "undhandled type: " << it->second.getType();
+                //lua_settable(L, -3);
+        }
+    }
+} 
 
-	std::string internalid = lua_tostring(l, lua_gettop(l));
-	lua_pop(l, 1);
-	std::string devicetype = lua_tostring(l, lua_gettop(l));
-	lua_pop(l, 1);
+/**
+ * Fill specified cpp variant map with lua table content
+ * Before calling this function you need to call lua_getglobal(<lua obj>, <lua table name>)
+ */
+void AgoLua::pullTableToMap(lua_State *L, qpid::types::Variant::Map& table)
+{
+    lua_pushnil(L);
+    while( lua_next(L, -2)!=0 )
+    {
+        if( lua_isstring(L, -1) )
+        {
+            table[lua_tostring(L, -2)] = lua_tostring(L, -1);
+        }
+        else if( lua_isnumber(L, -1) )
+        {
+            table[lua_tostring(L, -2)] = lua_tonumber(L, -1);
+        }
+        else if( lua_isboolean(L, -1) )
+        {
+            table[lua_tostring(L, -2)] = lua_toboolean(L, -1);
+        }
+        else if( lua_isnoneornil(L, -1) )
+        {
+            //drop null field
+        }
+        else if( lua_istable(L, -1) )
+        {
+            qpid::types::Variant::Map newTable;
+            pullTableToMap(L, newTable);
+            table[lua_tostring(L, -2)] = newTable;
+        }
 
-	agoConnection->addDevice(internalid.c_str(), devicetype.c_str());
-	return 0;
+        lua_pop(L, 1);
+    }
 }
 
-int luaSendMessage(lua_State *l) {
-	qpid::types::Variant::Map content;
-	std::string subject;
-	// number of input arguments
-	int argc = lua_gettop(l);
-
-	// print input arguments
-	for(int i=0; i<argc; i++) {
-		string name, value;
-		if (nameval(string(lua_tostring(l, lua_gettop(l))),name, value)) {
-			if (name == "subject") {
-				subject = value;
-			}
-			content[name]=value;
-		}
-		lua_pop(l, 1);
-	}
-	cout << "Sending message: " << subject << " " << content << endl;
-	qpid::types::Variant::Map replyMap = agoConnection->sendMessageReply(subject.c_str(), content);	 
-	lua_pushnumber(l, 0);
-	return 1;
-}
-
-int luaSetVariable(lua_State *L) {
+/**
+ * Send message LUA function
+ */
+int AgoLua::luaSendMessage(lua_State *L)
+{
     qpid::types::Variant::Map content;
     std::string subject;
     // number of input arguments
     int argc = lua_gettop(L);
+
+    // print input arguments
+    for(int i=0; i<argc; i++)
+    {
+        string name, value;
+        if (nameval(string(lua_tostring(L, lua_gettop(L))),name, value))
+        {
+            if (name == "subject")
+            {
+                subject = value;
+            }
+            content[name]=value;
+        }
+        lua_pop(L, 1);
+    }
+
+    //execute sendMessage
+    AGO_DEBUG() << "Sending message: " << subject << " " << content;
+    qpid::types::Variant::Map replyMap = agoConnection->sendMessageReply(subject.c_str(), content);
+    pushTableFromMap(L, replyMap);
+
+    return 1;
+}
+
+/**
+ * Set variable LUA function
+ */
+int AgoLua::luaSetVariable(lua_State *L)
+{
+    qpid::types::Variant::Map content;
+    std::string subject;
 
     //get input arguments
     content["variable"] = std::string(lua_tostring(L,1));
     content["value"] = std::string(lua_tostring(L,2));
     content["command"]="setvariable";
     content["uuid"]=agocontroller;
-    cout << "Sending message: " << content << endl;
+    AGO_DEBUG() << "Sending message: " << content;
     qpid::types::Variant::Map replyMap = agoConnection->sendMessageReply(subject.c_str(), content);
+
     //manage result
-    if( !replyMap["returncode"].isVoid() )
+    if( replyMap.size()>0 && !replyMap["returncode"].isVoid() )
     {
         lua_pushnumber(L, replyMap["returncode"].asInt32());
     }
     else
     {
         //sendcommand problem
-        lua_pushnumber(L,0);
+        lua_pushnumber(L, 0);
     }
 
-    //update current inventory to reflect changes without reloading it (too long!!)
-    qpid::types::Variant::Map variables = inventory["variables"].asMap();
-    if( !variables[content["variable"]].isVoid() )
+    //refresh inventory only once (performance optimization)
+    if( refreshInventory )
     {
-        variables[content["variable"]] = content["value"];
-        inventory["variables"] = variables;
+        inventory = agoConnection->getInventory();
+        refreshInventory = false;
+    }
+
+    if( inventory.size()>0 && !inventory["devices"].isVoid() )
+    {
+        //update current inventory to reflect changes without reloading it (too long!!)
+        qpid::types::Variant::Map variables = inventory["variables"].asMap();
+        if( !variables[content["variable"]].isVoid() )
+        {
+            variables[content["variable"]] = content["value"];
+            inventory["variables"] = variables;
+            lua_pushnumber(L, 1);
+        }
+        else
+        {
+            //unknown variable
+            lua_pushnumber(L, 0);
+        }
+    }
+    else
+    {
+        //no inventory available
+        refreshInventory = false;
+        lua_pushnumber(L, 0);
     }
 
     return 1;
 }
 
 /**
- * Return variable value
+ * Return variable value in LUA
  */
-int luaGetVariable(lua_State *L)
+int AgoLua::luaGetVariable(lua_State *L)
 {
     //init
     std::string variableName = "";
 
-    //get variable name
-    variableName = std::string(lua_tostring(L,1));
-
-    if( variableName.length()>0 )
+    //refresh inventory only once (performance optimization)
+    if( refreshInventory )
     {
-        qpid::types::Variant::Map variables = inventory["variables"].asMap();
-        if( !variables[variableName].isVoid() )
+        inventory = agoConnection->getInventory();
+        refreshInventory = false;
+    }
+
+    if( inventory.size()>0 && !inventory["devices"].isVoid() )
+    {
+        qpid::types::Variant::Map deviceInventory = inventory["devices"].asMap();
+
+        //get variable name
+        variableName = std::string(lua_tostring(L,1));
+
+        if( variableName.length()>0 && !inventory["variables"].isVoid() )
         {
-            lua_pushstring(L, variables[variableName].asString().c_str());
+            qpid::types::Variant::Map variables = inventory["variables"].asMap();
+            if( !variables[variableName].isVoid() )
+            {
+                lua_pushstring(L, variables[variableName].asString().c_str());
+            }
+            else
+            {
+                //unknown variable
+                lua_pushnil(L);
+            }
         }
         else
         {
-            //unknown variable
+            //bad parameter
             lua_pushnil(L);
         }
     }
     else
     {
-        //bad parameter
+        //no inventory available
+        refreshInventory = true;
         lua_pushnil(L);
     }
 
@@ -181,167 +405,128 @@ int luaGetVariable(lua_State *L)
  * Return value from inventory["device"]
  * Callback format: getDeviceInventory(uuid, param)
  */
-int luaGetDeviceInventory(lua_State *L)
+int AgoLua::luaGetDeviceInventory(lua_State *L)
 {
     //init
-	std::string uuid = "";
+    std::string uuid = "";
     std::string attribute = "";
     std::string subAttribute = "";
-    
+
     //refresh inventory only once (performance optimization)
     if( refreshInventory )
     {
         inventory = agoConnection->getInventory();
         refreshInventory = false;
     }
-    qpid::types::Variant::Map deviceInventory = inventory["devices"].asMap();
-    
-	// number of input arguments
-	int argc = lua_gettop(L);
 
-	// print input arguments
-	for(int i=1; i<=argc; ++i)
+    if( inventory.size()>0 && !inventory["devices"].isVoid() )
     {
-        switch(i)
+        qpid::types::Variant::Map deviceInventory = inventory["devices"].asMap();
+
+        // number of input arguments
+        int argc = lua_gettop(L);
+
+        // print input arguments
+        for(int i=1; i<=argc; ++i)
         {
-            case 1:
-                uuid = std::string(lua_tostring(L,i));
-                break;
-            case 2:
-                attribute = std::string(lua_tostring(L,i));
-                break;
-            case 3:
-                subAttribute = std::string(lua_tostring(L,i));
-                break;
-            default:
-                //unmanaged parameter
-                break;
+            switch(i)
+            {
+                case 1:
+                    uuid = std::string(lua_tostring(L,i));
+                    break;
+                case 2:
+                    attribute = std::string(lua_tostring(L,i));
+                    break;
+                case 3:
+                    subAttribute = std::string(lua_tostring(L,i));
+                    break;
+                default:
+                    //unmanaged parameter
+                    break;
+            }
         }
-	}
-	cout << "Get device inventory: inventory['devices'][" << uuid << "][" << attribute << "]";
-    if( subAttribute.length()>0 )
-    {
-        cout << "[" << subAttribute << "]";
-    }
-    cout << endl;
-    if( !deviceInventory[uuid].isVoid() )
-    {
-        qpid::types::Variant::Map attributes = deviceInventory[uuid].asMap();
-        if( !attributes[attribute].isVoid() )
+
+        AGO_DEBUG() << "Get device inventory: inventory['devices'][" << uuid << "][" << attribute << "]";
+        if( subAttribute.length()>0 )
         {
-            //return main device attribute
-    	    lua_pushstring(L, attributes[attribute].asString().c_str());
+            AGO_DEBUG() << "[" << subAttribute << "]";
+        }
+
+        if( !deviceInventory[uuid].isVoid() )
+        {
+            qpid::types::Variant::Map attributes = deviceInventory[uuid].asMap();
+            if( !attributes[attribute].isVoid() )
+            {
+                //return main device attribute
+                lua_pushstring(L, attributes[attribute].asString().c_str());
+            }
+            else
+            {
+                //search attribute in device values
+                bool found = false;
+                if( !attributes["values"].isVoid() )
+                {
+                    qpid::types::Variant::Map values = attributes["values"].asMap();
+                    for( qpid::types::Variant::Map::iterator it=values.begin(); it!=values.end(); it++ )
+                    {
+                        //TODO return device value property (quantity, unit, latitude, longitude...)
+                        qpid::types::Variant::Map value = it->second.asMap();
+                        lua_pushstring(L, value[subAttribute].asString().c_str());
+                        found = true;
+                        break;
+                    }
+                }
+
+                //handle item not found
+                if( !found )
+                {
+                    lua_pushnil(L);
+                }
+            }
         }
         else
         {
-            //search attribute in device values
-            qpid::types::Variant::Map values = attributes["values"].asMap();
-            for( qpid::types::Variant::Map::iterator it=values.begin(); it!=values.end(); it++ )
-            {
-                //TODO return device value property (quantity, unit, latitude, longitude...)
-                qpid::types::Variant::Map value = it->second.asMap();
-    	        lua_pushstring(L, value[subAttribute].asString().c_str());
-            }
-	        //lua_pushnil(L);
+            //device not found
+            lua_pushnil(L);
         }
     }
     else
     {
-        //device not found
-	    lua_pushnil(L);
+        //no inventory available
+        refreshInventory = true;
+        lua_pushnil(L);
     }
-	return 1;
+
+    return 1;
 }
 
-void pushTableFromMap(lua_State *L, qpid::types::Variant::Map content) {
-	lua_createtable(L, 0, 0);
-	for (qpid::types::Variant::Map::const_iterator it=content.begin(); it!=content.end(); it++) {
-		switch (it->second.getType()) {
-			case qpid::types::VAR_INT8:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asInt8());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_INT16:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asInt16());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_INT32:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asInt32());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_INT64:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asInt64());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_UINT8:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asUint8());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_UINT16:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asUint16());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_UINT32:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asUint32());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_UINT64:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asUint64());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_FLOAT:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asFloat());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_DOUBLE:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnumber(L,it->second.asDouble());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_STRING:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushstring(L,it->second.asString().c_str());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_UUID:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushstring(L,it->second.asString().c_str());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_MAP:
-				lua_pushstring(L,it->first.c_str());
-				pushTableFromMap(L,it->second.asMap());
-				lua_settable(L, -3);
-				break;
-			case qpid::types::VAR_LIST:
-				// TODO: push list
-				break;
-			case qpid::types::VAR_BOOL:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushboolean(L,it->second.asBool());
-                                lua_settable(L, -3);
-                                break;
-			case qpid::types::VAR_VOID:
-				lua_pushstring(L,it->first.c_str());
-				lua_pushnil(L);
-                                lua_settable(L, -3);
-                                break;
-			//default:
-				//lua_pushstring(L,it->first.c_str());
-				//lua_pushstring(L,"unhandled");
-				//cout << "undhandled type: " << it->second.getType() << endl;
-				//lua_settable(L, -3);
-		}
-	}	
+/**
+ * Force getting inventory manually
+ */
+int AgoLua::luaGetInventory(lua_State *L)
+{
+    inventory = agoConnection->getInventory();
+    refreshInventory = false;
+    pushTableFromMap(L, inventory);
+    return 1;
+}
+
+/**
+ * Pause script execution
+ */
+int AgoLua::luaPause(lua_State *L)
+{
+    //init
+    int duration;
+
+    //get duration
+    duration = (int)lua_tointeger(L,1);
+
+    //pause script
+    sleep(duration);
+
+    lua_pushnil(L);
+    return 1;
 }
 
 /**
@@ -350,11 +535,11 @@ void pushTableFromMap(lua_State *L, qpid::types::Variant::Map content) {
  * @return foundEvents: fill map with found script events
  * @info based on http://www.boost.org/doc/libs/1_31_0/libs/regex/example/snippets/regex_search_example.cpp
  */
-void searchEvents(const char* scriptPath, qpid::types::Variant::List* foundEvents)
+void AgoLua::searchEvents(const fs::path& scriptPath, qpid::types::Variant::List* foundEvents)
 {
     //get script content
     std::string content = get_file_contents(scriptPath);
-    
+
     //parse content
     std::string::const_iterator start, end;
     start = content.begin();
@@ -392,18 +577,105 @@ void searchEvents(const char* scriptPath, qpid::types::Variant::List* foundEvent
 /**
  * Purge old scripts from scriptsInfos
  */
-void purgeScripts()
+void AgoLua::purgeScripts()
 {
     //TODO walk through all scripts in scriptsInfos and remove non existing entries
 }
 
-bool runScript(qpid::types::Variant::Map content, const char *script) {
+/**
+ * Execute LUA script (blocking).
+ * Called in separate thread.
+ */
+void AgoLua::runScript(qpid::types::Variant::Map content, const fs::path &script)
+{
+    refreshInventory = true;
+    lua_State *L;
+    const luaL_Reg *lib;
+
+    L = luaL_newstate();
+    for (lib = loadedlibs; lib->func; lib++)
+    {
+        luaL_requiref(L, lib->name, lib->func, 1);
+        lua_pop(L, 1);
+    }
+    luaL_openlibs(L);
+
+    //load script context
+    qpid::types::Variant::Map context;
+    if( scriptContexts[script.string()].isVoid() )
+    {
+        //no context yet, create empty one
+        scriptContexts[script.string()] = context;
+    }
+    else
+    {
+        context = scriptContexts[script.string()].asMap();
+    }
+    AGO_DEBUG() << "context before:" << context;
+
+#define LUA_REGISTER_WRAPPER(L, lua_name, method_name) \
+    lua_pushlightuserdata(L, this); \
+    lua_pushcclosure(L, &method_name ## _wrapper, 1); \
+    lua_setglobal(L, lua_name)
+
+    LUA_REGISTER_WRAPPER(L, "sendMessage", luaSendMessage);
+    LUA_REGISTER_WRAPPER(L, "setVariable", luaSetVariable);
+    LUA_REGISTER_WRAPPER(L, "getVariable", luaGetVariable);
+    LUA_REGISTER_WRAPPER(L, "getDeviceInventory", luaGetDeviceInventory);
+    LUA_REGISTER_WRAPPER(L, "getInventory", luaGetInventory);
+    LUA_REGISTER_WRAPPER(L, "pause", luaPause);
+
+    pushTableFromMap(L, content);
+    lua_setglobal(L, "content");
+    pushTableFromMap(L, context);
+    lua_setglobal(L, "context");
+
+    AGO_TRACE() << "Loading " << script;
+    int status = luaL_loadfile(L, script.c_str());
+    int result = 0;
+    if(status == LUA_OK)
+    {
+        result = lua_pcall(L, 0, LUA_MULTRET, 0);
+    }
+    else
+    {
+        AGO_ERROR()<< "Could not load script: " << script;
+    }
+    if ( result!=0 )
+    {
+        AGO_ERROR() << "Script " << script << " failed: " << lua_tostring(L, -1);
+        lua_pop(L, 1); // remove error message
+    }
+
+    //handle context value
+    lua_getglobal(L, "context");
+    pullTableToMap(L, context);
+    scriptContexts[script.string()] = context;
+
+    AGO_DEBUG() << "context after:" << context;
+
+    lua_close(L);
+    AGO_TRACE() << "Execution of " << script << " finished.";
+
+}
+
+/**
+ * Return true if script can be run
+ */
+bool AgoLua::canRunScript(qpid::types::Variant::Map content, const fs::path &script)
+{
+    //check integrity
+    if( scriptsInfos["scripts"].isVoid() )
+    {
+        return false;
+    }
+
     //check if file modified
     qpid::types::Variant::Map scripts = scriptsInfos["scripts"].asMap();
     qpid::types::Variant::Map infos;
     std::time_t updated = boost::filesystem::last_write_time(script);
     bool parseScript = false;
-    if( scripts[script].isVoid() )
+    if( scripts[script.string()].isVoid() )
     {
         //force script parsing
         parseScript = true;
@@ -411,23 +683,26 @@ bool runScript(qpid::types::Variant::Map content, const char *script) {
     else
     {
         //script already referenced, check last modified date
-        infos = scripts[script].asMap();
-        if( infos["updated"].asInt32()!=updated )
+        if( !scripts[script.string()].isVoid() )
         {
-            //script modified, parse again content
-            parseScript = true;
+            infos = scripts[script.string()].asMap();
+            if( infos["updated"].asInt32()!=updated )
+            {
+                //script modified, parse again content
+                parseScript = true;
+            }
         }
     }
     if( parseScript )
     {
-        //cout << "Update script infos (" << script << ")" << endl;
+        AGO_DEBUG() << "Update script infos (" << script << ")";
         infos["updated"] = (int32_t)updated;
         qpid::types::Variant::List events;
         searchEvents(script, &events);
         infos["events"] = events;
-        scripts[script] = infos;
+        scripts[script.string()] = infos;
         scriptsInfos["scripts"] = scripts;
-        variantMapToJSONFile(scriptsInfos, SCRIPTSINFOSFILE);
+        variantMapToJSONFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
     }
 
     //check if current triggered event is caught in script
@@ -457,194 +732,318 @@ bool runScript(qpid::types::Variant::Map content, const char *script) {
         //config option disable events filtering
         executeScript = true;
     }
-    
-    if( executeScript )
+
+    return executeScript;
+}
+
+/**
+ * Agocontrol command handler
+ */
+qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map content)
+{
+    qpid::types::Variant::Map returnval;
+    if (content["command"] == "inventory")
     {
-        cout << "========================================" << endl;
-        cout << "Running " << script << "..." << endl;
-        refreshInventory = true;
-        lua_State *L;    
-        const luaL_Reg *lib;
+        return returnval;
+    }
 
-        L = luaL_newstate();
-        for (lib = loadedlibs; lib->func; lib++) {
-            luaL_requiref(L, lib->name, lib->func, 1);
-            lua_pop(L, 1);
+    std::string internalid = content["internalid"].asString();
+    if (internalid == "luacontroller")
+    {
+        if (content["command"]=="getscriptlist")
+        {
+            qpid::types::Variant::List scriptlist;
+            if (fs::exists(scriptdir))
+            {
+                fs::recursive_directory_iterator it(scriptdir);
+                fs::recursive_directory_iterator endit;
+                while (it != endit)
+                {
+                    if (fs::is_regular_file(*it) && (it->path().extension().string() == ".lua") && (it->path().filename().string() != "helper.lua"))
+                    {
+                        scriptlist.push_back(qpid::types::Variant(it->path().stem().string()));
+                    }
+                    ++it;
+                }
+            }
+            returnval["scriptlist"]=scriptlist;
+            returnval["result"]=0;
         }
-        luaL_openlibs(L);
-
-        lua_register(L, "sendMessage", luaSendMessage);
-        lua_register(L, "setVariable", luaSetVariable);
-        lua_register(L, "getVariable", luaGetVariable);
-        lua_register(L, "getDeviceInventory", luaGetDeviceInventory);
-        // lua_register(L, "addDevice", luaAddDevice);
-
-        pushTableFromMap(L, content);
-        lua_setglobal(L, "content");
-        //pushTableFromMap(L, inventory);
-        //lua_setglobal(L, "inventory");
-
-        int status = luaL_loadfile(L, script);
-        int result = 0;
-        if(status == LUA_OK) {
-            result = lua_pcall(L, 0, LUA_MULTRET, 0);
-        } else {
-            std::cout << "-- Could not load the script " << script << std::endl;
+        else if (content["command"] == "getscript")
+        {
+            if (content["name"].asString() != "")
+            {
+                try
+                {
+                    // if a path is passed, strip it for security reasons
+                    fs::path input(content["name"]);
+                    fs::path script = construct_script_name(input.stem());
+                    string scriptcontent = get_file_contents(script);
+                    AGO_DEBUG() << "Reading script " << script;
+                    returnval["script"]=base64_encode(reinterpret_cast<const unsigned char*>(scriptcontent.c_str()), scriptcontent.length());
+                    returnval["result"]=0;
+                    returnval["name"]=content["name"].asString();
+                }
+                catch(...)
+                {
+                    returnval["error"]="can't read script";
+                    returnval["result"]=-1;
+                }
+            }
         }
-        if ( result!=0 ) {
-            std::cerr << "-- SCRIPT FAILED: " << lua_tostring(L, -1) << std::endl;
-            lua_pop(L, 1); // remove error message
+        else if (content["command"] == "setscript" )
+        {
+            if (content["name"].asString() != "")
+            {
+                try
+                {
+                    // if a path is passed, strip it for security reasons
+                    fs::path input(content["name"]);
+                    fs::path script = construct_script_name(input.stem());
+                    std::ofstream file;
+
+                    // XXX: this did not seem to throw even if the directory did not exist...
+                    file.open(script.c_str());
+                    file << content["script"].asString();
+                    file.close();
+                    returnval["error"]="";
+                    returnval["result"]=0;
+                }
+                catch(...)
+                {
+                    returnval["error"]="can't write script";
+                    returnval["result"]=-1;
+                }
+            }
         }
-        
-        lua_close(L);
-        cout << "========================================" << endl;
-        return status == 0 ? true : false;
+        else if (content["command"] == "delscript")
+        {
+            if (content["name"].asString() != "")
+            {
+                try
+                {
+                    // if a path is passed, strip it for security reasons
+                    fs::path input(content["name"]);
+                    fs::path target = construct_script_name(input.stem());
+                    if (fs::remove (target))
+                    {
+                        returnval["result"]=0;
+                    }
+                    else
+                    {
+                        returnval["error"]="no such script";
+                        returnval["result"]=-1;
+                    }
+                }
+                catch(...)
+                {
+                    returnval["error"]="can't delete script";
+                    returnval["result"]=-1;
+                }
+            }
+        }
+        else if (content["command"] == "renscript")
+        {
+            if ( !content["oldname"].isVoid() && content["oldname"].asString()!="" && !content["newname"].isVoid() && content["newname"].asString()!="" )
+            {
+                try
+                {
+                    // if a path is passed, strip it for security reasons
+                    fs::path input(content["oldname"]);
+                    fs::path source = construct_script_name(input.stem());
+
+                    fs::path output(content["newname"]);
+                    fs::path target = construct_script_name(output.stem());
+
+                    //check if destination file already exists
+                    if( !fs::exists(target) )
+                    {
+                        //rename script
+                        fs::rename(source, target);
+                        returnval["result"]=0;
+                    }
+                    else
+                    {
+                        returnval["error"]="Script with new name already exists. Script not renamed";
+                        returnval["result"]=-1;
+                    }
+                }
+                catch( const exception& e )
+                {
+                    AGO_ERROR() << "Exception during file renaming" << e.what();
+                    returnval["error"]="Unable to rename script";
+                    returnval["result"]=-1;
+                }
+            }
+        }
+        else if (content["command"] == "uploadfile")
+        {
+            //import script
+            if( !content["filepath"].isVoid() && content["filepath"].asString()!="" &&
+                    !content["filename"].isVoid() && content["filename"].asString()!="" )
+            {
+                //check file
+                fs::path source(content["filepath"]);
+                if( fs::is_regular_file(status(source)) && source.extension().string()==".lua")
+                {
+                    try
+                    {
+                        std::string filename;
+                        if( content["filename"].asString().find("blockly_")!=0 )
+                        {
+                            // prepend "blockly_" string
+                            filename = "blockly_";
+                        }
+                        filename += content["filename"].asString();
+
+                        fs::path target = scriptdir / filename;
+
+                        //check if desination file already exists
+                        if( !fs::exists(target) )
+                        {
+                            //move file
+                            AGO_DEBUG() << "import " << source << " to " << target;
+                            fs::copy_file(source, target);
+                            returnval["error"] = "";
+                            returnval["result"] = 0;
+                        }
+                        else
+                        {
+                            AGO_DEBUG() << "Script already exists, nothing overwritten";
+                            returnval["error"] = "Script already exists. Script not imported";
+                            returnval["result"] = -1;
+                        }
+                    }
+                    catch( const exception& e )
+                    {
+                        AGO_ERROR() << "Exception during script import" << e.what();
+                        returnval["error"] = "Unable to import script";
+                        returnval["result"] = -1;
+                    }
+                }
+                else
+                {
+                    //invalid file, reject it
+                    AGO_ERROR() << "Unsupported file uploaded";
+                    returnval["error"] = "Unsupported file";
+                    returnval["result"] = -1;
+                }
+            }
+            else
+            {
+                //invalid request
+                AGO_ERROR() << "Invalid file upload request";
+                returnval["error"] = "Invalid request";
+                returnval["result"] = -1;
+            }
+        }
+        else if (content["command"] == "downloadfile")
+        {
+            AGO_DEBUG() << "download file command received: " << content;
+            //export script
+            if( !content["filename"].isVoid() && content["filename"].asString()!="" )
+            {
+                std::string file = "blockly_" + content["filename"].asString();
+                fs::path target = construct_script_name(file);
+                AGO_DEBUG() << "file to download " << target;
+
+                //check if file exists
+                if( fs::exists(target) )
+                {
+                    //file exists, return full path
+                    AGO_DEBUG() << "Send fullpath of file to download " << target;
+                    returnval["error"] = "";
+                    returnval["filepath"] = target.string();
+                    returnval["result"] = 0;
+                }
+                else
+                {
+                    //requested file doesn't exists
+                    AGO_ERROR() << "File to download doesn't exist";
+                    returnval["error"] = "File doesn't exist";
+                    returnval["result"] = -1;
+                }
+            }
+            else
+            {
+                //invalid request
+                AGO_ERROR() << "Invalid file upload request";
+                returnval["error"]="Invalid request";
+                returnval["result"]=-1;
+            }
+        }
+        else
+        {
+            returnval["error"]="invalid command";
+            returnval["result"]=-1;
+        }
     }
     else
     {
-        //cout << "-- NOT running script " << script << endl;
+        //execute scripts
+        if (fs::exists(scriptdir))
+        {
+            fs::recursive_directory_iterator it(scriptdir);
+            fs::recursive_directory_iterator endit;
+            while (it != endit)
+            {
+                if (fs::is_regular_file(*it) && (it->path().extension().string() == ".lua") &&
+                        (it->path().filename().string() != "helper.lua"))
+                {
+                    if( canRunScript(content, it->path()) )
+                    {
+                        boost::thread t(boost::bind(&AgoLua::runScript, this, content, it->path()));
+                        t.detach();
+                    }
+                }
+                ++it;
+            }
+        }
     }
-    return true;
+
+    return returnval;
 }
 
-qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
-	qpid::types::Variant::Map returnval;
-	if (content["command"] == "inventory") return returnval;
-	std::string internalid = content["internalid"].asString();
-	if (internalid == "luacontroller") {
-		if (content["command"]=="getscriptlist") {
-			qpid::types::Variant::List scriptlist;
-			fs::path scriptdir(LUA_SCRIPT_DIR);
-			if (fs::exists(scriptdir)) {
-				fs::recursive_directory_iterator it(scriptdir);
-				fs::recursive_directory_iterator endit;
-				while (it != endit) {
-					if (fs::is_regular_file(*it) && (it->path().extension().string() == ".lua") && (it->path().filename().string() != "helper.lua")) {
-						scriptlist.push_back(qpid::types::Variant(it->path().stem().string()));
-					}
-					++it;
-				}
-			}
-			returnval["scriptlist"]=scriptlist;
-			returnval["result"]=0;
-		} else if (content["command"] == "getscript") {
-			if (content["name"].asString() != "") {
-				try {
-					// if a path is passed, strip it for security reasons
-					fs::path input(content["name"]);
-					string script = LUA_SCRIPT_DIR + input.stem().string() + ".lua";
-					string scriptcontent = get_file_contents(script.c_str());
-					cout << "reading script " << script << endl;
-					returnval["script"]=base64_encode(reinterpret_cast<const unsigned char*>(scriptcontent.c_str()), scriptcontent.length());
-					returnval["result"]=0;
-					returnval["name"]=content["name"].asString();
-				} catch(...) {
-					returnval["error"]="can't read script";
-					returnval["result"]=-1;
-				}
-			}
-		} else if (content["command"] == "setscript") {
-			if (content["name"].asString() != "") {
-				try {
-					// if a path is passed, strip it for security reasons
-					fs::path input(content["name"]);
-					string script = LUA_SCRIPT_DIR + input.stem().string() + ".lua";
-					std::ofstream file;
-					file.open(script.c_str());
-					file << content["script"].asString();
-					file.close();
-				} catch(...) {
-					returnval["error"]="can't write script";
-					returnval["result"]=-1;
-				}
-			}
-		} else if (content["command"] == "delscript") {
-			if (content["name"].asString() != "") {
-				try {
-					// if a path is passed, strip it for security reasons
-					fs::path input(content["name"]);
-					string script = LUA_SCRIPT_DIR + input.stem().string() + ".lua";
-					fs::path target(script);
-					if (fs::remove (target)) {
-						returnval["result"]=0;
-					} else {
-						returnval["error"]="no such script";
-						returnval["result"]=-1;
-					}
-				} catch(...) {
-					returnval["error"]="can't delete script";
-					returnval["result"]=-1;
-				}
-			}
-		} else {
-			returnval["error"]="invalid command";
-			returnval["result"]=-1;
-		}
-		return returnval;
-	} else {
-		fs::path scriptdir(LUA_SCRIPT_DIR);
-		if (fs::exists(scriptdir)) {
-			fs::recursive_directory_iterator it(scriptdir);
-			fs::recursive_directory_iterator endit;
-			while (it != endit) {
-				if (fs::is_regular_file(*it) && (it->path().extension().string() == ".lua") && (it->path().filename().string() != "helper.lua")) {
-					runScript(content, it->path().c_str());
-				}
-				++it;
-			}
-		}
-	}
-	return returnval;
+/**
+ * Agocontrol event handler
+ */
+void AgoLua::eventHandler(std::string subject, qpid::types::Variant::Map content)
+{
+    if ( subject == "event.device.announce" )
+    {
+        return;
+    }
+    else
+    {
+        //execute scripts
+        content["subject"] = subject;
+        commandHandler(content);
+    }
 }
 
-void eventHandler(std::string subject, qpid::types::Variant::Map content) {
-	if (subject == "event.device.announce") return;
-	content["subject"]=subject;
-	commandHandler(content);
-}
-
-int main(int argc, char **argv) {
-
-	agoConnection = new AgoConnection("lua");
-
-	agocontroller="";
-	while(agocontroller=="") {
-		qpid::types::Variant::Map inventory = agoConnection->getInventory();
-		if (!(inventory["devices"].isVoid())) {
-			qpid::types::Variant::Map devices = inventory["devices"].asMap();
-			qpid::types::Variant::Map::const_iterator it;
-			for (it = devices.begin(); it != devices.end(); it++) {
-				if (!(it->second.isVoid())) {
-					qpid::types::Variant::Map device = it->second.asMap();
-					if (device["devicetype"] == "agocontroller") {
-						cout << "Agocontroller: " << it->first << endl;
-						agocontroller = it->first;
-					}
-				}
-			}
-		}
-	}
+void AgoLua::setupApp()
+{
+    agocontroller = agoConnection->getAgocontroller();
 
     //get config
-    std::string optString = getConfigOption("lua", "filterByEvents", "1");
+    std::string optString = getConfigOption("filterByEvents", "1");
     sscanf(optString.c_str(), "%d", &filterByEvents);
 
+    scriptdir = ensureDirExists(getConfigPath(LUA_SCRIPT_DIR));
+
     //load script infos file
-    scriptsInfos = jsonFileToVariantMap(SCRIPTSINFOSFILE);
+    scriptsInfos = jsonFileToVariantMap(getConfigPath(SCRIPTSINFOSFILE));
     if (scriptsInfos["scripts"].isVoid())
     {
         qpid::types::Variant::Map scripts;
         scriptsInfos["scripts"] = scripts;
-        variantMapToJSONFile(scriptsInfos, SCRIPTSINFOSFILE);
+        variantMapToJSONFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
     }
 
-	agoConnection->addDevice("luacontroller", "luacontroller");
-	agoConnection->addHandler(commandHandler);
-	agoConnection->addEventHandler(eventHandler);
-	// sleep(5);
-	// for (qpid::types::Variant::Map::const_iterator it = eventmap.begin(); it!=eventmap.end(); it++) { 
-
-
-	agoConnection->run();
-
+    agoConnection->addDevice("luacontroller", "luacontroller");
+    addCommandHandler();
+    addEventHandler();
 }
+
+AGOAPP_ENTRY_POINT(AgoLua);
+

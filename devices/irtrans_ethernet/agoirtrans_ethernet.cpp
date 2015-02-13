@@ -1,11 +1,11 @@
 /*
-     Copyright (C) 2012 Harald Klein <hari@vt100.at>
+   Copyright (C) 2012 Harald Klein <hari@vt100.at>
 
-     This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License.
-     This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
-     of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+   This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License.
+   This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-     See the GNU General Public License for more details.
+   See the GNU General Public License for more details.
 
 */
 
@@ -26,64 +26,63 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#include "agoclient.h"
-
-int irtrans_socket;
-struct sockaddr_in server_addr;
-struct hostent *host;
-
+#include "agoapp.h"
 
 using namespace std;
 using namespace agocontrol;
 
-qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
-	qpid::types::Variant::Map returnval;
-	int internalid = atoi(content["internalid"].asString().c_str());
-	printf("command: %s internal id: %i\n", content["command"].asString().c_str(), internalid);
-	if (content["command"] == "sendir" ) {
-		printf("sending IR code\n");
-		string udpcommand;
-		udpcommand.assign("sndccf ");
-		udpcommand.append(content["ircode"].asString());
-		sendto(irtrans_socket, udpcommand.c_str(), udpcommand.length(), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr));
-	}
-	// TODO: Determine sane result code
-	returnval["result"] = 0;
-	return returnval;
+class AgoIrtrans_Ethernet: public AgoApp {
+private:
+    int irtrans_socket;
+    struct sockaddr_in server_addr;
+    struct hostent *host;
+
+    void setupApp();
+    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+public:
+    AGOAPP_CONSTRUCTOR(AgoIrtrans_Ethernet);
+};
+
+qpid::types::Variant::Map AgoIrtrans_Ethernet::commandHandler(qpid::types::Variant::Map content) {
+    qpid::types::Variant::Map returnval;
+    int internalid = atoi(content["internalid"].asString().c_str());
+    AGO_TRACE() << "Command: " << content["command"] << " internal id: " << internalid;
+    if (content["command"] == "sendir" ) {
+        AGO_DEBUG() << "sending IR code";
+        string udpcommand;
+        udpcommand.assign("sndccf ");
+        udpcommand.append(content["ircode"].asString());
+        sendto(irtrans_socket, udpcommand.c_str(), udpcommand.length(), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr));
+    }
+    // TODO: Determine sane result code
+    returnval["result"] = 0;
+    return returnval;
 }
 
-int main(int argc, char **argv) {
-	std::string hostname;
-	std::string port;
+void AgoIrtrans_Ethernet::setupApp() {
+    std::string hostname;
+    std::string port;
 
-	hostname=getConfigOption("irtrans_ethernet", "host", "192.168.80.12");
-	port=getConfigOption("irtrans_ethernet", "port", "21000");
+    hostname=getConfigOption("host", "192.168.80.12");
+    port=getConfigOption("port", "21000");
 
-	host= (struct hostent *) gethostbyname((char *)hostname.c_str());
+    host= (struct hostent *) gethostbyname((char *)hostname.c_str());
 
-	if ((irtrans_socket = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-		perror("socket");
-		return false;
-	}
+    if ((irtrans_socket = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+        AGO_FATAL() << "Cannot open UDP socket";
+        throw StartupError();
+    }
 
-	server_addr.sin_family = AF_INET;
+    server_addr.sin_family = AF_INET;
 
-	// read the port from device data, TCP is a bit misleading, we do UDP
-	server_addr.sin_port = htons(atoi(port.c_str()));
+    // read the port from device data, TCP is a bit misleading, we do UDP
+    server_addr.sin_port = htons(atoi(port.c_str()));
 
-	server_addr.sin_addr = *((struct in_addr *)host->h_addr);
-	bzero(&(server_addr.sin_zero),8);
+    server_addr.sin_addr = *((struct in_addr *)host->h_addr);
+    bzero(&(server_addr.sin_zero),8);
 
-
-
-	AgoConnection agoConnection = AgoConnection("irtrans_ethernet");		
-	printf("connection to agocontrol established\n");
-
-	agoConnection.addDevice("1", "infraredblaster");
-	agoConnection.addHandler(commandHandler);
-
-	printf("waiting for messages\n");
-	agoConnection.run();
-
+    agoConnection->addDevice("1", "infraredblaster");
+    addCommandHandler();
 }
 
+AGOAPP_ENTRY_POINT(AgoIrtrans_Ethernet);

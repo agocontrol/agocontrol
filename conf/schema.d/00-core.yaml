@@ -81,6 +81,20 @@ commands:
         type: string
   getdeviceenvironments:
     name: get environments for device from datalogger
+  getconfigtree:
+    name: get a tree of config settings
+  setconfig:
+    name: set a config parameter
+    parameters:
+      section:
+        name: config section
+        type: string
+      option:
+        name: config option
+        type: string
+      value:
+        name: value to set
+        type: string
   setevent:
     name: create new event
     parameters:
@@ -292,7 +306,7 @@ values:
 events:
   event.device.announce:
     description: announces a device to the resolver
-    parameters: [devicetype, uuid, product, internal-id]
+    parameters: [devicetype, uuid, handled-by, internalid]
   event.device.statechanged:
     description: announces a status change of a device
     parameters: [level, uuid]
@@ -304,7 +318,10 @@ events:
     description: time did advance
     parameters: [minute, hour, month, day, year, weekday, yday]
   event.security.countdown:
-    description: intruder alarm
+    description: intruder alarm countdown couting down
+    parameters: [zone, delay]
+  event.security.countdown.started:
+    description: intruder alarm countdown started
     parameters: [zone, delay]
   event.security.intruderalert:
     description: intruder alarm
@@ -327,3 +344,18 @@ events:
   event.system.floorplandeleted:
     description: a floorplan has been deleted
     parameters: [uuid]
+  event.device.stale:
+    description: announce stale status of a device has changed
+    parameters: [uuid, internalid, stale]
+  event.monitoring.processdead:
+    description: event triggered when process is dead
+    parameters: [processname]
+  event.monitoring.memoryoverhead:
+    description: event triggered when process is consuming too much memory
+    parameters: [processname]
+  event.monitoring.processdead:
+    description: event triggered when process is dead
+    parameters: [processname]
+  event.monitoring.memoryoverhead:
+    description: event triggered when process is consuming too much memory
+    parameters: [processname]

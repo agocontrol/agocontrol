@@ -23,6 +23,7 @@ function device(obj, uuid) {
 
     this.values = ko.observable(this.values);
 
+    this.stale = ko.observable(this.stale);
     this.timeStamp = ko.observable(formatDate(new Date(this.lastseen * 1000)));
 
     if (this.devicetype == "dimmer" || this.devicetype == "dimmerrgb") {
@@ -34,14 +35,6 @@ function device(obj, uuid) {
             content.level = self.level();
             sendCommand(content);
         };
-    }
-
-    if (this.devicetype == "dataloggercontroller") {
-        dataLoggerController = uuid;
-    }
-
-    if (this.devicetype == "rrdtoolcontroller") {
-        rrdtoolController = uuid;
     }
 
     if (this.devicetype == "agocontroller") {
@@ -62,7 +55,71 @@ function device(obj, uuid) {
         };
     }
 
-    if (this.devicetype.match(/sensor$/) || this.devicetype.match(/meter$/) || this.devicetype.match(/thermostat$/) ) {
+    this.multigraphThumb = ko.observable();
+    this.getThumbGraph = function(deferred) {
+        var content = {};
+        content.command = "getthumb";
+        content.uuid = dataLoggerController;
+        content.multigraph = deferred.internalid;
+        sendCommand(content, function(res) { 
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply' )
+            {
+                if( !res.result.error )
+                {
+                    deferred.observable('data:image/png;base64,' + res.result.graph);
+                }
+                else
+                {
+                    //TODO notif something?
+                }
+            }
+            else
+            {
+                //no thumb available
+                //TODO notif something?
+                console.log('request getthumb failed');
+            }
+        }, 10);
+    };
+
+    //refresh dashboard thumbs
+    this.refreshThumbs = function() {
+        for( var i=0; i<thumbs.length; i++ )
+        {
+            self.getThumbGraph(thumbs[i]);
+        }
+    };
+
+    if (this.devicetype == "dataloggercontroller")
+    {
+        dataLoggerController = uuid;
+        //load deferred thumbs
+        for( var i=0; i<deferredThumbsLoading.length; i++ )
+        {
+            this.getThumbGraph(deferredThumbsLoading[i]);
+        }
+        deferredThumbsLoading = [];
+        //auto resfresh thumbs periodically
+        window.setInterval(this.refreshThumbs, 300000); 
+    }
+
+    if (this.devicetype == "multigraph")
+    {
+        var def = {'internalid':obj.internalid, 'observable':self.multigraphThumb};
+        if( dataLoggerController )
+        {
+            //get thumb right now
+            this.getThumbGraph(def);
+        }
+        else
+        {
+            //defer thumb loading
+            deferredThumbsLoading.push(def);
+        }
+        thumbs.push(def);
+    }
+
+    if (this.devicetype.match(/sensor$/) || this.devicetype.match(/meter$/) || this.devicetype.match(/thermostat$/) || this.devicetype=="multigraph" ) {
         //fill values list
         this.valueList = ko.computed(function() {
             var result = [];
@@ -75,7 +132,7 @@ function device(obj, uuid) {
                 if( $.trim(unit).length==0 ) {
                     unit = '-';
                 }
-                if( self.values()[k].level ) {
+                if( self.values()[k].level!==null && self.values()[k].level!==undefined ) {
                     result.push({
                         name : k.charAt(0).toUpperCase() + k.substr(1),
                         level : self.values()[k].level,
@@ -88,36 +145,42 @@ function device(obj, uuid) {
                         name : k.charAt(0).toUpperCase() + k.substr(1),
                         latitude : self.values()[k].latitude,
                         longitude : self.values()[k].longitude
-                        //unit : no unit available for gps sensor
+                            //unit : no unit available for gps sensor
                     });
                 }
             }
             return result;
         });
-   
+
         //add function to get rrd graph
         this.getRrdGraph = function(uuid, start, end) {
             var content = {};
             content.command = "getgraph";
-            content.uuid = rrdtoolController;
-            content.deviceUuid = uuid;
+            content.uuid = dataLoggerController;
+            content.devices = [uuid];
             content.start = start;
             content.end = end;
-            sendCommand(content, function(res) {
-                if( res!==undefined && res.result!==undefined && res.result!=='no-reply' ) {
-                    if( !res.result.error && document.getElementById("graphRRD") ) {
-                        document.getElementById("graphRRD").src = "data:image/png;base64," + res.result.graph;
-                        $("#graphRRD").show();
-                    }
-                    else {
-                        notif.error('Unable to get graph: '+res.result.msg);
-                    }
-                }
-                else {
-                    notif.error('Unable to get graph: Internal error');
-                }
-            }, 10);
+            sendCommand(content, function(res)
+                    {
+                        if( res!==undefined && res.result!==undefined && res.result!=='no-reply' )
+                        {
+                            if( !res.result.error && document.getElementById("graphRRD") )
+                            {
+                                document.getElementById("graphRRD").src = "data:image/png;base64," + res.result.graph;
+                                $("#graphRRD").show();
+                            }
+                            else
+                            {
+                                notif.error('Unable to get graph: '+res.result.msg);
+                            }
+                        }
+                        else
+                        {
+                            notif.error('Unable to get graph: Internal error');
+                        }
+                    }, 10);
         };
+
     }
 
     if( this.devicetype=="barometersensor" )
@@ -266,111 +329,6 @@ function device(obj, uuid) {
                 callback(res);
         });
     };
-
-    if (this.devicetype == "ipx800controller") {
-        self.ipx800ip = ko.observable();
-        self.addboard = function() {
-            var content = {};
-            content.uuid = uuid;
-            content.command = 'adddevice';
-            content.param1 = self.ipx800ip();
-            self.addDevice(content, null);
-        };
-    } else if (this.devicetype == "ipx800v3board") {
-        self.output = {};
-
-        self.updateUi = function() {
-            self.getIpx800Status();
-            self.getDevices(self.getDevicesCallback);
-        };
-
-        self.getIpx800Status = function() {
-            var content = {};
-            content.uuid = uuid;
-            content.command = 'status';
-            sendCommand(content, function(res) {
-                el = document.getElementsByClassName("currentoutputs");
-                el[0].innerHTML = res.result.outputs;
-                el = document.getElementsByClassName("currentanalogs");
-                el[0].innerHTML = res.result.analogs;
-                el = document.getElementsByClassName("currentcounters");
-                el[0].innerHTML = res.result.counters;
-            });
-        };
-
-        self.dialogopened = function(dialog) {
-            $("#tabs").tabs();
-            self.updateUi();
-        };
-        self.devswitch = ko.observable(true);
-        self.devdrapes = ko.observable(false);
-        self.selectedOutputParam1 = ko.observable();
-        self.selectedOutputParam2 = ko.observable();
-        self.selectedAnalogParam1 = ko.observable();
-        self.selectedCounterParam1 = ko.observable();
-        self.selectedOutputType = ko.observable();
-        self.selectedOutputType.subscribe(function(newVal) {
-            if (newVal == "switch") {
-                self.devswitch(true);
-                self.devdrapes(false);
-            } else if (newVal == "drapes") {
-                self.devswitch(false);
-                self.devdrapes(true);
-            }
-        });
-        self.selectedAnalogType = ko.observable();
-        self.addoutput = function() {
-            var content = {};
-            content.uuid = uuid;
-            content.command = 'adddevice';
-            content.type = self.selectedOutputType();
-            if (content.type == "switch")
-                content.param1 = self.selectedOutputParam1();
-            else if (content.type == "drapes") {
-                content.param1 = self.selectedOutputParam1();
-                content.param2 = self.selectedOutputParam2();
-            }
-            self.addDevice(content, self.getIpx800Status);
-        };
-
-        self.addanalog = function() {
-            var content = {};
-            content.uuid = uuid;
-            content.command = 'adddevice';
-            content.type = self.selectedAnalogType();
-            content.param1 = self.selectedAnalogParam1();
-            self.addDevice(content, self.getIpx800Status);
-        };
-
-        self.addcounter = function() {
-            var content = {};
-            content.uuid = uuid;
-            content.command = 'adddevice';
-            content.type = 'counter';
-            content.param1 = self.selectedCounterParam1();
-            self.addDevice(content, self.getIpx800Status);
-        };
-
-        self.devices = ko.observableArray([]);
-        self.getDevicesCallback = function(res) {
-            self.devices(res.result.devices);
-        };
-
-        self.selectedDevice = ko.observable();
-        self.selectedDeviceState = ko.observable();
-        self.forcestateresult = ko.observable();
-        self.forcestate = function() {
-            self.forcestateresult("");
-            var content = {};
-            content.uuid = uuid;
-            content.command = 'forcestate';
-            content.state = self.selectedDeviceState();
-            content.device = self.selectedDevice();
-            sendCommand(content, function(res) {
-                self.forcestateresult(res.result.msg);
-            });
-        };
-    }
 
     if (this.devicetype == "camera") {
         this.getVideoFrame = function() {

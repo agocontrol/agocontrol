@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 2.6)
 file (GLOB_RECURSE AGOEVENT_SOURCE_FILES *.cpp)
 set (EVENT_LIBRARIES
     agoclient
-    boost_system
+    pthread
 )
 
 # add the executable

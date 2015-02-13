@@ -1,11 +1,11 @@
 /*
-     Copyright (C) 2012 Harald Klein <hari@vt100.at>
+   Copyright (C) 2012 Harald Klein <hari@vt100.at>
 
-     This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License.
-     This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
-     of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+   This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License.
+   This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-     See the GNU General Public License for more details.
+   See the GNU General Public License for more details.
 
 */
 
@@ -17,7 +17,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#include "agoclient.h"
+#include "agoapp.h"
 
 #include "kwikwai.h"
 
@@ -25,47 +25,51 @@
 using namespace std;
 using namespace agocontrol;
 
-kwikwai::Kwikwai *myKwikwai;
+class AgoKwikwai: public AgoApp {
+private:
+    kwikwai::Kwikwai *myKwikwai;
 
-qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
-	qpid::types::Variant::Map returnval;
-	std::string internalid = content["internalid"].asString();
-	printf("command: %s internal id: %s\n", content["command"].asString().c_str(), internalid.c_str());
-	if (internalid == "hdmicec") {
-		if (content["command"] == "alloff" ) {
-			myKwikwai->cecSend("FF:36");
-			returnval["result"] = 0;
-		}
-	} else if (internalid == "tv") {
-		if (content["command"] == "on" ) {
-			myKwikwai->cecSend("F0:04");
-			returnval["result"] = 0;
-		} else if (content["command"] == "off" ) {
-			myKwikwai->cecSend("F0:36");
-			returnval["result"] = 0;
-		}
-	}
-	return returnval;
+    void setupApp();
+    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+public:
+    AGOAPP_CONSTRUCTOR(AgoKwikwai);
+};
+
+qpid::types::Variant::Map AgoKwikwai::commandHandler(qpid::types::Variant::Map content) {
+    qpid::types::Variant::Map returnval;
+    std::string internalid = content["internalid"].asString();
+    if (internalid == "hdmicec") {
+        if (content["command"] == "alloff" ) {
+            myKwikwai->cecSend("FF:36");
+            returnval["result"] = 0;
+        }
+    } else if (internalid == "tv") {
+        if (content["command"] == "on" ) {
+            myKwikwai->cecSend("F0:04");
+            returnval["result"] = 0;
+        } else if (content["command"] == "off" ) {
+            myKwikwai->cecSend("F0:36");
+            returnval["result"] = 0;
+        }
+    }
+    return returnval;
 }
 
-int main(int argc, char **argv) {
-	std::string hostname;
-	std::string port;
+void AgoKwikwai::setupApp() {
+    std::string hostname;
+    std::string port;
 
-	hostname=getConfigOption("kwikwai", "host", "kwikwai.local");
-	port=getConfigOption("kwikwai", "port", "9090");
-	
-	kwikwai::Kwikwai _myKwikwai(hostname.c_str(), port.c_str());
-	myKwikwai = &_myKwikwai;
-	printf("Version: %s\n", myKwikwai->getVersion().c_str());
-	AgoConnection agoConnection = AgoConnection("kwikwai");		
-	printf("connection to agocontrol established\n");
-	agoConnection.addDevice("hdmicec", "hdmicec");
-	agoConnection.addDevice("tv", "tv");
-	agoConnection.addHandler(commandHandler);
+    hostname=getConfigOption("host", "kwikwai.local");
+    port=getConfigOption("port", "9090");
 
-	printf("waiting for messages\n");
-	agoConnection.run();
+    kwikwai::Kwikwai _myKwikwai(hostname.c_str(), port.c_str());
+    myKwikwai = &_myKwikwai;
+    AGO_INFO() << "Version: " << myKwikwai->getVersion();
 
+    agoConnection->addDevice("hdmicec", "hdmicec");
+    agoConnection->addDevice("tv", "tv");
+    addCommandHandler();
 }
+
+AGOAPP_ENTRY_POINT(AgoKwikwai);
 

@@ -6,6 +6,7 @@ lib/systemd/system/agorpc.service
 lib/systemd/system/agodatalogger.service
 lib/systemd/system/agolua.service
 lib/systemd/system/agosecurity.service
+lib/systemd/system/agosystem.service
 etc/opt/agocontrol/conf.d/system.conf
 etc/opt/agocontrol/conf.d/rpc.conf
 etc/opt/agocontrol/schema.d/00-core.yaml
@@ -18,6 +19,7 @@ etc/opt/agocontrol/rpc/rpc_cert.pem
 etc/opt/agocontrol/uuidmap
 etc/opt/agocontrol/maps
 etc/opt/agocontrol/db
+etc/opt/agocontrol/lua
 etc/sysctl.d/agocontrol.conf
 etc/security/limits.d/agocontrol.conf
 opt/agocontrol/bin/agologger.py
@@ -34,5 +36,7 @@ opt/agocontrol/bin/rpc-htpasswd
 opt/agocontrol/bin/agosecurity
 opt/agocontrol/bin/agoctrl.sh
 opt/agocontrol/bin/agodatalogger
+opt/agocontrol/bin/agosystem
 opt/agocontrol/bin/agososreport.sh
 opt/agocontrol/html
+usr/share/augeas/lenses/agocontrol.aug

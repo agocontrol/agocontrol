@@ -70,6 +70,26 @@ commands:
       ircode:
         name: infrared code to send
         type: string
+  triggeralarm:
+    name: triggers an alarm
+    parameters:
+      duration:
+        name: duration in seconds
+        type: integer
+      cause:
+        name: cause of alarm
+        type: string
+      description:
+        name: description of alarm
+        type: string
+      detail:
+        name: more detail about alaram
+        type: string
+      importance:
+        name: numeric value that indicates how important the alarm is.
+        type: integer
+  clearalarm:
+    name: clears an alarm
 devicetypes:
   pushbutton:
     name: Pushbutton
@@ -181,6 +201,9 @@ events:
   event.environment.forecastchanged:
     description: forecast from sensor has changed
     parameters: [forecast, uuid]
+  event.device.batterylevelchanged:
+    description: battery level has changed
+    parameters: [level, unit, uuid]
 units:
   degC:
     label: "°C"

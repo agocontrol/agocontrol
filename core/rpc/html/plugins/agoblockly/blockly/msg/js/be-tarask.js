@@ -2,14 +2,14 @@
 
 'use strict';
 
-goog.provide('Blockly.Msg.be-tarask');
+goog.provide('Blockly.Msg.be.tarask');
 
 goog.require('Blockly.Msg');
 
 Blockly.Msg.ADD_COMMENT = "Дадаць камэнтар";
-Blockly.Msg.AUTH = "Please authorize this app to enable your work to be saved and to allow it to be shared by you.";  // untranslated
+Blockly.Msg.AUTH = "Калі ласка, аўтарызуйце гэтае прыкладаньне, каб можна было захоўваць Вашую працу і мець магчымасьць дзяліцца ёю.";
 Blockly.Msg.CHANGE_VALUE_TITLE = "Зьмяніць значэньне:";
-Blockly.Msg.CHAT = "Chat with your collaborator by typing in this box!";  // untranslated
+Blockly.Msg.CHAT = "Стасуйцеся са сваім калегам, набіраючы тэкст у гэтым полі!";
 Blockly.Msg.COLLAPSE_ALL = "Згарнуць блёкі";
 Blockly.Msg.COLLAPSE_BLOCK = "Згарнуць блёк";
 Blockly.Msg.COLOUR_BLEND_COLOUR1 = "колер 1";
@@ -39,11 +39,11 @@ Blockly.Msg.CONTROLS_FOREACH_HELPURL = "https://code.google.com/p/blockly/wiki/L
 Blockly.Msg.CONTROLS_FOREACH_INPUT_INLIST = "у сьпісе";
 Blockly.Msg.CONTROLS_FOREACH_INPUT_INLIST_TAIL = "";  // untranslated
 Blockly.Msg.CONTROLS_FOREACH_INPUT_ITEM = "для кожнага элемэнта";
-Blockly.Msg.CONTROLS_FOREACH_TOOLTIP = "For each item in a list, set the variable '%1' to the item, and then do some statements.";  // untranslated
+Blockly.Msg.CONTROLS_FOREACH_TOOLTIP = "Для кожнага элемэнту сьпісу прысвойвае зьменнай '%1' ягонае значэньне і выконвае пэўныя апэрацыі.";
 Blockly.Msg.CONTROLS_FOR_HELPURL = "https://code.google.com/p/blockly/wiki/Loops#count_with";  // untranslated
 Blockly.Msg.CONTROLS_FOR_INPUT_FROM_TO_BY = "ад %1 да %2 па %3";
 Blockly.Msg.CONTROLS_FOR_INPUT_WITH = "лічыць з";
-Blockly.Msg.CONTROLS_FOR_TOOLTIP = "Have the variable %1 take on the values from the start number to the end number, counting by the specified interval, and do the specified blocks.";  // untranslated
+Blockly.Msg.CONTROLS_FOR_TOOLTIP = "Прысвойвае зьменнай %1 значэньні ад пачатковага да канчатковага значэньня, улічваючы зададзены крок, і выконвае абраныя блёкі.";
 Blockly.Msg.CONTROLS_IF_ELSEIF_TOOLTIP = "Дадаць умову да блёку «калі».";
 Blockly.Msg.CONTROLS_IF_ELSE_TOOLTIP = "Дадаць заключную ўмову для ўсіх астатніх варыянтаў блёку «калі».";
 Blockly.Msg.CONTROLS_IF_HELPURL = "https://code.google.com/p/blockly/wiki/If_Then";  // untranslated
@@ -61,7 +61,7 @@ Blockly.Msg.CONTROLS_REPEAT_TITLE = "паўтарыць %1 раз(ы)";
 Blockly.Msg.CONTROLS_REPEAT_TITLE_REPEAT = "паўтарыць";
 Blockly.Msg.CONTROLS_REPEAT_TITLE_TIMES = "раз(ы)";
 Blockly.Msg.CONTROLS_REPEAT_TOOLTIP = "Выконвае апэрацыі некалькі разоў.";
-Blockly.Msg.CONTROLS_WHILEUNTIL_HELPURL = "https://code.google.com/p/blockly/wiki/Repeat";  // untranslated
+Blockly.Msg.CONTROLS_WHILEUNTIL_HELPURL = "https://code.google.com/p/blockly/wiki/Loops#repeat";  // untranslated
 Blockly.Msg.CONTROLS_WHILEUNTIL_OPERATOR_UNTIL = "паўтараць, пакуль не";
 Blockly.Msg.CONTROLS_WHILEUNTIL_OPERATOR_WHILE = "паўтараць, пакуль";
 Blockly.Msg.CONTROLS_WHILEUNTIL_TOOLTIP_UNTIL = "Пакуль значэньне хлусьня, выконваць пэўныя апэрацыі.";
@@ -156,7 +156,7 @@ Blockly.Msg.LOGIC_COMPARE_TOOLTIP_GTE = "Вяртае «ісьціна», кал
 Blockly.Msg.LOGIC_COMPARE_TOOLTIP_LT = "Вяртае «ісьціна», калі першы ўвод меншы за другі.";
 Blockly.Msg.LOGIC_COMPARE_TOOLTIP_LTE = "Вяртае «ісьціна», калі першы ўвод меншы ці роўны другому.";
 Blockly.Msg.LOGIC_COMPARE_TOOLTIP_NEQ = "Вяртае «ісьціна», калі абодва ўводы ня роўныя.";
-Blockly.Msg.LOGIC_NEGATE_HELPURL = "https://code.google.com/p/blockly/wiki/Not";  // untranslated
+Blockly.Msg.LOGIC_NEGATE_HELPURL = "https://en.wikipedia.org/wiki/Negation";  // untranslated
 Blockly.Msg.LOGIC_NEGATE_TITLE = "не %1";
 Blockly.Msg.LOGIC_NEGATE_TOOLTIP = "Вяртае «ісьціна», калі ўвод непраўдзівы. Вяртае «хлусьня», калі ўвод праўдзівы.";
 Blockly.Msg.LOGIC_NULL = "нічога";
@@ -256,15 +256,18 @@ Blockly.Msg.MATH_TRIG_TOOLTIP_ATAN = "Вяртае арктангэнс ліку
 Blockly.Msg.MATH_TRIG_TOOLTIP_COS = "Вяртае косынус кута ў градусах.";
 Blockly.Msg.MATH_TRIG_TOOLTIP_SIN = "Вяртае сынус кута ў градусах.";
 Blockly.Msg.MATH_TRIG_TOOLTIP_TAN = "Вяртае тангэнс кута ў градусах.";
+Blockly.Msg.ME = "Me";  // untranslated
 Blockly.Msg.NEW_VARIABLE = "Новая зьменная…";
 Blockly.Msg.NEW_VARIABLE_TITLE = "Імя новай зьменнай:";
 Blockly.Msg.ORDINAL_NUMBER_SUFFIX = "";  // untranslated
+Blockly.Msg.PROCEDURES_ALLOW_STATEMENTS = "allow statements";  // untranslated
 Blockly.Msg.PROCEDURES_BEFORE_PARAMS = "with:";  // untranslated
 Blockly.Msg.PROCEDURES_CALLNORETURN_CALL = "";  // untranslated
 Blockly.Msg.PROCEDURES_CALLNORETURN_HELPURL = "https://en.wikipedia.org/wiki/Procedure_%28computer_science%29";  // untranslated
 Blockly.Msg.PROCEDURES_CALLNORETURN_TOOLTIP = "Run the user-defined function '%1'.";  // untranslated
 Blockly.Msg.PROCEDURES_CALLRETURN_HELPURL = "https://en.wikipedia.org/wiki/Procedure_%28computer_science%29";  // untranslated
 Blockly.Msg.PROCEDURES_CALLRETURN_TOOLTIP = "Run the user-defined function '%1' and use its output.";  // untranslated
+Blockly.Msg.PROCEDURES_CALL_BEFORE_PARAMS = "with:";  // untranslated
 Blockly.Msg.PROCEDURES_CREATE_DO = "Create '%1'";  // untranslated
 Blockly.Msg.PROCEDURES_DEFNORETURN_DO = "";  // untranslated
 Blockly.Msg.PROCEDURES_DEFNORETURN_HELPURL = "https://en.wikipedia.org/wiki/Procedure_%28computer_science%29";  // untranslated
