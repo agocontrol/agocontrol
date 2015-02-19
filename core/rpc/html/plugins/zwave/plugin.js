@@ -25,8 +25,19 @@ function Zwave(deviceMap) {
         var found;
         for( var i=0; i<count; i++ )
         {
-            titles.push(""+nodes[i].type+"("+(i+1)+")");
-            ids.push(""+(i+1));
+            var nodeName = nodes[i].type;
+            if( nodes[i].product.length>0 )
+            {
+                //replace node type with node product info
+                nodeName = nodes[i].product;
+            }
+            if( nodes[i].manufacturer.length>0 )
+            {
+                //and append manufacturer if available
+                nodeName += ' (' + nodes[i].manufacturer + ')';
+            }
+            titles.push(""+nodeName+" ("+(i+1)+")");
+            ids.push(nodes[i].id);
             var deps = [];
             for( var j=0; j<count; j++ )
             {
@@ -825,6 +836,26 @@ function Zwave(deviceMap) {
         });
     };
 
+    //Heal entire network
+    self.healNetwork = function() {
+        var content = {
+            uuid: self.controllerUuid,
+            command: 'healnetwork'
+        };
+
+        sendCommand(content, function(res)
+        {
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+            {
+                notif.success('Heal network ok');
+            }
+            else
+            {
+                notif.error('Heal network KO');
+            }
+        });
+    };
+
     /***************
      * NODE COMMANDS
      ***************/
@@ -871,7 +902,7 @@ function Zwave(deviceMap) {
         {
             if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
             {
-                if( res.result.result )
+                if( res.result.result!==undefined && res.result.result!==-1 )
                 {
                     notif.success('#refreshnodeko');
                 }
@@ -909,15 +940,15 @@ function Zwave(deviceMap) {
         });
     };
 
-    //Set config param
-    self.setConfigParam = function(node, param, value, size) {
+    //Set parameter
+    self.setParameter = function(nodeId, commandClassId, index, value) {
         var content = {
             uuid: self.controllerUuid,
             command: 'setconfigparam',
-            node: node,
-            param: param,
-            value: param,
-            size: size
+            node: nodeId,
+            commandclassid: commandClassId,
+            index: index,
+            value: value
         };
 
         //sendCommandUrl("http://192.168.1.82:8008/jsonrpc" ,content, function(res)
@@ -925,7 +956,7 @@ function Zwave(deviceMap) {
         {
             if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
             {
-                if( res.result.result )
+                if( res.result.result!==undefined && res.result.result!==-1 )
                 {
                     notif.success('#setconfigparamok');
                 }
@@ -941,6 +972,37 @@ function Zwave(deviceMap) {
             }
         });
     };
+
+    //Request all configuration parameters
+    self.requestAllConfigParams = function(node)
+    {
+        var content = {
+            uuid: self.controllerUuid,
+            command: 'requestallconfigparams',
+            node: node
+        };
+
+        sendCommand(content, function(res)
+        {
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+            {
+                if( res.result.result!==undefined && res.result.result!==-1)
+                {
+                    notif.success('Command successful');
+                }
+                else 
+                {
+                    //error occured
+                    notif.error('Command failed');
+                }
+            }
+            else
+            {
+                notif.fatal('#nr', 0);
+            }
+        });
+
+    }
 
     /***********************
      * ASSOCIATIONS COMMANDS
@@ -1025,11 +1087,12 @@ function zwaveConfig(zwave) {
     //members
     var self = this;
     self.zwave = zwave;
-    self.nodes = [];
-    self.nodesCount = ko.observable(0);
+    self.nodes = ko.observableArray([]);
+    self.nodesCount = ko.observable(-1); //-1 means loading data
     self.port = ko.observable();
     self.nodeInfos = ko.observableArray([]);
     self.nodeStatus = ko.observableArray([]);
+    self.nodeParameters = ko.observableArray([]);
     self.nodeAssociations = ko.observableArray([]);
     self.nodesForAssociation = ko.observableArray([]);
     self.stats = ko.observableArray([]);
@@ -1065,13 +1128,15 @@ function zwaveConfig(zwave) {
             self.nodeInfos.pop();
         while( self.nodeStatus().length>0 )
             self.nodeStatus.pop();
+        while( self.nodeParameters().length>0 )
+            self.nodeParameters.pop();
         while( self.nodeAssociations().length>0 )
             self.nodeAssociations.pop();
         while( self.nodesForAssociation().length>0 )
             self.nodesForAssociation.pop();
 
         //fill node infos array
-        self.selectedNode = self.nodes[nodeId];
+        self.selectedNode = self.nodes()[nodeId];
         self.nodeInfos.push({info:'Device id', value:self.selectedNode.id});
         self.nodeInfos.push({info:'Manufacturer', value:self.selectedNode.manufacturer});
         self.nodeInfos.push({info:'Device type', value:self.selectedNode.type});
@@ -1097,12 +1162,31 @@ function zwaveConfig(zwave) {
             self.nodeStatus.push({status:'Failed', value:(self.selectedNode.status.failed ? 'true' : 'false')});
         }
 
-        for( i=0; i<self.nodes.length; i++ )
+        for( i=0; i<self.nodes().length; i++ )
         {
-            if( self.nodes[i].id!=self.selectedNode.id ) //compare string and int
+            if( self.nodes()[i].id!=self.selectedNode.id ) //compare string and int
             {
-                self.nodesForAssociation.push({key:self.nodes[i].id, value:self.nodes[i].type+'('+self.nodes[i].id+')'});
+                self.nodesForAssociation.push({key:self.nodes()[i].id, value:self.nodes()[i].type+'('+self.nodes()[i].id+')'});
             }
+        }
+
+        //get node parameters
+        for( i=0; i<self.selectedNode.params.length; i++ )
+        {
+            self.nodeParameters.push({
+                'currentvalue': ko.observable(self.selectedNode.params[i].currentvalue),
+                'help': self.selectedNode.params[i].help,
+                'invalid': self.selectedNode.params[i].invalid,
+                'items': (self.selectedNode.params[i].items===undefined) ? null : self.selectedNode.params[i].items,
+                'label': self.selectedNode.params[i].label,
+                'max': self.selectedNode.params[i].max,
+                'min': self.selectedNode.params[i].min,
+                'readonly': self.selectedNode.params[i].readonly,
+                'type': self.selectedNode.params[i].type,
+                'units': self.selectedNode.params[i].units,
+                'index': self.selectedNode.params[i].index,
+                'commandclassid': self.selectedNode.params[i].commandclassid
+            });
         }
 
         //get node associations
@@ -1117,23 +1201,23 @@ function zwaveConfig(zwave) {
                     var targets = ko.observableArray([]);
 
                     //fill list of targets with all nodes
-                    for( i=0; i<self.nodes.length; i++ )
+                    for( i=0; i<self.nodes().length; i++ )
                     {
-                        targets.push({key:self.nodes[i].id, value:self.nodes[i].type+'('+self.nodes[i].id+')'});
+                        targets.push({key:self.nodes()[i].id, value:self.nodes()[i].type+'('+self.nodes()[i].id+')'});
                     }
 
                     //fill associations
                     for( var key in associations )
                     {
                         id = associations[key]-1;
-                        if( id<self.nodes.length )
+                        if( id<self.nodes().length )
                         {
-                            assos.push({asso:self.nodes[id].type+'('+self.nodes[id].id+')', node:parseInt(node), group:group, target:parseInt(self.nodes[id].id), add:false});
+                            assos.push({asso:self.nodes()[id].type+'('+self.nodes()[id].id+')', node:parseInt(node), group:group, target:parseInt(self.nodes()[id].id), add:false});
                         }
                         //remove associated node from targets
                         for( i=targets().length-1; i>=0; i-- )
                         {
-                            if( targets()[i].key==self.nodes[id].id )
+                            if( targets()[i].key==self.nodes()[id].id )
                             {
                                 targets().splice(i,1);
                                 break;
@@ -1179,8 +1263,8 @@ function zwaveConfig(zwave) {
             newNode.id = id;
             self.nodes.push(newNode);
         }
-        self.nodesCount(self.nodes.length);
-        if( self.nodes.length>0 )
+        self.nodesCount(self.nodes().length);
+        if( self.nodes().length>0 )
         {
             zwave.buildChordGraph('#nodesDependency', self.nodes, self.openNodeDetails);
             //zwave.buildDirectedGraph('#nodesDependency', self.nodes, self.openNodeDetails);
@@ -1231,9 +1315,14 @@ function zwaveConfig(zwave) {
         zwave.testNode(self.selectedNode.id);
     };
 
-    //set config param
-    self.setConfigParam = function() {
-        //TODO
+    //request all configuration parameters from node
+    self.requestAllConfigParams = function() {
+        zwave.requestAllConfigParams(self.selectedNode.id);
+    };
+
+    //set device parameter
+    self.setParameter = function(param) {
+        zwave.setParameter(self.selectedNode.id, param.commandclassid, param.index, param.currentvalue());
     };
 
     //create association
@@ -1285,6 +1374,11 @@ function zwaveConfig(zwave) {
     //turn off all nodes
     self.allOff = function() {
         zwave.allOff();
+    };
+
+    //heal network
+    self.healNetwork = function() {
+        zwave.healNetwork();
     };
 
     //get statitics
