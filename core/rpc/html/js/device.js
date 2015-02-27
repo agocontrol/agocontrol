@@ -28,7 +28,11 @@ function device(obj, uuid) {
 
     if (this.devicetype == "dimmer" || this.devicetype == "dimmerrgb") {
         this.level = ko.observable(currentState);
-        this.syncLevel = function() {
+        this.state.subscribe(function(v){
+            this.level(v);
+        }, this);
+        this.syncLevel = function()
+        {
             var content = {};
             content.uuid = uuid;
             content.command = "setlevel";
