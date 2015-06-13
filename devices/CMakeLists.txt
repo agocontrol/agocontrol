@@ -24,28 +24,29 @@ set (AGODEVICES
   raspiMCP3xxxGPIO
   gc100
   onkyo
-  x10
+  plugwise
+#  x10
   webcam
   temperatur.nu
   wake_on_lan
   squeezebox
   alert
-  ipx800
+#  ipx800
   raspiCamera
   scheduler
-  tellstick
-  knx
-  agodmx
-  PLCBUS
+#  tellstick
+#  knx
+#  agodmx
+#  PLCBUS
   MySensors
   rrdtool
   zmcam
-  ETAtouch
+#  ETAtouch
   yamaha
-  gammu
-  axisaudiotransmit
-  weatherreporter
-  MQTT
+#  gammu
+#  axisaudiotransmit
+#  weatherreporter
+#  MQTT
 )
 
 IF (FREEBSD)

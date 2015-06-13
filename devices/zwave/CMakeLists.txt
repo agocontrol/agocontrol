@@ -18,10 +18,10 @@ ELSE (FREEBSD)
 # # # list(APPEND DEVICE_EXTRA_LIBRARIES udev)
 ENDIF (FREEBSD)
 
-include_directories("${LOCALDIR}/include/openzwave")
-include_directories("${LOCALDIR}/include/openzwave/value_classes")
-include_directories("${LOCALDIR}/include/openzwave/platform")
-include_directories("${LOCALDIR}/include/openzwave/platform/unix")
+include_directories("${LOCALDIR}/local/include/openzwave")
+include_directories("${LOCALDIR}/local/include/openzwave/value_classes")
+include_directories("${LOCALDIR}/local/include/openzwave/platform")
+include_directories("${LOCALDIR}/local/include/openzwave/platform/unix")
 
 set (DEVICE "agozwave")
 
