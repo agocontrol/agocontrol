@@ -1,0 +1,37 @@
+<div id="contentarea" class="container">
+    <div style="display:none;">
+        <span id="nr" data-translateable="true">Plugwise controller is not responding. Unable to execute action.</span>
+    </div>
+
+    <h3>Plugwise device counters</h3>
+    <br/>
+    <table style="width: 100%; margin-top: 15px; margin-bottom: 5px;" data-bind="dataTable: { dataSource:stats, rowTemplate:'rowTemplate', columns:['mac','pingtime', 'averageRequestRTT', 'lastRequestRTT', 'send', 'received', 'errorcount' ], options:{}}">
+        <thead>
+            <tr>
+                <th>MAC</th>
+                <th>Ping</th>
+                <th>avg RTT</th>
+                <th>last RTT</th>
+                <th>Send</th>
+                <th>Received</th>
+                <th>Error</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+
+    <script id="rowTemplate" type="text/html">
+        <td data-bind="text: mac"></td>
+        <td data-bind="text: pingtime"></td>
+        <td data-bind="text: averageRequestRTT"></td>
+        <td data-bind="text: lastRequestRTT"></td>
+        <td data-bind="text: send"></td>
+        <td data-bind="text: received"></td>
+        <td data-bind="text: errorcount"></td>
+    </script>
+    
+    <br/>
+    <br/>
+</div>
+

@@ -1,0 +1,68 @@
+<div id="contentarea" class="container">
+    <div style="display:none;">
+        <span id="nr" data-translateable="true">Plugwisecontroller is not responding. Unable to execute action.</span>
+        <span id="sp" data-translateable="true">Serial port configured successfully.</span>
+        <span id="rc" data-translateable="true">Counters resetted successfully.</span>
+        <span id="ds" data-translateable="true">Device removed successfully.</span>
+    </div>
+
+    <h3>Plugwise configuration</h3>
+    <br/>
+
+    <ul>
+        <li class="prepend append field">
+            <span class="adjoined">Configure serial port</span>
+            <input id="setport" data-bind="value: port" class="normal text input" type="text" placeholder="/dev/ttyACM0" />
+            <div data-bind="event:{mousedown:setPort}" class="pretty medium primary btn"><a href="#">Set</a></div>
+        </li>
+        <li class="field">
+            <div class="picker" style="top:14px;">
+                <select class="padding-right: 10px;" data-bind="options:devices, optionsText: function(item){ return item.internalid}, value:selectedCountersDevice"></select>
+            </div>
+            <div data-bind="event:{mousedown:resetCounters}" class="pretty medium primary btn"><a href="#">Reset counter</a></div>
+            <div data-bind="event:{mousedown:resetAllCounters}" class="pretty medium primary btn"><a href="#">Reset all counters</a></div>
+        </li>
+        <li class="field">
+            <div class="picker" style="top:14px;">
+                <select class="padding-right: 10px;" data-bind="options:devices, optionsText: function(item){ return item.internalid}, value:selectedRemoveDevice"></select>
+            </div>
+            <div data-bind="event:{mousedown:removeDevice}" class="pretty medium primary btn"><a href="#">Remove device</a></div>
+        </li>
+    </ul>
+
+    <ul>
+        <div id="main-stats">
+            <span data-translateable="true">Plugwise controller reports following circles:</span>
+            <span xml:lang="de" data-translateable="true">Statistiken vom Z-Wave Controller</span>
+            <span xml:lang="fr" data-translateable="true">Le contrôleur Z-Wave fournit les statistiques suivantes</span> :
+            <table style="width:850px;" class="agoTable">
+                <tr>
+                    <td> Id </td>
+                    <td> MAC </td>
+                    <td> Type </td>
+                    <td> HW Version </td>
+                    <td> FW Version </td>
+                    <td> Hz </td>
+                </tr>
+                <tbody data-bind="foreach: devices">
+                <tr data-bind="css: { 'odd': ($index() % 2 == 0), 'even': ($index() % 2 == 1) }">
+                    <td data-bind="text: idx"/>
+                    <td data-bind="text: internalid"/>
+                    <td data-bind="text: type"/>
+                    <td data-bind="text: hwversion"/>
+                    <td data-bind="text: fwversion"/>
+                    <td data-bind="text: hz"/>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </ul>
+
+
+
+
+
+
+    <br/>
+</div>
+
