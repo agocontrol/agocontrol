@@ -45,6 +45,7 @@ private:
     void setupApp();
     void cleanupApp();
     void plugwiseHandler();
+    void plugwiseScanner();
     int  findCircleByMac(std::string device_id);
     void removeCircleByMac(std::string device_id);
     void reinitNetwork();
@@ -245,6 +246,14 @@ qpid::types::Variant::Map AgoPlugwise::commandHandler(qpid::types::Variant::Map 
                  item["hwversion"]  = it->hw_version;
                  item["fwversion"]  = it->fw_version;
                  item["hz"]         = it->hz;
+                 devicesList.push_back(item);
+              } else if (it->id != "FFFFFFFFFFFFFFFF"){
+                 item["idx"]        = it->idx;
+                 item["internalid"] = it->id;
+                 item["type"]       = "unknown";
+                 item["hwversion"]  = "unknown";
+                 item["fwversion"]  = "unknown";
+                 item["hz"]         = "unknown";
                  devicesList.push_back(item);
               }
            } // end for
@@ -502,6 +511,174 @@ void AgoPlugwise::reinitNetwork() {
    std::cout << "Reinit network passed lock release" << std::endl;
 
 }
+
+void AgoPlugwise::plugwiseScanner() {
+      while (1){
+         boost::this_thread::sleep(boost::posix_time::seconds(10));
+
+         for (std::list<circle>::iterator it=circles.begin(); it!=circles.end(); it++){
+
+           if ((it->id != "FFFFFFFFFFFFFFFF") && (it->active == false)){
+
+              try {
+                 AGO_DEBUG() << "plugwiseScanner:### Node info <0023>" ;
+                 plugwise::Request::Ptr ni_req=agoReqFactory->getInfoRequest(it->id);
+            
+                 AGO_DEBUG() << "plugwiseScaanner: Before lock claim";
+                 pthread_mutex_lock( &g_criticalSection );
+                 AGO_DEBUG() << "plugwiseScaanner: Passed lock claim";
+
+                 ni_req->send(agoCon);
+                 plugwise::InfoResponse::Ptr ni_resp=agoRespFactory->receiveInfoResponse();
+
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "plugwiseScaanner: Released lock claim";
+
+                 AGO_DEBUG() << "### " << ni_resp->str();
+                 if (ni_resp->req_successful()) {
+                    AGO_DEBUG() << "Circle node info request successful.";
+                    it->hw_version = ni_resp->get_hw_version();
+                    it->fw_version = ni_resp->get_fw_version();
+                    it->hz =         ni_resp->get_hz();
+                    it->device_type =ni_resp->get_device_type(); 
+                 } else {
+                    AGO_DEBUG() << "Circle node info  request failed";
+                    continue;
+                 }
+              } catch (plugwise::CommunicationException ge) {
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "Released lock claim";
+                 
+                 AGO_INFO() << "Circle " << it->id << ": communication error while querying circle: " << ge.what();
+                 it->error_count++;
+                 AGO_DEBUG() << "plugwiseScaanner: Released lock claim";
+                 AgoPlugwise::reinitNetwork();
+              } catch (plugwise::GenericException ge) {
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "Released lock claim";
+
+                 it->error_count++;
+                 AGO_INFO() << "Circle " << it->id << ": problem while requesting node info.";
+                 AGO_INFO() << "Circle " << it->id << ": skipping circle: " << ge.what();
+                 continue;
+              }
+
+              try {
+                 AGO_DEBUG() << "### Clock info <003E>";
+                 plugwise::Request::Ptr ci_req=agoReqFactory->getClockInfoRequest(it->id);
+
+                 AGO_DEBUG() << "plugwiseScaanner: Before lock claim";
+                 pthread_mutex_lock( &g_criticalSection );
+                 AGO_DEBUG() << "plugwiseScaanner: Passed lock claim";
+
+                 ci_req->send(agoCon);
+                 plugwise::ClockInfoResponse::Ptr ci_resp=agoRespFactory->receiveClockInfoResponse();
+
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "plugwiseScaanner: Released lock claim";
+
+                 AGO_DEBUG() << "### " << ci_resp->str();
+                 if (ci_resp->req_successful()) {
+                    AGO_DEBUG() << "Circle clock info request successful.";
+                 } else {
+                    it->error_count++;
+                    AGO_DEBUG() << "Circle clock info request failed";
+                    continue;
+                 }
+              } catch (plugwise::GenericException ge) {
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "Released lock claim";
+
+                 AGO_INFO() << "Circle " << it->id << ": problem while requesting clock info.";
+                 AGO_INFO() << "Circle " << it->id << ": skipping node: " << ge.what();
+                 it->error_count++;
+                 continue;
+              }
+
+              try {
+                 AGO_DEBUG() << "plugwiseScaanner: ### Sending calibration request <0026>";
+
+                 plugwise::Request::Ptr ca_req=agoReqFactory->getCalibrationRequest(it->id);
+
+                 AGO_DEBUG() << "plugwiseScaanner: Before lock claim";
+                 pthread_mutex_lock( &g_criticalSection );
+                 AGO_DEBUG() << "plugwiseScaanner: Passed lock claim";
+
+                 ca_req->send(agoCon);
+                 plugwise::CalibrationResponse::Ptr ca_resp=agoRespFactory->receiveCalibrationResponse();
+
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "plugwiseScaanner: Released lock claim";
+
+                 AGO_DEBUG() << "### " << ca_resp->str();
+                 if (ca_resp->req_successful()) {
+                    AGO_DEBUG() << "calibration successful.";
+                    it->gain_a = ca_resp->get_gain_a();
+                    it->gain_b = ca_resp->get_gain_b();
+                    it->off_tot = ca_resp->get_off_tot();
+                    it->off_noise = ca_resp->get_off_noise();
+                 } else {
+                    it->error_count++;
+                    std::cout << "failed to read calibration values from circle " << std::endl;
+                    continue;
+                 }
+              } catch (plugwise::GenericException ge) {
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "Released lock claim";
+
+                 AGO_INFO() << "Circle " << it->id << ": problem while requesting calibration info.";
+                 AGO_INFO() << "Circle " << it->id << ": " << ge.what();
+                 it->error_count++;
+                 continue;
+              } // end of try
+
+              try {
+                 AGO_DEBUG() << "### Ping request ";
+
+                 plugwise::Request::Ptr pi_req=agoReqFactory->getPingRequest(it->id);
+
+                 AGO_DEBUG() << "plugwiseScaanner: Before lock claim";
+                 pthread_mutex_lock( &g_criticalSection );
+                 AGO_DEBUG() << "plugwiseScaanner: Passed lock claim";
+
+                 pi_req->send(agoCon);
+                 plugwise::PingResponse::Ptr pi_resp=agoRespFactory->receivePingResponse();
+
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "plugwiseScaanner: Released lock claim";
+
+                 AGO_DEBUG() << "### " << pi_resp->str();
+                 if (pi_resp->req_successful()) {
+                    AGO_DEBUG() << "Ping successful.";
+                    it->ping_time = pi_resp->ping_time();
+                    it->active = true;
+
+                    AGO_INFO() << "Circle  MAC: " << it->id << ", index " << it->idx << ", Active: " << it->active << ", HW version: " << it->hw_version << ", FW version: " << it->fw_version << ", gain_a: " << it->gain_a << ", gain_b: " << it->gain_b << ", offset noise: " << it->off_noise << ", offset tot: " << it->off_tot << ", device type: " << it->device_type << ", Hz: " << it->hz << ", Ping time: " << it->ping_time ;
+                    agoConnection->addDevice(it->id.c_str(), "energysensor");
+                    agoConnection->addDevice((it->id + "/SWITCH").c_str(), "switch");
+
+                 } else {
+                    it->error_count++;
+                    std::cout << "failed to ping circle " << std::endl;
+                    continue;
+                 }
+              } catch (plugwise::GenericException ge) {
+                 pthread_mutex_unlock( &g_criticalSection );
+                 AGO_DEBUG() << "Released lock claim";
+
+                 AGO_INFO() << "Circle " << it->id << ": problem while requesting ping.";
+                 AGO_INFO() << "Circle " << it->id << ": skipping circle " << ge.what();
+                 it->error_count++;
+                 continue;
+              } // end of try
+
+            } // end of if
+         } // end of for
+
+      } // end of outer while
+
+}
+
 
 void AgoPlugwise::plugwiseHandler() {
     AGO_INFO() << "Starting Plugwise poll thread" ;
@@ -835,16 +1012,15 @@ void AgoPlugwise::setupApp() {
       AGO_DEBUG() << "###";
 
 
-      for (int i=0 ; i< 100 ; i++){
+      for (int i=0 ; i < 5 ; i++){
          boost::this_thread::sleep(boost::posix_time::milliseconds(250));
 
          for (std::list<circle>::iterator it=circles.begin(); it!=circles.end(); it++){
 
            if ((it->id != "FFFFFFFFFFFFFFFF") && (it->active == false)){
-              circle new_circle; // to store all circle data from the circle in this loop
 
               try {
-                 AGO_DEBUG() << "### Node info <0023>";
+                 AGO_DEBUG() << "### Node info <0023>[" << i << "]" ;
                  plugwise::Request::Ptr ni_req=reqFactory->getInfoRequest(it->id);
                  ni_req->send(con);
                  plugwise::InfoResponse::Ptr ni_resp=respFactory->receiveInfoResponse();
@@ -944,32 +1120,6 @@ void AgoPlugwise::setupApp() {
             } // end of if
          } // end of for
 
-//         AGO_DEBUG() << "### Info request stick #4 <0023>";
-//         plugwise::Request::Ptr in5_req=reqFactory->getInfoRequest(stick_mac);
-//         in5_req->send(con);
-//         plugwise::InfoResponse::Ptr in5_resp=respFactory->receiveInfoResponse();
-
-//         AGO_DEBUG() << "### " << in5_resp->str();
-//         if (in5_resp->req_successful()) {
-//            AGO_DEBUG() << "initialization successful.";
-//         } else {
-//            AGO_DEBUG() << "Stick info request #4 failed";
-//            return;
-//         }
-
-
-//         AGO_DEBUG() << "### Info request circle+ #4 <0023>";
-//         plugwise::Request::Ptr inc6_req=reqFactory->getInfoRequest(circleplus_mac);
-//         inc6_req->send(con);
-//         plugwise::InfoResponse::Ptr inc6_resp=respFactory->receiveInfoResponse();
-
-//         AGO_DEBUG() << "### " << inc5_resp->str();
-//         if (inc6_resp->req_successful()) {
-//            AGO_DEBUG() << "Circle+ info request successful.";
-//         } else {
-//            AGO_DEBUG() << "Circle+ info request failed";
-//            return;
-//         }
       } // end of outer for
 
 
@@ -1033,6 +1183,10 @@ void AgoPlugwise::setupApp() {
 
     boost::thread t(boost::bind(&AgoPlugwise::plugwiseHandler, this));
     t.detach();
+
+    boost::thread t1(boost::bind(&AgoPlugwise::plugwiseScanner, this));
+    t1.detach();
+
 }
 
 void AgoPlugwise::cleanupApp() {
