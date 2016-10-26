@@ -32,7 +32,7 @@ private:
     void setupApp();
     void cleanupApp();
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command);
-   
+    std::string fetchXml(int address);   
     mbus_handle *handle;
 public:
     AGOAPP_CONSTRUCTOR_HEAD(AgoMbus)
@@ -107,10 +107,42 @@ void AgoMbus::setupApp() {
                  continue;
              }
              AGO_INFO() << "Found a M-Bus device at address " << std::dec << address;
+             AGO_TRACE() << "XML: " << fetchXml(address);
         }
     }        
     AGO_INFO() << "Scan done.";
 }
+
+
+std::string AgoMbus::fetchXml(int address) {
+	std::string xmldata;
+
+	mbus_frame reply;
+	mbus_frame_data reply_data;
+
+	memset((void *)&reply, 0, sizeof(mbus_frame));
+	memset((void *)&reply_data, 0, sizeof(mbus_frame_data));
+
+	if (mbus_send_request_frame(handle, address) == -1)
+        {
+            AGO_ERROR() << "Failed to send M-Bus request frame!";
+        } else {
+		if (mbus_recv_frame(handle, &reply) != MBUS_RECV_RESULT_OK) {
+			AGO_ERROR() << "Failed to receive M-Bus response frame: " << mbus_error_str();
+		} else {
+			// handle frame
+			if (mbus_frame_data_parse(&reply, &reply_data) == -1) {
+				AGO_ERROR() << "M-bus data parse error: " << mbus_error_str();
+			} else {
+				xmldata = std::string(mbus_frame_data_xml(&reply_data));
+			}
+
+		}
+	}
+
+	return xmldata;
+}
+
 
 void AgoMbus::cleanupApp() {
     AGO_INFO() << "Disconnecting from M-Bus";
