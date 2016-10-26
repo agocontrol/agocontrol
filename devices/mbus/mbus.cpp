@@ -18,6 +18,9 @@
 #include <termios.h>
 #include <stdio.h>
 
+#include <tinyxml2.h>
+
+
 #include <mbus/mbus.h>
 
 #include "agoapp.h"
@@ -27,12 +30,16 @@ using namespace qpid::types;
 using namespace std;
 using namespace agocontrol;
 
+using namespace tinyxml2;
+
+
 class AgoMbus: public AgoApp {
 private:
     void setupApp();
     void cleanupApp();
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command);
     std::string fetchXml(int address);   
+    void parseXml(std::string xmlstring);
     mbus_handle *handle;
 public:
     AGOAPP_CONSTRUCTOR_HEAD(AgoMbus)
@@ -91,7 +98,8 @@ void AgoMbus::setupApp() {
         AGO_ERROR() << "Could not set baudrate";
     }
     AGO_INFO() << "Scanning for mbus slaves...";
-    for (int address = 0; address <= MBUS_MAX_PRIMARY_SLAVES; address++) {
+    // for (int address = 0; address <= MBUS_MAX_PRIMARY_SLAVES; address++) {
+    for (int address = 90; address <= 99; address++) {
         AGO_TRACE() << "Testing " << std::dec << address;
         mbus_frame reply;
         int ret = ping_address(handle, &reply, address);
@@ -108,6 +116,7 @@ void AgoMbus::setupApp() {
              }
              AGO_INFO() << "Found a M-Bus device at address " << std::dec << address;
              AGO_TRACE() << "XML: " << fetchXml(address);
+             parseXml(fetchXml(address));
         }
     }        
     AGO_INFO() << "Scan done.";
@@ -150,4 +159,67 @@ void AgoMbus::cleanupApp() {
     mbus_context_free(handle);
 }
 
+/*
+<MBusData>
+
+    <SlaveInformation>
+        <Id>61303893</Id>
+        <Manufacturer>KAM</Manufacturer>
+        <Version>11</Version>
+        <ProductName></ProductName>
+        <Medium>Heat: Outlet</Medium>
+        <AccessNumber>3</AccessNumber>
+        <Status>00</Status>
+        <Signature>0000</Signature>
+    </SlaveInformation>
+
+    <DataRecord id="0">
+        <Function>Instantaneous value</Function>
+        <StorageNumber>0</StorageNumber>
+        <Unit>Fabrication number</Unit>
+        <Value>61303893</Value>
+        <Timestamp>2016-10-26T22:28:25</Timestamp>
+    </DataRecord>
+*/
+void AgoMbus::parseXml(std::string xmlstring) {
+    XMLDocument sensor;
+    int returncode = 0;
+
+    AGO_TRACE() << "parsing XML string";
+    returncode = sensor.Parse(xmlstring.c_str());
+    if (returncode != XML_NO_ERROR) {
+        AGO_ERROR() << "error parsing XML, code: " << returncode;
+    } else {
+
+		XMLHandle docHandle(&sensor);
+		XMLElement* slaveInformation = docHandle.FirstChildElement( "MBusData" ).ToElement()->FirstChildElement("SlaveInformation");
+		if (slaveInformation) {  
+			AGO_TRACE() << "Found SlaveInformation tag";
+			XMLElement *id = slaveInformation->FirstChildElement("Id");
+			if (id) AGO_INFO() << "Sensor Id: " << id->GetText();
+			XMLElement *manufacturer = slaveInformation->FirstChildElement("Manufacturer");
+			if (manufacturer) AGO_INFO() << "Manufacturer: " << manufacturer->GetText();
+			XMLElement* dataRecord = docHandle.FirstChildElement( "MBusData" ).ToElement()->FirstChildElement( "DataRecord" )->ToElement();
+			if (dataRecord) {
+				XMLElement *nextDataRecord = dataRecord;
+				while (nextDataRecord != NULL) {
+					XMLElement *function = nextDataRecord->FirstChildElement( "Function" );
+					if (function) AGO_INFO() << "Function " << function->GetText();
+	
+					nextDataRecord = nextDataRecord->NextSiblingElement();
+				}
+			}
+		}
+    }
+/*
+            AGO_TRACE() << "node: " << nextdevice->Attribute("uuid") << " type: " << nextdevice->Attribute("type");
+
+            content["devicetype"] = nextdevice->Attribute("type");
+            XMLElement *ga = nextdevice->FirstChildElement( "ga" );
+            if (ga) {
+                XMLElement *nextga = ga;
+                while (nextga != NULL) {
+                    AGO_DEBUG() << "GA: " << nextga->GetText() << " type: " << nextga->Attribute("type");
+*/
+}
 AGOAPP_ENTRY_POINT(AgoMbus);
