@@ -8,7 +8,7 @@ set (DEVICE_EXTRA_LIBRARIES
      mbus
 )
 
-set (DEVICE "mbus")
+set (DEVICE "agombus")
 
 # add the executable
 add_executable (${DEVICE} ${DEVICE_SOURCE_FILES})
