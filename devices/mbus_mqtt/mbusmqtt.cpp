@@ -54,25 +54,27 @@ NRMKMqttWrapper::NRMKMqttWrapper(const char *id, const char *host, int port) : m
 }
 void NRMKMqttWrapper::on_message(const struct mosquitto_message *message)
 {
+	std::string payloadString;
 	if(message->payloadlen){
+		payloadString = std::string((const char *)message->payload);
 		// printf("%s %s\n", message->topic, message->payload);
 	}else{
-		printf("%s (null)\n", message->topic);
+		// printf("%s (null)\n", message->topic);
 	}
-        AGO_INFO() << "Topic received: " << message->topic;
+        AGO_INFO() << "Topic received: " << message->topic << " Payload: " << payloadString;
+	// parseXml(payloadString, true);
 }
 void NRMKMqttWrapper::on_connect(int rc)
 {
-	printf("Connected with code %d. \n", rc);
-
+	AGO_INFO() << "Connected to MQTT with code " << rc;
 	if (rc == 0)
 	{
-		subscribe(NULL, "command/IGot");
+		subscribe(NULL, "sensors/mbus");
 	}
 }
 void NRMKMqttWrapper::on_subcribe(int mid, int qos_count, const int *granted_qos)
 {
-	printf("Subscription succeeded. \n");
+	AGO_INFO() << "Subscription succeeded.";
 }
 
 
