@@ -236,7 +236,7 @@ void AgoMbus::parseXml(std::string xmlstring, bool announce) {
 						float value = atol(valueString.c_str());
 						if (unitName.find("1e-2"))  value = value / 100;
 						if (announce) agoConnection->addDevice(internalid.c_str(), "flowmeter");
-						agoConnection->emitEvent(internalid.c_str(), "event.environment.energychanged", value, "m^3");
+						agoConnection->emitEvent(internalid.c_str(), "event.environment.volumechanged", value, "m^3");
 
 					} else if (unitName.find("Energy")!= std::string::npos) {
 						float value = atol(valueString.c_str());
