@@ -32,6 +32,7 @@ using namespace agocontrol;
 
 using namespace tinyxml2;
 
+namespace pt = boost::posix_time;
 
 class AgoMbus: public AgoApp {
 private:
@@ -39,8 +40,11 @@ private:
     void cleanupApp();
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command);
     std::string fetchXml(int address);   
-    void parseXml(std::string xmlstring);
+    void parseXml(std::string xmlstring, bool announce = false);
+    void receiveFunction();
     mbus_handle *handle;
+    std::list<int> sensorList;
+    boost::thread *receiveThread;
 public:
     AGOAPP_CONSTRUCTOR_HEAD(AgoMbus)
         {
@@ -115,11 +119,14 @@ void AgoMbus::setupApp() {
                  continue;
              }
              AGO_INFO() << "Found a M-Bus device at address " << std::dec << address;
+             sensorList.push_back(address);
              AGO_TRACE() << "XML: " << fetchXml(address);
-             parseXml(fetchXml(address));
+             parseXml(fetchXml(address),true);
         }
     }        
     AGO_INFO() << "Scan done.";
+
+    receiveThread = new boost::thread(boost::bind(&AgoMbus::receiveFunction, this));
 }
 
 
@@ -155,6 +162,8 @@ std::string AgoMbus::fetchXml(int address) {
 
 void AgoMbus::cleanupApp() {
     AGO_INFO() << "Disconnecting from M-Bus";
+    receiveThread->interrupt();
+    receiveThread->join();
     mbus_disconnect(handle);
     mbus_context_free(handle);
 }
@@ -181,7 +190,7 @@ void AgoMbus::cleanupApp() {
         <Timestamp>2016-10-26T22:28:25</Timestamp>
     </DataRecord>
 */
-void AgoMbus::parseXml(std::string xmlstring) {
+void AgoMbus::parseXml(std::string xmlstring, bool announce) {
     XMLDocument sensor;
     int returncode = 0;
 
@@ -194,32 +203,69 @@ void AgoMbus::parseXml(std::string xmlstring) {
 		XMLHandle docHandle(&sensor);
 		XMLElement* slaveInformation = docHandle.FirstChildElement( "MBusData" ).ToElement()->FirstChildElement("SlaveInformation");
 		if (slaveInformation) {  
-			AGO_TRACE() << "Found SlaveInformation tag";
+                        std::string sensorId;
+                        std::string manufacturerId;
+			// AGO_TRACE() << "Found SlaveInformation tag";
 			XMLElement *id = slaveInformation->FirstChildElement("Id");
-			if (id) AGO_INFO() << "Sensor Id: " << id->GetText();
+			if (id) sensorId =  id->GetText();
 			XMLElement *manufacturer = slaveInformation->FirstChildElement("Manufacturer");
-			if (manufacturer) AGO_INFO() << "Manufacturer: " << manufacturer->GetText();
+			if (manufacturer) manufacturerId = manufacturer->GetText();
+			if (announce) AGO_INFO() << "Manufacturer: " << manufacturerId << " " << "Sensor Id: " << sensorId;
 			XMLElement* dataRecord = docHandle.FirstChildElement( "MBusData" ).ToElement()->FirstChildElement( "DataRecord" )->ToElement();
 			if (dataRecord) {
 				XMLElement *nextDataRecord = dataRecord;
 				while (nextDataRecord != NULL) {
+                                        std::string recordId, functionName, unitName, valueString;
+                                        recordId = nextDataRecord->Attribute("id");
 					XMLElement *function = nextDataRecord->FirstChildElement( "Function" );
-					if (function) AGO_INFO() << "Function " << function->GetText();
-	
+					if (function) functionName = function->GetText();
+					XMLElement *unit = nextDataRecord->FirstChildElement( "Unit" );
+					if (unit) unitName = unit->GetText();
+					XMLElement *value = nextDataRecord->FirstChildElement( "Value" );
+					if (value) valueString = value->GetText();
+                                        if (announce) AGO_INFO()  << "Record id: " << recordId << ";" << functionName << ";Value " << valueString << " " << unitName;
+					
+					std::string internalid = manufacturerId + "-" + sensorId + "/" + recordId;
+					if (unitName.find("deg C") != std::string::npos) {
+						float value = atol(valueString.c_str());
+						if (unitName.find("1e-2"))  value = value / 100;
+						if (announce) agoConnection->addDevice(internalid.c_str(), "temperaturesensor");
+						agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", value, "degC");
+						
+					} else if (unitName.find("Volume")!= std::string::npos) {
+						float value = atol(valueString.c_str());
+						if (unitName.find("1e-2"))  value = value / 100;
+						if (announce) agoConnection->addDevice(internalid.c_str(), "flowmeter");
+						agoConnection->emitEvent(internalid.c_str(), "event.environment.energychanged", value, "m^3");
+
+					} else if (unitName.find("Energy")!= std::string::npos) {
+						float value = atol(valueString.c_str());
+						if (announce) agoConnection->addDevice(internalid.c_str(), "energymeter");
+						agoConnection->emitEvent(internalid.c_str(), "event.environment.energychanged", value, "kWh");
+
+					} else if (unitName.find("Power")!= std::string::npos) {
+						float value = atol(valueString.c_str());
+						if (unitName.find("100 W"))  value = value * 100;
+						if (announce) agoConnection->addDevice(internalid.c_str(), "powermeter");
+						agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", value, "W");
+
+					}
 					nextDataRecord = nextDataRecord->NextSiblingElement();
 				}
 			}
 		}
     }
-/*
-            AGO_TRACE() << "node: " << nextdevice->Attribute("uuid") << " type: " << nextdevice->Attribute("type");
 
-            content["devicetype"] = nextdevice->Attribute("type");
-            XMLElement *ga = nextdevice->FirstChildElement( "ga" );
-            if (ga) {
-                XMLElement *nextga = ga;
-                while (nextga != NULL) {
-                    AGO_DEBUG() << "GA: " << nextga->GetText() << " type: " << nextga->Attribute("type");
-*/
 }
+
+void AgoMbus::receiveFunction() {
+    while(!isExitSignaled()) {
+	for(std::list<int>::iterator list_iter = sensorList.begin(); list_iter != sensorList.end(); list_iter++) {
+		parseXml(fetchXml(*list_iter));
+	}
+	// sleep(15);
+        boost::this_thread::sleep(pt::seconds(15));
+    }
+}
+
 AGOAPP_ENTRY_POINT(AgoMbus);
