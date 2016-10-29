@@ -102,8 +102,7 @@ void AgoMbus::setupApp() {
         AGO_ERROR() << "Could not set baudrate";
     }
     AGO_INFO() << "Scanning for mbus slaves...";
-    // for (int address = 0; address <= MBUS_MAX_PRIMARY_SLAVES; address++) {
-    for (int address = 90; address <= 99; address++) {
+    for (int address = 0; address <= MBUS_MAX_PRIMARY_SLAVES; address++) {
         AGO_TRACE() << "Testing " << std::dec << address;
         mbus_frame reply;
         int ret = ping_address(handle, &reply, address);
@@ -168,28 +167,6 @@ void AgoMbus::cleanupApp() {
     mbus_context_free(handle);
 }
 
-/*
-<MBusData>
-
-    <SlaveInformation>
-        <Id>61303893</Id>
-        <Manufacturer>KAM</Manufacturer>
-        <Version>11</Version>
-        <ProductName></ProductName>
-        <Medium>Heat: Outlet</Medium>
-        <AccessNumber>3</AccessNumber>
-        <Status>00</Status>
-        <Signature>0000</Signature>
-    </SlaveInformation>
-
-    <DataRecord id="0">
-        <Function>Instantaneous value</Function>
-        <StorageNumber>0</StorageNumber>
-        <Unit>Fabrication number</Unit>
-        <Value>61303893</Value>
-        <Timestamp>2016-10-26T22:28:25</Timestamp>
-    </DataRecord>
-*/
 void AgoMbus::parseXml(std::string xmlstring, bool announce) {
     XMLDocument sensor;
     int returncode = 0;
@@ -263,8 +240,7 @@ void AgoMbus::receiveFunction() {
 	for(std::list<int>::iterator list_iter = sensorList.begin(); list_iter != sensorList.end(); list_iter++) {
 		parseXml(fetchXml(*list_iter));
 	}
-	// sleep(15);
-        boost::this_thread::sleep(pt::seconds(15));
+        boost::this_thread::sleep(pt::seconds(30));
     }
 }
 
