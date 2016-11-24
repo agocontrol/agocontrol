@@ -2,9 +2,12 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <iostream>
+#include <sstream>
 #include <boost/system/system_error.hpp> 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/replace.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include <execinfo.h>
 #include <signal.h>
 #include <time.h>
@@ -12,13 +15,14 @@
 #include <stdexcept>
 #include "serialib.h"
 
+#include "agoapp.h"
 #include "MySensors.h"
 #include "agoclient.h"
 
 #ifndef DEVICEMAPFILE
 #define DEVICEMAPFILE "/maps/mysensors.json"
 #endif
-#define RESEND_MAX_ATTEMPTS 30
+#define DEFAULT_PROTOCOL "0.0"
 
 using namespace std;
 using namespace agocontrol;
@@ -51,30 +55,68 @@ typedef struct S_COMMAND
     int attempts;
 } T_COMMAND;
 
-int DEBUG = 0;
-int DEBUG_GW = 0;
-AgoConnection *agoConnection;
-pthread_mutex_t serialMutex;
-pthread_mutex_t resendMutex;
-pthread_mutex_t devicemapMutex;
-int serialFd = 0;
-pthread_t readThread;
-pthread_t resendThread;
-string units = "M";
-qpid::types::Variant::Map devicemap;
-std::map<std::string, T_COMMAND> commandsmap;
-std::string gateway_protocol_version = "1.4";
+static pthread_mutex_t serialMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t devicemapMutex = PTHREAD_MUTEX_INITIALIZER;
 
-serialib serialPort;
-string device = "";
-int staleThreshold = 86400;
-int resendEnabled = 0;
-int handleNetworkRelay = 0;
+class AgoMySensors: public AgoApp
+{
+    private:
+        //members
+        boost::thread* readThread;
+        boost::thread* checkStaleThread;
+        string units;
+        qpid::types::Variant::Map devicemap;
+        std::string gateway_protocol_version;
+        serialib serialPort;
+        string serialDevice;
+        int staleThreshold;
+        int bNetworkRelay;
+        int bStale;
+        qpid::types::Variant::Map arduinoNodes;
+
+        //functions
+        void setupApp();
+        void cleanupApp();
+        std::string timestampToStr(const time_t* timestamp);
+        void printDeviceInfos(std::string internalid, qpid::types::Variant::Map infos);
+        int getFreeId();
+        void setDeviceInfos(std::string internalid, qpid::types::Variant::Map* infos);
+        qpid::types::Variant::Map getDeviceInfos(std::string internalid);
+        std::string prettyPrint(std::string message, std::string protocol);
+        bool deleteDevice(std::string internalid);
+        void addDevice(std::string internalid, std::string devicetype, qpid::types::Variant::Map devices, qpid::types::Variant::Map infos, std::string protocol);
+        bool openSerialPort(string device);
+        void closeSerialPort();
+        bool checkInternalid(std::string internalid);
+        void sendcommand(std::string command);
+        void sendcommandV15(std::string internalid, int messageType, int ack, int subType, std::string payload);
+        void sendcommandV14(std::string internalid, int messageType, int ack, int subType, std::string payload);
+        void sendcommandV13(std::string internalid, int messageType, int subType, std::string payload);
+        qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command);
+        std::string readLine(bool* error);
+        void newDevice(std::string internalid, std::string devicetype, std::string protocol);
+        void processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos);
+        void processMessageV14(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos);
+        void processMessageV15(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos);
+        void receiveFunction();
+        void checkStaleFunction();
+        bool splitInternalLogMessage(string payload, qpid::types::Variant::Map& items);
+
+    public:
+        AGOAPP_CONSTRUCTOR_HEAD(AgoMySensors),
+            units("M"),
+            serialDevice(""),
+            staleThreshold(86400),
+            bNetworkRelay(false),
+            bStale(true)
+            {}
+        
+};
 
 /**
  * Convert timestamp to Human Readable date time string (19 chars)
  */
-std::string timestampToStr(const time_t* timestamp)
+std::string AgoMySensors::timestampToStr(const time_t* timestamp)
 {
     char hr[512] = "";
     if( (*timestamp)>0 )
@@ -93,7 +135,7 @@ std::string timestampToStr(const time_t* timestamp)
 /**
  * Make readable device infos
  */
-std::string printDeviceInfos(std::string internalid, qpid::types::Variant::Map infos)
+void AgoMySensors::printDeviceInfos(std::string internalid, qpid::types::Variant::Map infos)
 {
     std::stringstream result;
     result << "Infos of device internalid '" << internalid << "'" << endl;
@@ -105,21 +147,20 @@ std::string printDeviceInfos(std::string internalid, qpid::types::Variant::Map i
         result << " - value=" << infos["value"] << endl;
     if( !infos["counter_sent"].isVoid() )
         result << " - counter_sent=" << infos["counter_sent"] << endl;
-    if( !infos["counter_retries"].isVoid() )
-        result << " - counter_retries=" << infos["counter_retries"] << endl;
     if( !infos["counter_received"].isVoid() )
         result << " - counter_received=" << infos["counter_received"] << endl;
     if( !infos["counter_failed"].isVoid() )
         result << " - counter_failed=" << infos["counter_failed"] << endl;
     if( !infos["last_timestamp"].isVoid() )
         result << " - last_timestamp=" << infos["last_timestamp"] << endl;
-    return result.str();
+    AGO_TRACE() << result.str();
 }
 
 /**
  * Return free id according to current known valid sensors
+ * @return free id or 0 if nothing found
  */
-int getFreeId()
+int AgoMySensors::getFreeId()
 {
     int freeId = 0;
     qpid::types::Variant::List existingIds;
@@ -145,17 +186,16 @@ int getFreeId()
                 //invalid internalid
             }
         }
-        if( DEBUG )
-            cout << "Existing ids list: " << existingIds << endl;
+        AGO_TRACE() << "Existing ids list: " << existingIds;
 
         //search free id
         bool found = false;
-        for( freeId=1; freeId<255; freeId++ )
+        for( int i=1; i<255; i++ )
         {
             found = false;
             for( qpid::types::Variant::List::iterator it=existingIds.begin(); it!=existingIds.end(); it++ )
             {
-                if( it->asInt32()==freeId )
+                if( it->asInt32()==i )
                 {
                     found = true;
                     break;
@@ -164,31 +204,38 @@ int getFreeId()
 
             if( !found )
             {
-                //free id found, return it
-                if( DEBUG )
-                    cout << "Free id found: " << freeId << endl;
-                return freeId;
+                freeId = i;
+                break;
             }
         }
     }
     pthread_mutex_unlock(&devicemapMutex);
 
     //no id found
-    return 0;
+    AGO_DEBUG() << "Free id found: " << freeId;
+    return freeId;
 }
 
 /**
  * Save specified device infos
  */
-void setDeviceInfos(std::string internalid, qpid::types::Variant::Map* infos)
+void AgoMySensors::setDeviceInfos(std::string internalid, qpid::types::Variant::Map* infos)
 {
     pthread_mutex_lock(&devicemapMutex);
-    if( !devicemap["devices"].isVoid() )
+    if( infos!=NULL && infos->size()>0 )
     {
-        qpid::types::Variant::Map device = devicemap["devices"].asMap();
-        device[internalid] = (*infos);
-        devicemap["devices"] = device;
-        variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
+        if( !devicemap["devices"].isVoid() )
+        {
+            AGO_TRACE() << "Device [" << internalid << "] infos updated";
+            qpid::types::Variant::Map device = devicemap["devices"].asMap();
+            device[internalid] = (*infos);
+            devicemap["devices"] = device;
+            variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
+        }
+    }
+    else
+    {
+        AGO_TRACE() << "Device [" << internalid << "] not updated because devices specified infos is empty";
     }
     pthread_mutex_unlock(&devicemapMutex);
 }
@@ -196,7 +243,7 @@ void setDeviceInfos(std::string internalid, qpid::types::Variant::Map* infos)
 /**
  * Get infos of specified device
  */
-qpid::types::Variant::Map getDeviceInfos(std::string internalid)
+qpid::types::Variant::Map AgoMySensors::getDeviceInfos(std::string internalid)
 {
     qpid::types::Variant::Map out;
     bool save = false;
@@ -212,7 +259,7 @@ qpid::types::Variant::Map getDeviceInfos(std::string internalid)
             //check field existence
             if( out["protocol"].isVoid() ) 
             {
-                out["protocol"] = "0.0";
+                out["protocol"] = DEFAULT_PROTOCOL;
                 save = true;
             }
 
@@ -229,7 +276,7 @@ qpid::types::Variant::Map getDeviceInfos(std::string internalid)
 /**
  * Make readable received message from MySensor gateway
  */
-std::string prettyPrint(std::string message)
+std::string AgoMySensors::prettyPrint(std::string message, std::string protocol)
 {
     std::string payload = "";
     std::string ack = "";
@@ -241,14 +288,63 @@ std::string prettyPrint(std::string message)
     if ( items.size()<4 || items.size()>6 )
     {
         result.str("");
-        result << "ERROR, malformed string: " << message << endl;
+        result << "ERROR, malformed string: " << message;
     }
     else
     {
         //internalid
         internalid = items[0] + "/" + items[1];
         result << internalid << ";";
-        if( boost::algorithm::starts_with(gateway_protocol_version, "1.4") )
+        if( boost::algorithm::starts_with(protocol, "1.5") )
+        {
+            //protocol v1.5
+
+            //message type
+            result << getMsgTypeNameV15((msgTypeV15)atoi(items[2].c_str())) << ";";
+            //ack
+            result << items[3] << ";";
+            //message subtype
+            switch (atoi(items[2].c_str())) {
+                case PRESENTATION_V15:
+                    //device type
+                    result << getDeviceTypeNameV15((deviceTypesV15)atoi(items[4].c_str())) << ";";
+                    //protocol version (payload)
+                    if( items.size()==6 )
+                        result << items[5];
+                    break;
+                case SET_V15:
+                case REQ_V15:
+                    //variable type
+                    result << getVariableTypeNameV15((varTypesV15)atoi(items[4].c_str())) << ";";
+                    //value (payload)
+                    if( items.size()==6 )
+                        result << items[5];
+                    break;
+                case INTERNAL_V15:
+                    //internal message type
+                    if( atoi(items[4].c_str())==I_LOG_MESSAGE_V15 && !logLevel==log::trace )
+                    {
+                        //filter gateway log message
+                        result.str("");
+                    }
+                    else
+                    {
+                        result << getInternalTypeNameV15((internalTypesV15)atoi(items[4].c_str())) << ";";
+                        //value (payload)
+                        if( items.size()==6 )
+                            result << items[5];
+                    }
+                    break;
+                case STREAM_V15:
+                    //stream message
+                    //TODO when fully implemented in MySensors
+                    result << "STREAM (not implemented!)";
+                    break;
+                default:
+                    result << items[3];
+            }
+        }
+        else if( boost::algorithm::starts_with(protocol, "1.4") )
         {
             //protocol v1.4
 
@@ -263,9 +359,7 @@ std::string prettyPrint(std::string message)
                     result << getDeviceTypeNameV14((deviceTypesV14)atoi(items[4].c_str())) << ";";
                     //protocol version (payload)
                     if( items.size()==6 )
-                        result << items[5] << endl;
-                    else
-                        result << endl;
+                        result << items[5];
                     break;
                 case SET_V14:
                 case REQ_V14:
@@ -273,14 +367,11 @@ std::string prettyPrint(std::string message)
                     result << getVariableTypeNameV14((varTypesV14)atoi(items[4].c_str())) << ";";
                     //value (payload)
                     if( items.size()==6 )
-                        result << items[5] << endl;
-                    else
-                        result << endl;
-                    break;
+                        result << items[5];
                     break;
                 case INTERNAL_V14:
                     //internal message type
-                    if( atoi(items[4].c_str())==I_LOG_MESSAGE_V14 && !DEBUG_GW )
+                    if( atoi(items[4].c_str())==I_LOG_MESSAGE_V14 && !logLevel==log::trace )
                     {
                         //filter gateway log message
                         result.str("");
@@ -290,21 +381,19 @@ std::string prettyPrint(std::string message)
                         result << getInternalTypeNameV14((internalTypesV14)atoi(items[4].c_str())) << ";";
                         //value (payload)
                         if( items.size()==6 )
-                            result << items[5] << endl;
-                        else
-                            result << endl;
+                            result << items[5];
                     }
                     break;
                 case STREAM_V14:
                     //stream message
                     //TODO when fully implemented in MySensors
-                    result << "STREAM (not implemented!)" << endl;
+                    result << "STREAM (not implemented!)";
                     break;
                 default:
-                    result << items[3] << endl;;
+                    result << items[3];
             }
         }
-        else if( boost::algorithm::starts_with(gateway_protocol_version, "1.3") )
+        else if( boost::algorithm::starts_with(protocol, "1.3") )
         {
             //protocol v1.3
 
@@ -330,12 +419,12 @@ std::string prettyPrint(std::string message)
                 default:
                     result << items[3];
             }
-            result <<  ";" << payload << endl;
+            result <<  ";" << payload;
         }
         else
         {
             result.str("");
-            result << "ERROR, unsupported protocol version '" << gateway_protocol_version << "'" << endl;
+            result << "ERROR, unsupported protocol version '" << protocol << "'";
         }
     }
     return result.str();
@@ -344,7 +433,7 @@ std::string prettyPrint(std::string message)
 /**
  * Delete device and all associated infos
  */
-bool deleteDevice(std::string internalid)
+bool AgoMySensors::deleteDevice(std::string internalid)
 {
     //init
     bool result = false;
@@ -367,20 +456,20 @@ bool deleteDevice(std::string internalid)
                 pthread_mutex_unlock(&devicemapMutex);
 
                 result = true;
-                cout << "Device \"" << internalid << "\" removed successfully" << endl;
+                AGO_INFO() << "Device \"" << internalid << "\" removed successfully";
             }
             else
             {
                 //unable to remove device
                 result = false;
-                cout << "Unable to remove device \"" << internalid << "\"" << endl;
+                AGO_ERROR() << "Unable to remove device \"" << internalid << "\"";
             }
         }
         else
         {
             //device not found
             result = false;
-            cout << "Unable to remove unknown device \"" << internalid << "\"" << endl;
+            AGO_ERROR() << "Unable to remove unknown device \"" << internalid << "\"";
         }
     }
 
@@ -390,28 +479,207 @@ bool deleteDevice(std::string internalid)
 /**
  * Save all necessary infos for new device and register it to agocontrol
  */
-void addDevice(std::string internalid, std::string devicetype, qpid::types::Variant::Map devices, qpid::types::Variant::Map infos)
+void AgoMySensors::addDevice(std::string internalid, std::string devicetype, qpid::types::Variant::Map devices, qpid::types::Variant::Map infos, std::string protocol)
 {
     pthread_mutex_lock(&devicemapMutex);
+    string addStatus = "added";
+    if( infos.size()>0 )
+    {
+        addStatus = "updated";
+    }
     infos["type"] = devicetype;
     infos["value"] = "0";
     infos["counter_sent"] = 0;
     infos["counter_received"] = 0;
-    infos["counter_retries"] = 0;
     infos["counter_failed"] = 0;
+    infos["last_route"] = "";
     infos["last_timestamp"] = (int)(time(NULL));
-    infos["protocol"] = gateway_protocol_version;
+    infos["protocol"] = protocol;
     devices[internalid] = infos;
     devicemap["devices"] = devices;
     variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
     agoConnection->addDevice(internalid.c_str(), devicetype.c_str());
+    AGO_TRACE() << "Device [" << internalid << "] " << addStatus;
     pthread_mutex_unlock(&devicemapMutex);
+}
+
+/**
+ * Split I_LOG_MESSAGE payload
+ */
+bool AgoMySensors::splitInternalLogMessage(string payload, qpid::types::Variant::Map& items)
+{
+    bool result = true;
+
+    if( boost::algorithm::starts_with(payload, "send: ") )
+    {
+        //split send message
+        //format: send: <sender>-<last>-<to>-<destination> s=<sensor>,c=<command>,t=<type>,pt=<payload type>,l=<length>,sg=<signed>,st=<status(fail|ok)>:<payload>
+        items["type"] = "send";
+        std::vector<std::string> allItems = split(payload, ':');
+        if( allItems.size()>=3 )
+        {
+            string temp = allItems[1];
+            boost::algorithm::trim(temp);
+            std::vector<std::string> routeItems = split(temp, '-');
+            if( routeItems.size()==4 )
+            {
+                items["sender"] = routeItems[0];
+                items["last"] = routeItems[1];
+                items["to"] = routeItems[2];
+                items["destination"] = routeItems[3];
+            }
+            else
+            {
+                AGO_TRACE() << "I_LOG_MESSAGE send payload: route string is not valid [" << allItems[1] << "]";
+                result = false;
+            }
+
+            std::vector<std::string> infosItems = split(allItems[2], ',');
+            if( infosItems.size()==7 )
+            {
+                //destination child is item #0 (s=<sensor>)
+                string temp = infosItems[0];
+                boost::replace_all(temp, "s=", "");
+                items["sensor"] = temp;
+                temp = infosItems[1];
+                boost::replace_all(temp, "c=", "");
+                items["command"] = temp;
+                temp = infosItems[2];
+                boost::replace_all(temp, "t=", "");
+                items["commandtype"] = temp;
+                temp = infosItems[3];
+                boost::replace_all(temp, "pt=", "");
+                items["payloadtype"] = temp;
+                temp = infosItems[4];
+                boost::replace_all(temp, "l=", "");
+                items["length"] = temp;
+                temp = infosItems[5];
+                boost::replace_all(temp, "sg=", "");
+                items["signed"] = temp;
+                temp = infosItems[6];
+                std::vector<std::string> temps = split(temp, ':');
+                if( temps.size()==2 )
+                {
+                    temp = temps[0];
+                    boost::replace_all(temp, "st=", "");
+                    items["status"] = temp;
+                }
+                else
+                {
+                    AGO_DEBUG() << "I_LOG_MESSAGE send payload: no payload in message? [" << temp << "]";
+                    result = false;
+                }
+            }
+            else
+            {
+                AGO_DEBUG() << "I_LOG_MESSAGE send payload: infos string is not valid [" << allItems[2] << "]";
+                result = false;
+            }
+        }
+        else
+        {
+            AGO_DEBUG() << "I_LOG_MESSAGE send payload is not valid";
+            result = false;
+        }
+    }
+    else if( boost::algorithm::starts_with(payload, "read: ") )
+    {
+        //split read message
+        //format: read: <sender>-<last>-<destination> s=<sensor>,c=<command>,t=<type>,pt=<payload type>,l=<length>,sg=<signed>:<payload>
+        items["type"] = "read";
+        std::vector<std::string> allItems = split(payload, ':');
+        //allItems[0] = "read"
+        //allItems[1] = " <sender>-<last>-<destination> s=<sensor>,c=<command>,t=<type>,pt=<payload type>,l=<length>,sg=<signed>"
+        //allItems[2] = "<payload>"
+        if( allItems.size()>=3 )
+        {
+            //prepare data
+            string temp = allItems[1];
+            //remove first space character before route info
+            boost::algorithm::trim(temp);
+            std::vector<std::string> subItems = split(temp, ' ');
+            //subItems[0] = "<sender>-<last>-<destination>"
+            //subItems[1] = "s=<sensor>,c=<command>,t=<type>,pt=<payload type>,l=<length>,sg=<signed>"
+            
+            //get route
+            std::vector<std::string> routeItems = split(subItems[0], '-');
+            if( routeItems.size()==3 )
+            {
+                items["sender"] = routeItems[0];
+                items["last"] = routeItems[1];
+                items["destination"] = routeItems[2];
+            }
+            else
+            {
+                AGO_DEBUG() << "I_LOG_MESSAGE read payload: route string is not valid [" << allItems[1] << "]";
+                result = false;
+            }
+
+            //get log infos
+            std::vector<std::string> infosItems = split(subItems[1], ',');
+            if( infosItems.size()==6 )
+            {
+                //s=<sensor>
+                string temp = infosItems[0];
+                boost::replace_all(temp, "s=", "");
+                items["sensor"] = temp;
+
+                //c=<command>
+                temp = infosItems[1];
+                boost::replace_all(temp, "c=", "");
+                items["command"] = temp;
+
+                //t=<type>
+                temp = infosItems[2];
+                boost::replace_all(temp, "t=", "");
+                items["commandtype"] = temp;
+
+                //pt=<payload type>
+                temp = infosItems[3];
+                boost::replace_all(temp, "pt=", "");
+                items["payloadtype"] = temp;
+
+                //l=<length>
+                temp = infosItems[4];
+                boost::replace_all(temp, "l=", "");
+                items["length"] = temp;
+
+                //above v1.5 signed info exists
+                temp = infosItems[5];
+                if( temp.length()>0 )
+                {
+                    //sg=<signed>
+                    boost::replace_all(temp, "sg=", "");
+                    items["signed"] = temp;
+                }
+            }
+            else
+            {
+                AGO_DEBUG() << "I_LOG_MESSAGE read payload: infos string is not valid [" << allItems[2] << "]";
+                result = false;
+            }
+        }
+        else
+        {
+            AGO_DEBUG() << "I_LOG_MESSAGE read payload is not valid";
+            result = false;
+        }
+    }
+    else
+    {
+        AGO_DEBUG() << "I_LOG_MESSAGE is neither send nor read message";
+        result = false;
+    }
+
+    AGO_TRACE() << "splitInternalLogMessage found items: " << items;
+
+    return result;
 }
 
 /**
  * Open serial port
  */
-bool openSerialPort(string device)
+bool AgoMySensors::openSerialPort(string device)
 {
     bool result = true;
     try
@@ -419,7 +687,7 @@ bool openSerialPort(string device)
         int res = serialPort.Open(device.c_str(), 115200);
         if( res!=1 )
         {
-            cerr << "Can't open serial port: " << res << endl;
+            AGO_ERROR() << "Can't open serial port: " << res;
             result = false;
         }
         else
@@ -434,7 +702,7 @@ bool openSerialPort(string device)
     }
     catch(std::exception const&  ex)
     {
-        cerr  << "Can't open serial port: " << ex.what() << endl;
+        AGO_ERROR()  << "Can't open serial port: " << ex.what();
         result = false;
     }
     return result;
@@ -443,22 +711,22 @@ bool openSerialPort(string device)
 /**
  * Close serial port
  */
-void closeSerialPort() {
+void AgoMySensors::closeSerialPort()
+{
     try
     {
         serialPort.Close();
     }
     catch( std::exception const&  ex)
     {
-        if( DEBUG )
-            cout  << "Can't close serial port: " << ex.what() << endl;
+        AGO_DEBUG() << "Can't close serial port: " << ex.what();
     }
 }
 
 /**
  * Check internalid
  */
-bool checkInternalid(std::string internalid)
+bool AgoMySensors::checkInternalid(std::string internalid)
 {
     bool result = false;
     if( internalid.length()>0 )
@@ -498,16 +766,16 @@ bool checkInternalid(std::string internalid)
 /**
  * Send command to MySensor gateway
  */
-void sendcommand(std::string command)
+void AgoMySensors::sendcommand(std::string command)
 {
-    if( DEBUG )
-    {
-        time_t t = time(NULL);
-        cout << " => " << timestampToStr(&t) << " RE-SENDING: " << command;
-    }
+    string logCommand(command);
+    boost::replace_all(logCommand, "\n", "<NL>");
+    boost::replace_all(logCommand, "\r", "<CR>");
+    AGO_DEBUG() << " => RE-SENDING: " << logCommand;
     serialPort.WriteString(command.c_str());
 }
-void sendcommandV14(std::string internalid, int messageType, int ack, int subType, std::string payload)
+
+void AgoMySensors::sendcommandV15(std::string internalid, int messageType, int ack, int subType, std::string payload)
 {
     std::vector<std::string> items = split(internalid, '/');
     stringstream command;
@@ -518,30 +786,34 @@ void sendcommandV14(std::string internalid, int messageType, int ack, int subTyp
     int childId = atoi(items[1].c_str());
     command << nodeId << ";" << childId << ";" << messageType << ";" << ack << ";" << subType << ";" << payload << "\n";
 
-    //save command if device is an actuator and message type is SET
-    if( resendEnabled && infos.size()>0 && infos["type"]=="switch" && messageType==SET_V14 )
-    {
-        //check if internalid has no command pending
-        pthread_mutex_lock(&resendMutex);
-        if( commandsmap.count(internalid)==0 )
-        {
-            T_COMMAND cmd;
-            cmd.command = command.str();
-            cmd.attempts = 0;
-            commandsmap[internalid] = cmd;
-        }
-        pthread_mutex_unlock(&resendMutex);
-    }
-
     //send command
-    if( DEBUG )
-    {
-        time_t t = time(NULL);
-        cout << " => " << timestampToStr(&t) << " SENDING: " << command.str();
-    }
+    string logCommand(command.str());
+    boost::replace_all(logCommand, "\n", "<NL>");
+    boost::replace_all(logCommand, "\r", "<CR>");
+    AGO_DEBUG() << " => SENDINGv15: " << logCommand;
     serialPort.WriteString(command.str().c_str());
 }
-void sendcommandV13(std::string internalid, int messageType, int subType, std::string payload)
+
+void AgoMySensors::sendcommandV14(std::string internalid, int messageType, int ack, int subType, std::string payload)
+{
+    std::vector<std::string> items = split(internalid, '/');
+    stringstream command;
+    qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+
+    //prepare command
+    int nodeId = atoi(items[0].c_str());
+    int childId = atoi(items[1].c_str());
+    command << nodeId << ";" << childId << ";" << messageType << ";" << ack << ";" << subType << ";" << payload << "\n";
+
+    //send command
+    string logCommand(command.str());
+    boost::replace_all(logCommand, "\n", "<NL>");
+    boost::replace_all(logCommand, "\r", "<CR>");
+    AGO_DEBUG() << " => SENDINGv14: " << logCommand;
+    serialPort.WriteString(command.str().c_str());
+}
+
+void AgoMySensors::sendcommandV13(std::string internalid, int messageType, int subType, std::string payload)
 {
     std::vector<std::string> items = split(internalid, '/');
     stringstream command;
@@ -552,42 +824,25 @@ void sendcommandV13(std::string internalid, int messageType, int subType, std::s
     int childId = atoi(items[1].c_str());
     command << nodeId << ";" << childId << ";" << messageType << ";" << subType << ";" << payload << "\n";
 
-    //save command if device is an actuator and message type is SET_VARIABLE
-    if( resendEnabled && infos.size()>0 && infos["type"]=="switch" && messageType==SET_VARIABLE_V13 )
-    {
-        //check if internalid has no command pending
-        pthread_mutex_lock(&resendMutex);
-        if( commandsmap.count(internalid)==0 )
-        {
-            T_COMMAND cmd;
-            cmd.command = command.str();
-            cmd.attempts = 0;
-            commandsmap[internalid] = cmd;
-        }
-        pthread_mutex_unlock(&resendMutex);
-    }
-
     //send command
-    if( DEBUG )
-    {
-        time_t t = time(NULL);
-        cout << " => " << timestampToStr(&t) << " SENDING: " << command.str();
-    }
+    string logCommand(command.str());
+    boost::replace_all(logCommand, "\n", "<NL>");
+    boost::replace_all(logCommand, "\r", "<CR>");
+    AGO_DEBUG() << " => SENDINGv13: " << logCommand;
     serialPort.WriteString(command.str().c_str());
 }
 
 /**
  * Agocontrol command handler
  */
-qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
+qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map command)
 {
     qpid::types::Variant::Map returnval;
     qpid::types::Variant::Map infos;
     std::string deviceType = "";
     std::string cmd = "";
     std::string internalid = "";
-    if( DEBUG )
-        cout << "CommandHandler" << command << endl;
+    AGO_TRACE() << "CommandHandler" << command;
     if( command.count("internalid")==1 && command.count("command")==1 )
     {
         //get values
@@ -649,7 +904,6 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
                     {
                         infos["counter_received"] = 0;
                         infos["counter_sent"] = 0;
-                        infos["counter_retries"] = 0;
                         infos["counter_failed"] = 0;
                         setDeviceInfos(it->first, &infos);
                     }
@@ -672,7 +926,6 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
                     {
                         infos["counter_received"] = 0;
                         infos["counter_sent"] = 0;
-                        infos["counter_retries"] = 0;
                         infos["counter_failed"] = 0;
                         setDeviceInfos(device["internalid"].asString(), &infos);
                     }
@@ -692,7 +945,7 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
             //get serial port
             returnval["error"] = 0;
             returnval["msg"] = "";
-            returnval["port"] = device;
+            returnval["port"] = serialDevice;
         }
         else if( cmd=="setport" )
         {
@@ -706,8 +959,8 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
                 }
                 else {
                     //everything looks good, save port
-                    device = command["port"].asString();
-                    if( !setConfigSectionOption("mysensors", "device", device.c_str()) ) {
+                    serialDevice = command["port"].asString();
+                    if( !setConfigSectionOption("mysensors", "device", serialDevice.c_str()) ) {
                         returnval["error"] = 2;
                         returnval["msg"] = "Unable to save serial port to config file";
                     }
@@ -804,30 +1057,82 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
                     if( customvar=="VAR1" )
                     {
                         //reserved customvar
-                        cout << "Reserved customvar '" << customvar << "'. Nothing processed" << endl;
+                        AGO_WARNING() << "Reserved customvar '" << customvar << "'. Nothing processed";
                         returnval["error"] = 1;
                         returnval["msg"] = "Reserved customvar";
                     }
                     else if( customvar=="VAR2" )
                     {
-                        sendcommandV14(internalid, SET_V14, 1, V_VAR2_V14, value);
+                        if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                        {
+                            sendcommandV15(internalid, SET_V15, 1, V_VAR2_V15, value);
+                        }
+                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                        {
+                            sendcommandV14(internalid, SET_V14, 1, V_VAR2_V14, value);
+                        }
+                        else
+                        {
+                            AGO_WARNING() << "Customvar is supported from protocol v1.4";
+                            returnval["error"] = 1;
+                            returnval["msg"] = "Customvar is supported from protocol v1.4";
+                        }
                     }
                     else if( customvar=="VAR3" )
                     {
-                        sendcommandV14(internalid, SET_V14, 1, V_VAR3_V14, value);
+                        if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                        {
+                            sendcommandV15(internalid, SET_V15, 1, V_VAR3_V15, value);
+                        }
+                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                        {
+                            sendcommandV14(internalid, SET_V14, 1, V_VAR3_V14, value);
+                        }
+                        else
+                        {
+                            AGO_WARNING() << "Customvar is supported from protocol v1.4";
+                            returnval["error"] = 1;
+                            returnval["msg"] = "Customvar is supported from protocol v1.4";
+                        }
                     }
                     else if( customvar=="VAR4" )
                     {
-                        sendcommandV14(internalid, SET_V14, 1, V_VAR4_V14, value);
+                        if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                        {
+                            sendcommandV15(internalid, SET_V15, 1, V_VAR4_V15, value);
+                        }
+                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                        {
+                            sendcommandV14(internalid, SET_V14, 1, V_VAR4_V14, value);
+                        }
+                        else
+                        {
+                            AGO_WARNING() << "Customvar is supported from protocol v1.4";
+                            returnval["error"] = 1;
+                            returnval["msg"] = "Customvar is supported from protocol v1.4";
+                        }
                     }
                     else if( customvar=="VAR5" )
                     {
-                        sendcommandV14(internalid, SET_V14, 1, V_VAR5_V14, value);
+                        if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                        {
+                            sendcommandV15(internalid, SET_V15, 1, V_VAR5_V15, value);
+                        }
+                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                        {
+                            sendcommandV14(internalid, SET_V14, 1, V_VAR5_V14, value);
+                        }
+                        else
+                        {
+                            AGO_WARNING() << "Customvar is supported from protocol v1.4";
+                            returnval["error"] = 1;
+                            returnval["msg"] = "Customvar is supported from protocol v1.4";
+                        }
                     }
                     else
                     {
                         //unknown customvar
-                        cout << "Unsupported customvar '" << customvar << "'. Nothing processed" << endl;
+                        AGO_ERROR() << "Unsupported customvar '" << customvar << "'. Nothing processed";
                         returnval["error"] = 1;
                         returnval["msg"] = "Unsupported specified customvar";
                     }
@@ -856,9 +1161,11 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
                 {
                     if( cmd=="off" )
                     {
-                        if( infos["value"].asString()=="1" )
-                        {
-                            if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                            if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                            {
+                                sendcommandV15(internalid, SET_V15, 1, V_STATUS_V15, "0");
+                            }
+                            else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
                             {
                                 sendcommandV14(internalid, SET_V14, 1, V_LIGHT_V14, "0");
                             }
@@ -866,17 +1173,14 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
                             {
                                 sendcommandV13(internalid, SET_VARIABLE_V13, V_LIGHT_V13, "0");
                             }
-                        }
-                        else
-                        {
-                            if( DEBUG ) cout << " -> Command OFF dropped (value is the same [" << infos["value"].asString() << "])" << endl;
-                        }
                     }
                     else if( cmd=="on" )
                     {
-                        if( infos["value"].asString()=="0" )
-                        {
-                            if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                            if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                            {
+                                sendcommandV15(internalid, SET_V15, 1, V_STATUS_V15, "1");
+                            }
+                            else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
                             {
                                 sendcommandV14(internalid, SET_V14, 1, V_LIGHT_V14, "1");
                             }
@@ -884,17 +1188,12 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
                             {
                                 sendcommandV13(internalid, SET_VARIABLE_V13, V_LIGHT_V13, "1");
                             }
-                        }
-                        else 
-                        {
-                            if( DEBUG ) cout << " -> Command ON dropped (value is the same [" << infos["value"].asString() << "])" << endl;
-                        }
                     }
                 }
                 else
                 {
                     //unhandled case
-                    cout << "Unhandled case for device " << internalid << "[" << deviceType << "]" << endl;
+                    AGO_ERROR() << "Unhandled case for device " << internalid << "[" << deviceType << "]";
                     returnval["error"] = 1;
                     returnval["msg"] = "Unhandled case";
                 }
@@ -913,7 +1212,8 @@ qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command)
 /**
  * Read line from Serial
  */
-std::string readLine(bool* error) {
+std::string AgoMySensors::readLine(bool* error)
+{
     char c;
     std::string result;
     (*error) = false;
@@ -931,7 +1231,7 @@ std::string readLine(bool* error) {
         }
     }
     catch (std::exception& e) {
-        cerr << "Unable to read line: " << e.what() << endl;
+        AGO_ERROR() << "Unable to read line: " << e.what();
         (*error) = true;
     }
     return result;
@@ -940,13 +1240,24 @@ std::string readLine(bool* error) {
 /**
  * Create new device (called during init or when PRESENTATION message is received from MySensors gateway)
  */
-void newDevice(std::string internalid, std::string devicetype)
+void AgoMySensors::newDevice(std::string internalid, std::string devicetype, std::string protocol)
 {
-    //check internalid
+    //check some stuff
+    AGO_TRACE() << "newdevice " << internalid << "-" << devicetype;
     if( !checkInternalid(internalid) )
     {
         //internal id is not valid!
-        cerr << "Unable to add device, internalid '" << internalid << "' is not valid" << endl;
+        AGO_ERROR() << "Unable to add device[" << internalid << "], internalid '" << internalid << "' is not valid";
+        return;
+    }
+    if( devicetype.length()==0 )
+    {
+        AGO_ERROR() << "Unable to add device[" << internalid << "], empty devicetype";
+        return;
+    }
+    if( protocol.length()==0 || protocol==DEFAULT_PROTOCOL )
+    {
+        AGO_ERROR() << "Unable to add device[" << internalid << "], protocol[" << protocol << "] is invalid";
         return;
     }
 
@@ -958,126 +1269,55 @@ void newDevice(std::string internalid, std::string devicetype)
 
         if( infos.size()>0 )
         {
+            if( boost::algorithm::starts_with(protocol, "1.5") )
+            {
+                //no need to check protocol version for protocol version >= 1.5
+            }
+            else
+            {
+                //check protocol version
+                if( !infos["protocol"].isVoid() && protocol.size()>0 && protocol!=DEFAULT_PROTOCOL && infos["protocol"].asString()!=protocol )
+                {
+                    //sensors code was updated to different protocol
+                    AGO_INFO() << "Sensor protocol changed (" << infos["protocol"] << "=>" << protocol << ")";
+
+                    //refresh infos
+                    infos["protocol"] = protocol;
+                    setDeviceInfos(internalid, &infos);
+                }
+            }
+
             //internalid already referenced
-            if( infos["type"].asString()!=devicetype )
+            if( !infos["type"].isVoid() && infos["type"].asString()!=devicetype )
             {
                 //sensors is probably reconditioned, remove it before adding it
-                cout << "Reconditioned sensor detected (" << infos["type"] << "=>" << devicetype << ")" << endl;
+                AGO_INFO() << "Reconditioned sensor detected (" << infos["type"] << "=>" << devicetype << ")";
                 deleteDevice(internalid);
                 //refresh infos
                 infos = getDeviceInfos(internalid);
                 //and add brand new device
-                if( !devicemap["devices"].isVoid() )
-                {
-                    devices = devicemap["devices"].asMap();
-                    addDevice(internalid, devicetype, devices, infos);
-                }
-                else
-                {
-                    cerr << "No device map available. Unable to add device!" << endl;
-                }
-            }
-            else if( infos["protocol"].asString()!=gateway_protocol_version )
-            {
-                //sensors code was updated to different protocol
-                cout << "Sensor protocol changed (" << infos["protocol"] << "=>" << gateway_protocol_version << ")" << endl;
-                //refresh infos
-                infos = getDeviceInfos(internalid);
-                if( infos.size()>0 )
-                {
-                    infos["protocol"] = gateway_protocol_version;
-                    setDeviceInfos(internalid, &infos);
-                }
+                addDevice(internalid, devicetype, devices, infos, protocol);
             }
             else
             {
                 //sensor has just rebooted
-                addDevice(internalid, devicetype, devices, infos);
+                AGO_TRACE() << "Sensor '" << internalid << "'[" << devicetype << "] rebooted";
+                addDevice(internalid, devicetype, devices, infos, protocol);
             }
         }
         else
         {
             //add new device
-            addDevice(internalid, devicetype, devices, infos);
+            AGO_TRACE() << "Add new device '" << devicetype << "' with internalid '" << internalid << "'";
+            addDevice(internalid, devicetype, devices, infos, protocol);
         }
     }
-}
-
-/**
- * Resend function (threaded)
- * Allow to send again a command until ack is received (only for certain device type)
- */
-void* resendFunction(void* param)
-{
-    qpid::types::Variant::Map infos;
-    while(1)
-    {
-        pthread_mutex_lock(&resendMutex);
-        for( std::map<std::string,T_COMMAND>::iterator it=commandsmap.begin(); it!=commandsmap.end(); it++ )
-        {
-            if( it->second.attempts<RESEND_MAX_ATTEMPTS )
-            {
-                //resend command
-                sendcommand(it->second.command);
-                it->second.attempts++;
-                //update counter
-                infos = getDeviceInfos(it->first);
-                if( infos.size()>0 )
-                {
-                    if( infos["counter_retries"].isVoid() )
-                    {
-                        infos["counter_retries"] = 1;
-                    }
-                    else
-                    {
-                        infos["counter_retries"] = infos["counter_retries"].asUint64()+1;
-                    }
-                    setDeviceInfos(it->first, &infos);
-                }
-            }
-            else
-            {
-                //max attempts reached
-                cout << "Too many attemps. Command failed: " << it->second.command;
-
-                //update counters
-                qpid::types::Variant::Map infos = getDeviceInfos(it->first);
-                if( infos.size()>0 )
-                {
-                    if( infos["counter_failed"].isVoid() )
-                    {
-                        infos["counter_failed"] = 1;
-                    }
-                    else
-                    {
-                        infos["counter_failed"] = infos["counter_failed"].asUint64()+1;
-                    }
-                    setDeviceInfos(it->first, &infos);
-                }
-
-                //delete command from list
-                std::map<std::string, T_COMMAND>::iterator cmd = commandsmap.find(it->first);
-                if( cmd!=commandsmap.end() )
-                {
-                    commandsmap.erase(cmd);
-                }
-                else
-                {
-                    cout << "ERROR: command not found in map!. Unable to delete" << endl;
-                }
-
-            }
-        }
-        pthread_mutex_unlock(&resendMutex);
-        usleep(500000);
-    }
-    return NULL;
 }
 
 /**
  * Process message of protocol v1.3
  */
-void processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
+void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
 {
     int valid = 0;
     stringstream id;
@@ -1093,7 +1333,7 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
                     if( infos.size()==0 )
                     {
                         //create device
-                        newDevice(internalid, "batterysensor");
+                        newDevice(internalid, "batterysensor", "1.3");
                     }
 
                     //update counters
@@ -1129,7 +1369,7 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
                     //@info nodeId - The unique id (1-254) for this sensor. Default 255 (auto mode).
                     if( freeid>254 || freeid==0 )
                     {
-                        cerr << "FATAL: no nodeId available!" << endl;
+                        AGO_ERROR() << "FATAL: no nodeId available!";
                     }
                     else
                     {
@@ -1144,72 +1384,72 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
                     sendcommandV13(internalid, INTERNAL_V13, I_UNIT_V13, units);
                     break;
                 default:
-                    cout << "INTERNAL subtype '" << subType << "' not supported (protocol v1.3)" << endl;
+                    AGO_WARNING() << "INTERNAL subtype '" << subType << "' not supported (protocol v1.3)";
             }
             break;
 
         case PRESENTATION_V13:
-            cout << "PRESENTATION: " << subType << endl;
+            AGO_TRACE() << "PRESENTATION: " << subType;
             switch (subType)
             {
                 case S_DOOR_V13:
                 case S_MOTION_V13:
-                    newDevice(internalid, "binarysensor");
+                    newDevice(internalid, "binarysensor", payload);
                     break;
                 case S_SMOKE_V13:
-                    newDevice(internalid, "smokedetector");
+                    newDevice(internalid, "smokedetector", payload);
                     break;
                 case S_LIGHT_V13:
                 case S_HEATER_V13:
-                    newDevice(internalid, "switch");
+                    newDevice(internalid, "switch", payload);
                     break;
                 case S_DIMMER_V13:
-                    newDevice(internalid, "dimmer");
+                    newDevice(internalid, "dimmer", payload);
                     break;
                 case S_COVER_V13:
-                    newDevice(internalid, "drapes");
+                    newDevice(internalid, "drapes", payload);
                     break;
                 case S_TEMP_V13:
-                    newDevice(internalid, "temperaturesensor");
+                    newDevice(internalid, "temperaturesensor", payload);
                     break;
                 case S_HUM_V13:
-                    newDevice(internalid, "humiditysensor");
+                    newDevice(internalid, "humiditysensor", payload);
                     break;
                 case S_BARO_V13:
-                    newDevice(internalid, "barometersensor");
+                    newDevice(internalid, "barometersensor", payload);
                     break;
                 case S_WIND_V13:
-                    newDevice(internalid, "windsensor");
+                    newDevice(internalid, "windsensor", payload);
                     break;
                 case S_RAIN_V13:
-                    newDevice(internalid, "rainsensor");
+                    newDevice(internalid, "rainsensor", payload);
                     break;
                 case S_UV_V13:
-                    newDevice(internalid, "uvsensor");
+                    newDevice(internalid, "uvsensor", payload);
                     break;
                 case S_WEIGHT_V13:
-                    newDevice(internalid, "weightsensor");
+                    newDevice(internalid, "weightsensor", payload);
                     break;
                 case S_POWER_V13:
-                    newDevice(internalid, "powermeter");
+                    newDevice(internalid, "powermeter", payload);
                     break;
                 case S_DISTANCE_V13:
-                    newDevice(internalid, "distancesensor");
+                    newDevice(internalid, "distancesensor", payload);
                     break;
                 case S_LIGHT_LEVEL_V13:
-                    newDevice(internalid, "brightnesssensor");
+                    newDevice(internalid, "brightnesssensor", payload);
                     break;
                 case S_LOCK_V13:
-                    newDevice(internalid, "lock");
+                    newDevice(internalid, "lock", payload);
                     break;
                 case S_IR_V13:
-                    newDevice(internalid, "infraredblaster");
+                    newDevice(internalid, "infraredblaster", payload);
                     break;
                 case S_WATER_V13:
-                    newDevice(internalid, "watermeter");
+                    newDevice(internalid, "watermeter", payload);
                     break;
                 default:
-                    cout << "PRESENTATION subtype '" << subType << "' not supported (protocol v1.3)" << endl;
+                    AGO_WARNING() << "PRESENTATION subtype '" << subType << "' not supported (protocol v1.3)";
             }
             break;
 
@@ -1217,7 +1457,8 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
             if( infos.size()>0 )
             {
                 //update counters
-                if( infos["counter_sent"].isVoid() ) {
+                if( infos["counter_sent"].isVoid() )
+                {
                     infos["counter_sent"] = 1;
                 }
                 else
@@ -1225,6 +1466,7 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
                     infos["counter_sent"] = infos["counter_sent"].asUint64()+1;
                 }
                 setDeviceInfos(internalid, &infos);
+
                 //send value
                 sendcommandV13(internalid, SET_VARIABLE_V13, subType, infos["value"]);
             }
@@ -1232,22 +1474,11 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
             {
                 //device not found
                 //TODO log flood!
-                cerr  << "Device not found: unable to get its value" << endl;
+                AGO_ERROR()  << "Device not found: unable to get its value";
             }
             break;
 
         case SET_VARIABLE_V13:
-            if( resendEnabled )
-            {
-                //remove command from map to avoid sending command again
-                pthread_mutex_lock(&resendMutex);
-                if( commandsmap.count(internalid)!=0 )
-                {
-                    commandsmap.erase(internalid);
-                }
-                pthread_mutex_unlock(&resendMutex);
-            }
-
             //update counters
             if( infos.size()>0 )
             {
@@ -1268,9 +1499,12 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
             {
                 case V_TEMP_V13:
                     valid = 1;
-                    if (units == "M") {
+                    if (units == "M")
+                    {
                         agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degC");
-                    } else {
+                    }
+                    else
+                    {
                         agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degF");
                     }
                     break;
@@ -1299,8 +1533,16 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
                     agoConnection->emitEvent(internalid.c_str(), "event.environment.forecastchanged", payload.c_str(), "");
                     break;
                 case V_RAIN_V13:
-                    break;
                 case V_RAINRATE_V13:
+                    valid = 1;
+                    if (units == "M")
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "mm");
+                    }
+                    else
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "inches");
+                    }
                     break;
                 case V_WIND_V13:
                     break;
@@ -1388,7 +1630,7 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
             else
             {
                 //unsupported sensor
-                cerr << "WARN: sensor with subType=" << subType << " not supported yet (protocol v1.3)" << endl;
+                AGO_ERROR() << "WARN: sensor with subType=" << subType << " not supported yet (protocol v1.3)";
             }
 
             //send ack
@@ -1397,7 +1639,7 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
 
         case VARIABLE_ACK_V13:
             //TODO useful on controller?
-            cout << "VARIABLE_ACK" << endl;
+            AGO_TRACE() << "VARIABLE_ACK";
             break;
 
         default:
@@ -1408,7 +1650,7 @@ void processMessageV13(int radioId, int childId, int messageType, int subType, s
 /**
  * Process message v1.4
  */
-void processMessageV14(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
+void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
 {
     int valid = INVALID;
     stringstream timestamp;
@@ -1425,7 +1667,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                     if( infos.size()==0 )
                     {
                         //create device
-                        newDevice(internalid, "batterysensor");
+                        newDevice(internalid, "batterysensor", "1.4");
                     }
 
                     //update counters
@@ -1456,7 +1698,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                     //@info nodeId - The unique id (1-254) for this sensor. Default 255 (auto mode).
                     if( freeid>254 || freeid==0 )
                     {
-                        cerr << "FATAL: no nodeId available!" << endl;
+                        AGO_ERROR() << "FATAL: no nodeId available!";
                     }
                     else
                     {
@@ -1465,7 +1707,81 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                     }
                     break;
                 case I_LOG_MESSAGE_V14:
-                    //debug message from gateway. Already displayed with prettyPrint when debug activated
+                    {
+                        //debug message from gateway. Already displayed with prettyPrint when debug activated
+                        //we use it here to count errors (only when gateway sends something to a sensor) and update last route
+                        
+                        //parse message
+                        qpid::types::Variant::Map items;
+                        if( splitInternalLogMessage(payload, items) )
+                        {
+                            //handle send message
+                            if( items["type"].asString()=="send" )
+                            {
+                                //build destinationid
+                                string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
+                                AGO_TRACE() << "destinationid=" << destinationid;
+    
+                                qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                if( infos.size()>0 )
+                                {
+                                    //increase sent counter
+                                    if( infos["counter_sent"].isVoid() )
+                                    {
+                                        infos["counter_sent"] = 1;
+                                    }
+                                    else
+                                    {
+                                        infos["counter_sent"] = infos["counter_sent"].asUint64()+1;
+                                    }
+                                    
+                                    //increase failed counter
+                                    if( items["status"].asString()=="fail" )
+                                    {
+                                        if( infos["counter_failed"].isVoid() )
+                                        {
+                                            infos["counter_failed"] = 1;
+                                        }
+                                        else
+                                        {
+                                            infos["counter_failed"] = infos["counter_failed"].asUint64()+1;
+                                        }
+                                    }
+                                    setDeviceInfos(destinationid, &infos);
+                                }
+                            }
+                            else if( items["type"]=="read" )
+                            {
+                                //handle read message
+                                string destinationid = items["sender"].asString() + "/" + items["sensor"].asString();
+                                AGO_TRACE() << "destinationid=" << destinationid;
+    
+                                //build route
+                                if( items["sender"].asString()!="255" && items["last"].asString()!="255" && items["destination"].asString()!="255" )
+                                {
+                                    string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
+
+                                    qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                    if( infos.size()>0 )
+                                    {
+                                        //update last route
+                                        if( infos["last_route"].isVoid() )
+                                        {
+                                            AGO_TRACE() << destinationid << " route changed to " << route;
+                                            infos["last_route"] = route;
+                                            setDeviceInfos(destinationid, &infos);
+                                        }
+                                        else if( infos["last_route"].asString()!=route )
+                                        {
+                                            AGO_TRACE() << destinationid << " route changed from " << infos["last_route"].asString() << " to " << route;
+                                            infos["last_route"] = route;
+                                            setDeviceInfos(destinationid, &infos);
+                                        }
+                                    }
+                                }
+                            }
+                        }   
+                    }
                     break;
                 case I_CONFIG_V14:
                     //return config
@@ -1474,12 +1790,20 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                     //handled by useless (just to remove some unsupported log messages)
                     break;
                 case I_SKETCH_VERSION_V14:
-                    //only used to update timestamp. Useful if network relay support enabled
-                    infos["last_timestamp"] = (int)(time(NULL));
-                    setDeviceInfos(internalid, &infos);
+                    //only used to update network relay timestamp to detect stale state
+                    if( bNetworkRelay )
+                    {
+                        qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+                        if( infos.size()>0 && infos["type"]=="networkrelay" )
+                        {
+                            infos["last_timestamp"] = (int)(time(NULL));
+                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                            setDeviceInfos(internalid, &infos);
+                        }
+                    }
                     break;
                 default:
-                    cout << "INTERNAL subtype '" << subType << "' not supported (protocol v1.4)" << endl;
+                    AGO_WARNING() << "INTERNAL subtype '" << subType << "' not supported (protocol v1.4)";
             }
             break;
 
@@ -1488,94 +1812,83 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
             {
                 case S_DOOR_V14:
                 case S_MOTION_V14:
-                    newDevice(internalid, "binarysensor");
+                    newDevice(internalid, "binarysensor", payload);
                     break;
                 case S_SMOKE_V14:
-                    newDevice(internalid, "smokedetector");
+                    newDevice(internalid, "smokedetector", payload);
                     break;
                 case S_LIGHT_V14:
                 case S_HEATER_V14:
-                    newDevice(internalid, "switch");
+                    newDevice(internalid, "switch", payload);
                     break;
                 case S_DIMMER_V14:
-                    newDevice(internalid, "dimmer");
+                    newDevice(internalid, "dimmer", payload);
                     break;
                 case S_COVER_V14:
-                    newDevice(internalid, "drapes");
+                    newDevice(internalid, "drapes", payload);
                     break;
                 case S_TEMP_V14:
-                    newDevice(internalid, "temperaturesensor");
+                    newDevice(internalid, "temperaturesensor", payload);
                     break;
                 case S_HUM_V14:
-                    newDevice(internalid, "humiditysensor");
+                    newDevice(internalid, "humiditysensor", payload);
                     break;
                 case S_BARO_V14:
-                    newDevice(internalid, "barometersensor");
+                    newDevice(internalid, "barometersensor", payload);
                     break;
                 case S_WIND_V14:
-                    newDevice(internalid, "windsensor");
+                    newDevice(internalid, "windsensor", payload);
                     break;
                 case S_RAIN_V14:
-                    newDevice(internalid, "rainsensor");
+                    newDevice(internalid, "rainsensor", payload);
                     break;
                 case S_UV_V14:
-                    newDevice(internalid, "uvsensor");
+                    newDevice(internalid, "uvsensor", payload);
                     break;
                 case S_WEIGHT_V14:
-                    newDevice(internalid, "weightsensor");
+                    newDevice(internalid, "weightsensor", payload);
                     break;
                 case S_POWER_V14:
-                    newDevice(internalid, "powermeter");
+                    newDevice(internalid, "powermeter", payload);
                     break;
                 case S_DISTANCE_V14:
-                    newDevice(internalid, "distancesensor");
+                    newDevice(internalid, "distancesensor", payload);
                     break;
                 case S_LIGHT_LEVEL_V14:
-                    newDevice(internalid, "brightnesssensor");
+                    newDevice(internalid, "brightnesssensor", payload);
                     break;
                 case S_ARDUINO_RELAY_V14:
-                    if( handleNetworkRelay )
+                    if( bNetworkRelay )
                     {
-                        newDevice(internalid, "networkrelay");
+                        newDevice(internalid, "networkrelay", payload);
                     }
                     break;
                 case S_LOCK_V14:
-                    newDevice(internalid, "lock");
+                    newDevice(internalid, "lock", payload);
                     break;
                 case S_IR_V14:
-                    newDevice(internalid, "infraredblaster");
+                    newDevice(internalid, "infraredblaster", payload);
                     break;
                 case S_AIR_QUALITY_V14:
-                    newDevice(internalid, "airsensor");
+                    newDevice(internalid, "airsensor", payload);
                     break;
                 case S_CUSTOM_V14:
-                    cout << "Device type 'CUSTOM' cannot be implemented in agocontrol" << endl;
+                    AGO_WARNING() << "Device type 'CUSTOM' cannot be implemented in agocontrol";
                     break;
                 case S_DUST_V14:
-                    newDevice(internalid, "dustsensor");
+                    newDevice(internalid, "dustsensor", payload);
                     break;
                 case S_SCENE_CONTROLLER_V14:
-                    newDevice(internalid, "scenecontroller");
+                    newDevice(internalid, "scenecontroller", payload);
                     break;
                 default:
-                    cout << "PRESENTATION subtype '" << subType << "' not supported (protocol v1.4)" << endl;
+                    AGO_WARNING() << "PRESENTATION subtype '" << subType << "' not supported (protocol v1.4)";
             }
             break;
 
         case REQ_V14:
             if( infos.size()>0 )
             {
-                //update counters
-                if( infos["counter_sent"].isVoid() )
-                {
-                    infos["counter_sent"] = 1;
-                }
-                else
-                {
-                    infos["counter_sent"] = infos["counter_sent"].asUint64()+1;
-                }
-                setDeviceInfos(internalid, &infos);
-
                 //agocontrol save device value in device map regardless the sensor type.
                 //here we handle specific custom vars, to make possible having multiple values for the same device
                 switch (subType)
@@ -1588,7 +1901,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                         }
                         else
                         {
-                            cout << "Device '" << internalid << "' has no 'pin' value. Returned value [0] is not valid." << endl;
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'pin' value. Returned value [0] is not valid.";
                             sendcommandV14(internalid, SET_V14, 0, subType, "0");
                         }
                         break;
@@ -1600,7 +1913,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                         }
                         else
                         {
-                            cout << "Device '" << internalid << "' has no 'custom_var2' value. Returned value [0] is not valid." << endl;
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'custom_var2' value. Returned value [0] is not valid.";
                             sendcommandV14(internalid, SET_V14, 0, subType, "0");
                         }
                         break;
@@ -1612,7 +1925,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                         }
                         else
                         {
-                            cout << "Device '" << internalid << "' has no 'custom_var3' value. Returned value [0] is not valid." << endl;
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'custom_var3' value. Returned value [0] is not valid.";
                             sendcommandV14(internalid, SET_V14, 0, subType, "0");
                         }
                         break;
@@ -1624,7 +1937,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                         }
                         else
                         {
-                            cout << "Device '" << internalid << "' has no 'custom_var4' value. Returned value [0] is not valid." << endl;
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'custom_var4' value. Returned value [0] is not valid.";
                             sendcommandV14(internalid, SET_V14, 0, subType, "0");
                         }
                         break;
@@ -1636,7 +1949,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                         }
                         else
                         {
-                            cout << "Device '" << internalid << "' has no 'custom_var5' value. Returned value [0] is not valid." << endl;
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'custom_var5' value. Returned value [0] is not valid.";
                             sendcommandV14(internalid, SET_V14, 0, subType, "0");
                         }
                         break;
@@ -1648,27 +1961,11 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
             else
             {
                 //device not found
-                cerr  << "Device not found: unable to get its value" << endl;
+                AGO_ERROR() << "Device not found: unable to get its value";
             }
             break;
 
         case SET_V14:
-            if( resendEnabled )
-            {
-                //remove command from map to avoid sending command again
-                pthread_mutex_lock(&resendMutex);
-                cmd = commandsmap.find(internalid);
-                if( cmd!=commandsmap.end() && ack==1 )
-                {
-                    //command exists in command list for this device and its an ack
-                    //remove command from list
-                    cout << "Ack received for command " << cmd->second.command;
-                    commandsmap.erase(cmd);
-                    ack = 0;
-                }
-                pthread_mutex_unlock(&resendMutex);
-            }
-
             //update counters
             if( infos.size()>0 )
             {
@@ -1723,8 +2020,16 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                     agoConnection->emitEvent(internalid.c_str(), "event.environment.forecastchanged", payload.c_str(), "");
                     break;
                 case V_RAIN_V14:
-                    break;
                 case V_RAINRATE_V14:
+                    valid = VALID_SAVE;
+                    if (units == "M")
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "mm");
+                    }
+                    else
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "inches");
+                    }
                     break;
                 case V_WIND_V14:
                     break;
@@ -1829,7 +2134,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
             if( valid==INVALID )
             {
                 //unsupported sensor
-                cerr << "WARN: sensor with subType=" << subType << " not supported yet" << endl;
+                AGO_ERROR() << "WARN: sensor with subType=" << subType << " not supported yet (protocol v1.4)";
             }
             else if( valid==VALID_DONT_SAVE )
             {
@@ -1867,7 +2172,7 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
                             infos["custom_var5"] = payload;
                             break;
                         default:
-                            cerr << "Unhandled valid case [" << valid << "]. Please check code!" << endl;
+                            AGO_ERROR() << "Unhandled valid case [" << valid << "]. Please check code!";
                     }
                     setDeviceInfos(internalid, &infos);
                 }
@@ -1882,7 +2187,620 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
 
         case STREAM_V14:
             //TODO nothing implemented in MySensor yet
-            cout << "STREAM" << endl;
+            AGO_TRACE() << "STREAM";
+            break;
+        default:
+            break;
+    }
+}
+
+/**
+ * Process message v1.5
+ */
+void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
+{
+    int valid = INVALID;
+    stringstream timestamp;
+    stringstream id;
+    int freeid;
+    std::map<std::string, T_COMMAND>::iterator cmd;
+    string strNodeId = boost::lexical_cast<std::string>(nodeId);
+
+    switch (messageType)
+    {
+        case INTERNAL_V15:
+            switch (subType)
+            {
+                case I_BATTERY_LEVEL_V15:
+                    if( infos.size()==0 )
+                    {
+                        //create device
+                        newDevice(internalid, "batterysensor", "1.5");
+                    }
+
+                    //update counters
+                    if( infos.size()>0 )
+                    {
+                        if( infos["counter_received"].isVoid() )
+                        {
+                            infos["counter_received"] = 1;
+                        }
+                        else
+                        {
+                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                        }
+                        infos["last_timestamp"] = (int)(time(NULL));
+                        setDeviceInfos(internalid, &infos);
+                    }
+
+                    //emit battery level
+                    agoConnection->emitEvent(internalid.c_str(), "event.device.batterylevelchanged", payload.c_str(), "percent");
+                    break;
+                case I_TIME_V15:
+                    timestamp << time(NULL);
+                    sendcommandV15(internalid, INTERNAL_V15, 0, I_TIME_V15, timestamp.str());
+                    break;
+                case I_ID_REQUEST_V15:
+                    //return radio id to sensor
+                    freeid = getFreeId();
+                    //@info nodeId - The unique id (1-254) for this sensor. Default 255 (auto mode).
+                    if( freeid>254 || freeid==0 )
+                    {
+                        AGO_ERROR() << "FATAL: no nodeId available!";
+                    }
+                    else
+                    {
+                        id << freeid;
+                        sendcommandV15(internalid, INTERNAL_V15, 0, I_ID_RESPONSE_V15, id.str());
+                    }
+                    break;
+                case I_LOG_MESSAGE_V15:
+                    {
+                        //debug message from gateway. Already displayed with prettyPrint when debug activated
+                        //we use it here to count errors (only when gateway sends something to a sensor) and update last route
+                        
+                        //parse message
+                        qpid::types::Variant::Map items;
+                        if( splitInternalLogMessage(payload, items) )
+                        {
+                            //handle send message
+                            if( items["type"].asString()=="send" )
+                            {
+                                //build destinationid
+                                string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
+                                AGO_TRACE() << "destinationid=" << destinationid;
+    
+                                qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                if( infos.size()>0 )
+                                {
+                                    //increase sent counter
+                                    if( infos["counter_sent"].isVoid() )
+                                    {
+                                        infos["counter_sent"] = 1;
+                                    }
+                                    else
+                                    {
+                                        infos["counter_sent"] = infos["counter_sent"].asUint64()+1;
+                                    }
+                                    
+                                    //increase failed counter
+                                    if( items["status"].asString()=="fail" )
+                                    {
+                                        if( infos["counter_failed"].isVoid() )
+                                        {
+                                            infos["counter_failed"] = 1;
+                                        }
+                                        else
+                                        {
+                                            infos["counter_failed"] = infos["counter_failed"].asUint64()+1;
+                                        }
+                                    }
+                                    setDeviceInfos(destinationid, &infos);
+                                }
+                            }
+                            else if( items["type"]=="read" )
+                            {
+                                //handle read message
+                                string destinationid = items["sender"].asString() + "/" + items["sensor"].asString();
+                                AGO_TRACE() << "destinationid=" << destinationid;
+    
+                                //build route
+                                if( items["sender"].asString()!="255" && items["last"].asString()!="255" && items["destination"].asString()!="255" )
+                                {
+                                    string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
+    
+                                    qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                    if( infos.size()>0 )
+                                    {
+                                        //update last route
+                                        if( infos["last_route"].isVoid() )
+                                        {
+                                            AGO_TRACE() << destinationid << " route changed to " << route;
+                                            infos["last_route"] = route;
+                                            setDeviceInfos(destinationid, &infos);
+                                        }
+                                        else if( infos["last_route"].asString()!=route )
+                                        {
+                                            AGO_TRACE() << destinationid << " route changed from " << infos["last_route"].asString() << " to " << route;
+                                            infos["last_route"] = route;
+                                            setDeviceInfos(destinationid, &infos);
+                                        }
+                                    }
+                                }
+                            }
+                        }   
+                    }
+                    break;
+                case I_CONFIG_V15:
+                    //return config
+                    sendcommandV15(internalid, INTERNAL_V15, 0, I_CONFIG_V15, units.c_str());
+                case I_SKETCH_NAME_V15:
+                    //handled but useless (just to remove some unsupported log messages)
+                    break;
+                case I_SKETCH_VERSION_V15:
+                    //only used to update network relay timestamp to detect stale state
+                    if( bNetworkRelay )
+                    {
+                        qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+                        if( infos.size()>0 && infos["type"]=="networkrelay" )
+                        {
+                            infos["last_timestamp"] = (int)(time(NULL));
+                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                            setDeviceInfos(internalid, &infos);
+                        }
+                    }
+                    break;
+                case I_GATEWAY_READY_V15:
+                    AGO_TRACE() << "Received GATEWAY_READY message";
+                    break;
+                default:
+                    AGO_WARNING() << "INTERNAL subtype '" << subType << "' not supported (protocol v1.4)";
+            }
+            break;
+
+        case PRESENTATION_V15:
+            switch (subType)
+            {
+                case S_DOOR_V15:
+                case S_MOTION_V15:
+                    newDevice(internalid, "binarysensor", payload);
+                    break;
+                case S_SMOKE_V15:
+                    newDevice(internalid, "smokedetector", payload);
+                    break;
+                case S_BINARY_V15:
+                case S_HEATER_V15:
+                    newDevice(internalid, "switch", payload);
+                    break;
+                case S_DIMMER_V15:
+                    newDevice(internalid, "dimmer", payload);
+                    break;
+                case S_COVER_V15:
+                    newDevice(internalid, "drapes", payload);
+                    break;
+                case S_TEMP_V15:
+                    newDevice(internalid, "temperaturesensor", payload);
+                    break;
+                case S_HUM_V15:
+                    newDevice(internalid, "humiditysensor", payload);
+                    break;
+                case S_BARO_V15:
+                    newDevice(internalid, "barometersensor", payload);
+                    break;
+                case S_WIND_V15:
+                    newDevice(internalid, "windsensor", payload);
+                    break;
+                case S_RAIN_V15:
+                    newDevice(internalid, "rainsensor", payload);
+                    break;
+                case S_UV_V15:
+                    newDevice(internalid, "uvsensor", payload);
+                    break;
+                case S_WEIGHT_V15:
+                    newDevice(internalid, "weightsensor", payload);
+                    break;
+                case S_POWER_V15:
+                    newDevice(internalid, "powermeter", payload);
+                    break;
+                case S_DISTANCE_V15:
+                    newDevice(internalid, "distancesensor", payload);
+                    break;
+                case S_LIGHT_LEVEL_V15:
+                    newDevice(internalid, "brightnesssensor", payload);
+                    break;
+                case S_ARDUINO_NODE_V15:
+                {
+                    //in v1.5 each device sends ARDUINO_NODE presentation that contains protocol version
+                    //while in v1.4.X and above each presentation messages contained protocol version
+                    //so we need to check protocol here
+                    
+                    //check and update if necessary protocol version of all sensors of current node
+                    if( !devicemap["devices"].isVoid() )
+                    {
+                        qpid::types::Variant::Map devices = devicemap["devices"].asMap();
+                        for( qpid::types::Variant::Map::const_iterator it=devices.begin(); it!=devices.end(); it++ )
+                        {
+                            if( !it->second.isVoid() && it->second.getType()==VAR_MAP )
+                            {
+                                qpid::types::Variant::Map infos = it->second.asMap();
+                                std::string tmpInternalid = (std::string)it->first;
+                                if( boost::algorithm::starts_with(tmpInternalid, strNodeId) )
+                                {
+                                    //sensor is found
+                                    if( !infos["protocol"].isVoid() && payload.size()>0 && payload!=DEFAULT_PROTOCOL && infos["protocol"].asString()!=payload )
+                                    {
+                                        //sensors code was updated to different protocol
+                                        AGO_INFO() << "Sensor " << tmpInternalid << " protocol changed (" << infos["protocol"] << "=>" << payload << ")";
+
+                                        //refresh infos
+                                        infos["protocol"] = payload;
+                                        setDeviceInfos(tmpInternalid, &infos);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    //always keep track of arduino nodes and save associated protocol version
+                    AGO_TRACE() << "Arduino node received, save its infos nodeid[" << nodeId << "]==protocol[" << payload << "]";
+                    if( payload.length()>0 )
+                    {
+                        arduinoNodes[strNodeId] = payload;
+                    }
+
+                    break;
+                }
+                case S_ARDUINO_REPEATER_NODE_V15:
+                    if( bNetworkRelay )
+                    {
+                        newDevice(internalid, "networkrelay", payload);
+                    }
+
+                    //save protocol version for this node
+                    if( payload.length()>0 )
+                    {
+                        arduinoNodes[strNodeId] = payload;
+                    }
+                    break;
+                case S_LOCK_V15:
+                    newDevice(internalid, "lock", payload);
+                    break;
+                case S_IR_V15:
+                    newDevice(internalid, "infraredblaster", payload);
+                    break;
+                case S_AIR_QUALITY_V15:
+                    newDevice(internalid, "airsensor", payload);
+                    break;
+                case S_CUSTOM_V15:
+                    AGO_WARNING() << "Device type 'CUSTOM' cannot be implemented in agocontrol";
+                    break;
+                case S_DUST_V15:
+                    newDevice(internalid, "dustsensor", payload);
+                    break;
+                case S_SCENE_CONTROLLER_V15:
+                    newDevice(internalid, "scenecontroller", payload);
+                    break;
+                default:
+                    AGO_WARNING() << "PRESENTATION subtype '" << subType << "' not supported (protocol v1.4)";
+            }
+            break;
+
+        case REQ_V15:
+            if( infos.size()>0 )
+            {
+                //agocontrol save device value in device map regardless the sensor type.
+                //here we handle specific custom vars, to make possible having multiple values for the same device
+                switch (subType)
+                {
+                    case V_VAR1_V15:
+                        //send var1 value (already reserved for pin code)
+                        if( !infos["pin"].isVoid() )
+                        {
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["pin"]);
+                        }
+                        else
+                        {
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'pin' value. Returned value [0] is not valid.";
+                            sendcommandV15(internalid, SET_V15, 0, subType, "0");
+                        }
+                        break;
+                    case V_VAR2_V15:
+                        //send var2 value
+                        if( !infos["custom_var2"].isVoid() )
+                        {
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var2"]);
+                        }
+                        else
+                        {
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'custom_var2' value. Returned value [0] is not valid.";
+                            sendcommandV15(internalid, SET_V15, 0, subType, "0");
+                        }
+                        break;
+                    case V_VAR3_V15:
+                        //send var3 value
+                        if( !infos["custom_var3"].isVoid() )
+                        {
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var3"]);
+                        }
+                        else
+                        {
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'custom_var3' value. Returned value [0] is not valid.";
+                            sendcommandV15(internalid, SET_V15, 0, subType, "0");
+                        }
+                        break;
+                    case V_VAR4_V15:
+                        //send var4 value
+                        if( !infos["custom_var4"].isVoid() )
+                        {
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var4"]);
+                        }
+                        else
+                        {
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'custom_var4' value. Returned value [0] is not valid.";
+                            sendcommandV15(internalid, SET_V15, 0, subType, "0");
+                        }
+                        break;
+                    case V_VAR5_V15:
+                        //send var5 value
+                        if( !infos["custom_var5"].isVoid() )
+                        {
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var5"]);
+                        }
+                        else
+                        {
+                            AGO_ERROR() << "Device '" << internalid << "' has no 'custom_var5' value. Returned value [0] is not valid.";
+                            sendcommandV15(internalid, SET_V15, 0, subType, "0");
+                        }
+                        break;
+                    default:
+                        //send default value
+                        sendcommandV15(internalid, SET_V15, 0, subType, infos["value"]);
+                }
+            }
+            else
+            {
+                //device not found
+                AGO_ERROR() << "Device not found: unable to get its value";
+            }
+            break;
+
+        case SET_V15:
+            //update counters
+            if( infos.size()>0 )
+            {
+                if( infos["counter_received"].isVoid() )
+                {
+                    infos["counter_received"] = 1;
+                }
+                else
+                {
+                    infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                }
+                infos["last_timestamp"] = (int)(time(NULL));
+                setDeviceInfos(internalid, &infos);
+            }
+
+            //do something on received event
+            switch (subType)
+            {
+                case V_TEMP_V15:
+                    valid = VALID_SAVE;
+                    if (units == "M")
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degC");
+                    }
+                    else
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degF");
+                    }
+                    break;
+                case V_TRIPPED_V15:
+                    valid = VALID_SAVE;
+                    agoConnection->emitEvent(internalid.c_str(), "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
+                    break;
+                case V_HUM_V15:
+                    valid = VALID_SAVE;
+                    agoConnection->emitEvent(internalid.c_str(), "event.environment.humiditychanged", payload.c_str(), "percent");
+                    break;
+                case V_STATUS_V15:
+                    valid = VALID_SAVE;
+                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload=="1" ? 255 : 0, "");
+                    break;
+                case V_PERCENTAGE_V15:
+                    valid = VALID_SAVE;
+                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload.c_str(), "");
+                    break;
+                case V_PRESSURE_V15:
+                    valid = VALID_SAVE;
+                    agoConnection->emitEvent(internalid.c_str(), "event.environment.pressurechanged", payload.c_str(), "mBar");
+                    break;
+                case V_FORECAST_V15:
+                    valid = VALID_SAVE;
+                    agoConnection->emitEvent(internalid.c_str(), "event.environment.forecastchanged", payload.c_str(), "");
+                    break;
+                case V_RAIN_V15:
+                case V_RAINRATE_V15:
+                    valid = VALID_SAVE;
+                    if (units == "M")
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "mm");
+                    }
+                    else
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "inches");
+                    }
+                    break;
+                case V_WIND_V15:
+                    break;
+                case V_GUST_V15:
+                    break;
+                case V_DIRECTION_V15:
+                    break;
+                case V_UV_V15:
+                    break;
+                case V_WEIGHT_V15:
+                    break;
+                case V_DISTANCE_V15:
+                    valid = VALID_SAVE;
+                    if (units == "M")
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "cm");
+                    }
+                    else
+                    {
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "inch");
+                    }
+                    break;
+                case V_IMPEDANCE_V15:
+                    break;
+                case V_ARMED_V15:
+                    break;
+                case V_WATT_V15:
+                    break;
+                case V_KWH_V15:
+                    valid = 1;
+                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "kWh");
+                    break;
+                case V_SCENE_ON_V15:
+                    break;
+                case V_SCENE_OFF_V15:
+                    break;
+                case V_HVAC_FLOW_STATE_V15:
+                    break;
+                case V_HVAC_SPEED_V15:
+                    break;
+                case V_LIGHT_LEVEL_V15:
+                    valid = VALID_SAVE;
+                    agoConnection->emitEvent(internalid.c_str(), "event.environment.brightnesschanged", payload.c_str(), "lux");
+                    break;
+                case V_VAR1_V15:
+                    //custom value 1 is reserved for pin code
+                    valid = VALID_DONT_SAVE;
+                    {
+                        qpid::types::Variant::Map payloadMap;
+                        payloadMap["pin"]=payload;
+                        agoConnection->emitEvent(internalid.c_str(), "event.security.pinentered", payloadMap);
+                    }
+                    break;
+                case V_VAR2_V15:
+                    //save custom value
+                    valid = VALID_VAR2;
+                    //but no event triggered
+                    break;
+                case V_VAR3_V15:
+                    //save custom value
+                    valid = VALID_VAR3;
+                    //but no event triggered
+                    break;
+                case V_VAR4_V15:
+                    //save custom value
+                    valid = VALID_VAR4;
+                    //but no event triggered
+                    break;
+                case V_VAR5_V15:
+                    //save custom value
+                    valid = VALID_VAR5;
+                    //but no event triggered
+                    break;
+                case V_UP_V15:
+                    break;
+                case V_DOWN_V15:
+                    break;
+                case V_STOP_V15:
+                    break;
+                case V_IR_SEND_V15:
+                    break;
+                case V_IR_RECEIVE_V15:
+                    break;
+                case V_FLOW_V15:
+                    break;
+                case V_VOLUME_V15:
+                    break;
+                case V_LOCK_STATUS_V15:
+                    break;
+                case V_LEVEL_V15:
+                    break;
+                case V_VOLTAGE_V15:
+                    break;
+                case V_CURRENT_V15:
+                    valid = 1;
+                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "A");
+                    break;
+                case V_RGB_V15:
+                    break;
+                case V_RGBW_V15:
+                    break;
+                case V_ID_V15:
+                    break;
+                case V_UNIT_PREFIX_V15:
+                    break;
+                case V_HVAC_SETPOINT_COOL_V15:
+                    break;
+                case V_HVAC_SETPOINT_HEAT_V15:
+                    break;
+                case V_HVAC_FLOW_MODE_V15:
+                    break;
+                default:
+                    break;
+            }
+
+            if( valid==INVALID )
+            {
+                //unsupported sensor
+                AGO_ERROR() << "WARN: sensor with subType=" << subType << " not supported yet (protocol v1.5)";
+            }
+            else if( valid==VALID_DONT_SAVE )
+            {
+                //don't save received value
+            }
+            else 
+            {
+                //save current device value
+                infos = getDeviceInfos(internalid);
+                if( infos.size()>0 )
+                {
+                    switch(valid)
+                    {
+                        case VALID_SAVE:
+                            //default value
+                            infos["value"] = payload;
+                            break;
+                        case VALID_VAR1:
+                            //custom var1 is reserved for pin code
+                            break;
+                        case VALID_VAR2:
+                            //save custom var2
+                            infos["custom_var2"] = payload;
+                            break;
+                        case VALID_VAR3:
+                            //save custom var3
+                            infos["custom_var3"] = payload;
+                            break;
+                        case VALID_VAR4:
+                            //save custom var4
+                            infos["custom_var4"] = payload;
+                            break;
+                        case VALID_VAR5:
+                            //save custom var5
+                            infos["custom_var5"] = payload;
+                            break;
+                        default:
+                            AGO_ERROR() << "Unhandled valid case [" << valid << "]. Please check code!";
+                    }
+                    setDeviceInfos(internalid, &infos);
+                }
+            }
+
+            //send ack if necessary
+            if( ack )
+            {
+                sendcommandV15(internalid, SET_V15, 0, subType, payload);
+            }
+            break;
+
+        case STREAM_V15:
+            //TODO nothing implemented in MySensor yet
+            AGO_TRACE() << "STREAM";
             break;
         default:
             break;
@@ -1892,7 +2810,8 @@ void processMessageV14(int nodeId, int childId, int messageType, int ack, int su
 /**
  * Serial read function (threaded)
  */
-void *receiveFunction(void *param) {
+void AgoMySensors::receiveFunction()
+{
     bool error = false;
     std::string log = "";
 
@@ -1907,75 +2826,184 @@ void *receiveFunction(void *param) {
         if( error )
         {
             //error occured! close port
-            cout << "Reconnecting to serial port" << endl;
+            AGO_INFO() << "Reconnecting to serial port";
             closeSerialPort();
             //pause (100ms)
             usleep(100000);
             //and reopen it
-            openSerialPort(device);
+            openSerialPort(serialDevice);
 
             pthread_mutex_unlock (&serialMutex);
             continue;
         }
 
-        if( DEBUG )
-        {
-            log = prettyPrint(line);
-            if( log.size()>0 )
-            {
-                time_t t = time(NULL);
-                cout << " => " << timestampToStr(&t) << " RECEIVING: " << log;
-            }
-        }
-
         std::vector<std::string> items = split(line, ';');
         if ( items.size()>=4 && items.size()<=6 )
         {
+            AGO_TRACE() << "------------ NEW LINE RECEIVED ------------";
             int nodeId = atoi(items[0].c_str());
+            string strNodeId = items[0];
             int childId = atoi(items[1].c_str());
             string internalid = items[0] + "/" + items[1];
             int messageType = atoi(items[2].c_str());
             int subType;
             qpid::types::Variant::Map infos;
             std::string payload = "";
+            int ack = 0;
+            std::string protocol = "";
 
-            //get device infos
+            //try to get device infos
             infos = getDeviceInfos(internalid);
 
-            //process message
-            if( boost::algorithm::starts_with(gateway_protocol_version, "1.4") )
+            //get protocol version
+            if( infos.size()>0 )
             {
-                int ack = atoi(items[3].c_str());
-                subType = atoi(items[4].c_str());
-                if( items.size()==6 )
-                    payload = items[5];
-                processMessageV14(nodeId, childId, messageType, ack, subType, payload, internalid, infos);
+                AGO_TRACE() << "infos found=" << infos;
+                //get protocol version from device infos
+                if( !infos["protocol"].isVoid() && infos["protocol"].asString().size()>0 )
+                {
+                    AGO_TRACE() << "Use protocol version from infos map";
+                    protocol = infos["protocol"].asString();
+                }
             }
-            else if( boost::algorithm::starts_with(gateway_protocol_version, "1.3") )
+            else if( (nodeId==0 && childId==0) || (nodeId==255 && childId==255) )
             {
-                subType = atoi(items[3].c_str());
-                if( items.size()==5 )
-                    payload = items[4];
-                processMessageV13(nodeId, childId, messageType, subType, payload, internalid, infos);
+                //message from gateway or broadcast message, set protocol version to gateway one
+                AGO_TRACE() << "Use protocol version of gateway (gateway or broadcast message)";
+                protocol = gateway_protocol_version;
+            }
+            else if( !arduinoNodes[strNodeId].isVoid() )
+            {
+                //we have informations from previous arduino nodes request, use it
+                AGO_TRACE() << "Use protocol version found in arduinoNodes map";
+                protocol = arduinoNodes[strNodeId].asString();
             }
             else
             {
-                //protocol not supported
-                cout << "Error: protocol version '" << gateway_protocol_version << "' not supported" << endl;
+                //get protocol version from current message (payload)
+                
+                //try >= v1.4 first
+                if( items.size()==6 )
+                    payload = items[5];
+
+                if( boost::algorithm::starts_with(payload, "1.5") )
+                {
+                    //protocol v1.5 found
+                    AGO_TRACE() << "Use protocol version 1.5 found in current message";
+                    protocol = payload;
+                }
+                else if( boost::algorithm::starts_with(payload, "1.4") )
+                {
+                    //protocol v1.4 found
+                    AGO_TRACE() << "Use protocol version 1.4 found in current message";
+                    protocol = payload;
+                }
+                else
+                {
+                    //try protocol v1.3
+                    if( items.size()==5 )
+                        payload = items[4];
+                    if( boost::algorithm::starts_with(payload, "1.3") )
+                    {
+                        AGO_TRACE() << "Use protocol version 1.3 found in current message";
+                        //protocol v1.3 found
+                        protocol = payload;
+                    }
+                }
             }
+            AGO_TRACE() << "protocol found: " << protocol;
+
+            //pretty print message
+            if( logLevel<=log::debug )
+            {
+                if( protocol.size()==0 || protocol==DEFAULT_PROTOCOL )
+                {
+                    log = prettyPrint(line, gateway_protocol_version);
+                }
+                else
+                {
+                    log = prettyPrint(line, protocol);
+                }
+                if( log.size()>0 )
+                {
+                    AGO_DEBUG() << " => RECEIVING: " << log;
+                }
+            }
+
+            //process message according to found protocol
+            if( protocol.size()>0 && protocol!=DEFAULT_PROTOCOL )
+            {
+                if( boost::algorithm::starts_with(protocol, "1.5") )
+                {
+                    ack = atoi(items[3].c_str());
+                    subType = atoi(items[4].c_str());
+                    if( messageType==0 )
+                    {
+                        //if PRESENTATION message, force payload to found protocol version
+                        payload = protocol;
+                    }
+                    else if( items.size()==6 )
+                    {
+                        payload = items[5];
+                    }
+                    processMessageV15(nodeId, childId, messageType, ack, subType, payload, internalid, infos);
+                }
+                else if( boost::algorithm::starts_with(protocol, "1.4") )
+                {
+                    ack = atoi(items[3].c_str());
+                    subType = atoi(items[4].c_str());
+                    if( messageType==0 )
+                    {
+                        //if PRESENTATION message, force payload to found protocol version
+                        payload = protocol;
+                    }
+                    else if( items.size()==6 )
+                    {
+                        payload = items[5];
+                    }
+                    processMessageV14(nodeId, childId, messageType, ack, subType, payload, internalid, infos);
+                }
+                else if( boost::algorithm::starts_with(protocol, "1.3") )
+                {
+                    subType = atoi(items[3].c_str());
+                    if( messageType==0 )
+                    {
+                        //if PRESENTATION message, force payload to found protocol version
+                        payload = protocol;
+                    }
+                    else if( items.size()==5 )
+                    {
+                        payload = items[4];
+                    }
+                    processMessageV13(nodeId, childId, messageType, subType, payload, internalid, infos);
+                }
+                else
+                {
+                    //unsupported protocol version
+                    AGO_WARNING() << "Device is based on unsupported protocol version '" << protocol << "'";
+                }
+            }
+            else
+            {
+                //no protocol version found for this message, drop it
+                AGO_WARNING() << "No protocol version found for this message, drop it";
+                AGO_TRACE() << "line=" << line;
+                AGO_TRACE() << "nodeId=" << nodeId << " childId=" << childId;
+                AGO_TRACE() << "infos=" << infos;
+            }
+
+            AGO_TRACE() << "------------ EOL ------------";
         }
 
         pthread_mutex_unlock (&serialMutex);
     }
-
-    return NULL;
 }
 
 /**
  * Device stale checking thread
  * Check stale state every minutes
  */
-void *checkStale(void *param)
+void AgoMySensors::checkStaleFunction()
 {
     while(true)
     {
@@ -1998,8 +3026,7 @@ void *checkStale(void *param)
                             if( (int)now>(infos["last_timestamp"].asInt32()+staleThreshold) )
                             {
                                 //device is stalled
-                                if( DEBUG )
-                                    cout << "Stale: Suspend device " << internalid << " last_ts=" << infos["last_timestamp"].asInt32() << " threshold=" << staleThreshold << " now=" << (int)now << endl;
+                                AGO_TRACE() << "Stale: Suspend device " << internalid << " last_ts=" << infos["last_timestamp"].asInt32() << " threshold=" << staleThreshold << " now=" << (int)now;
                                 agoConnection->suspendDevice(internalid.c_str());
                             }
                         }
@@ -2008,14 +3035,13 @@ void *checkStale(void *param)
                             if( infos["last_timestamp"].asInt32()>=((int)now-staleThreshold) )
                             {
                                 //device woke up
-                                if( DEBUG )
-                                    cout << "Stale: Resume device " << internalid << " last_ts=" << infos["last_timestamp"].asInt32() << " threshold=" << staleThreshold << " now=" << (int)now << endl;
+                                AGO_TRACE() << "Stale: Resume device " << internalid << " last_ts=" << infos["last_timestamp"].asInt32() << " threshold=" << staleThreshold << " now=" << (int)now;
                                 agoConnection->resumeDevice(internalid.c_str());
                             }
                         }
                     }
                 } else {
-                    cout << "Invalid entry in device map" << endl;
+                    AGO_ERROR() << "Invalid entry in device map";
                 }
             }
         }
@@ -2023,58 +3049,35 @@ void *checkStale(void *param)
         //pause (1min)
         sleep(60);
     }
-
-    return NULL;
 }
 
 /**
- * main
+ * Setup
  */
-int main(int argc, char **argv)
+void AgoMySensors::setupApp()
 {
     //get config
-    device = getConfigSectionOption("mysensors", "device", "/dev/ttyACM0");
+    serialDevice = getConfigSectionOption("mysensors", "device", "/dev/ttyACM0");
     staleThreshold = atoi(getConfigSectionOption("mysensors", "staleThreshold", "86400").c_str());
-    resendEnabled = atoi(getConfigSectionOption("mysensors", "resend", "0").c_str());
-    handleNetworkRelay = atoi(getConfigSectionOption("mysensors", "networkrelay", "0").c_str());
-    if( handleNetworkRelay==1 )
+    bNetworkRelay = false;
+    if( atoi(getConfigSectionOption("mysensors", "networkrelay", "0").c_str())==1 )
     {
-        cout << "Network relay devices handling support enabled" << endl;
+        bNetworkRelay = true;
+        AGO_INFO() << "Network relay support enabled";
+    }
+    bStale = true;
+    if( atoi(getConfigSectionOption("mysensors", "stale", "1").c_str())==0 )
+    {
+        bStale = false;
+        AGO_INFO() << "Stale feature disabled";
     }
 
-    //get command line parameters
-    bool continu = true;
-    do
-    {
-        switch(getopt(argc,argv,"dgh"))
-        {
-            case 'd': 
-                //activate debug
-                DEBUG = 1;
-                cout << "DEBUG activated" << endl;
-                break;
-            case 'g':
-                //activate gateway debug message
-                DEBUG_GW = 1;
-                cout << "DEBUG Gateway activated" << endl;
-                break;
-            case 'h':
-                //usage
-                cout << "Usage: agoMySensors [-dgh]" << endl;
-                cout << "Options:" << endl;
-                cout << " -d: display debug message" << endl;
-                cout << " -g: display debug message from MySensors Gateway" << endl;
-                cout << " -h: this help" << endl;
-                exit(0);
-                break;
-            default:
-                continu = false;
-                break;
-        }
-    } while(continu);
-
     // determine reply for INTERNAL;I_UNIT message - defaults to "M"etric
-    if (getConfigSectionOption("system","units","SI")!="SI") units="I";
+    units = "M";
+    if( getConfigSectionOption("system","units","SI")!="SI" )
+    {
+        units = "I";
+    }
 
     // load map, create sections if empty
     fs::path dmf = getConfigPath(DEVICEMAPFILE);
@@ -2090,39 +3093,44 @@ int main(int argc, char **argv)
     bool error = false;
     std::string line = "";
     int attempts = 0;
-    cout << "Waiting for the gateway starts..." << endl << flush;
+    AGO_INFO() << "Waiting for the gateway starts...";
     for( int i=0; i<3; i++ )
     {
         error = false;
 
         //open serial port
-        if( DEBUG )
-            cout << "Opening serial port '" << device << "'..." << endl;
-        if( !openSerialPort(device) )
+        AGO_DEBUG() << "Opening serial port '" << serialDevice << "'...";
+        if( !openSerialPort(serialDevice) )
         {
             exit(1);
         }
 
-        while( !error && line.find("Gateway startup complete")==string::npos )
+        while( !error )
         {
             //read line from serial port
             line = readLine(&error);
-            if( DEBUG )
-                cout << "Read: " << line << endl << flush;
+            AGO_DEBUG() << "Read: " << line;
 
             //check connectivity
             if( line.find("check wires")!=string::npos )
             {
-                cout << "The serial gateway arduino sketch can't talk to the NRF24 module! Check wires and power supply!" << endl;
+                AGO_ERROR() << "The serial gateway arduino sketch can't talk to the NRF24 module! Check wires and power supply!";
                 exit(1);
             }
 
+            //check gateway startup string
+            if( line.find(" startup complete")!=string::npos )
+            {
+                //gateway is started
+                AGO_DEBUG() << "Startup string found, continue";
+                break;
+            }
+
             //check attemps
-            if( attempts>2 )
+            if( attempts>3 )
             {
                 //max attemps reached without receiving awaited string
-                if( DEBUG )
-                    cout << "Max attempts reached. Retry once more" << endl;
+                AGO_DEBUG() << "Max attempts reached. Retry once more";
                 error = true;
             }
             else
@@ -2134,8 +3142,7 @@ int main(int argc, char **argv)
         if( error )
         {
             //no way to get controller init, close port and start again
-            if( DEBUG )
-                cout << "Close serial port" << endl;
+            AGO_DEBUG() << "Close serial port";
             closeSerialPort();
         }
         else
@@ -2146,19 +3153,39 @@ int main(int argc, char **argv)
     }
     if( error )
     {
-        cout << "Unable to connect to MySensors gateway. Stop now." << endl;
+        AGO_ERROR() << "Unable to connect to MySensors gateway. Stop now.";
         exit(1);
     }
-    cout << "Done." << endl << flush;
+    AGO_INFO() << "Done.";
 
-    cout << "Requesting gateway version..." << endl << flush;
-    std::string getVersion = "0;0;3;0;2\n";
-    serialPort.WriteString(getVersion.c_str());
-    while( !error && !boost::algorithm::starts_with(line, "0;0;3;0;2;") )
+    AGO_INFO() << "Requesting gateway version...";
+    while( !error )
     {
+        //request v1.4 version
+        serialPort.WriteString("0;0;3;0;2\n");
         line = readLine(&error);
-        if( DEBUG )
-            cout << "Read: " << line << endl << flush;
+        AGO_DEBUG() << "Read: " << line;
+        if( boost::algorithm::starts_with(line, "0;0;3;0;2;") )
+        {
+            //response to protocol >=1.4 request
+            break;
+        }
+
+        if( error )
+        {
+            break;
+        }
+
+        //request v1.3
+        serialPort.WriteString("0;0;4;4\n");
+        line = readLine(&error);
+        AGO_DEBUG() << "Read: " << line;
+        if( boost::algorithm::starts_with(line, "0;0;4;4;") )
+        {
+            //response to protocol 1.3 request
+            break;
+        }
+
     }
     if( !error )
     {
@@ -2167,62 +3194,47 @@ int main(int argc, char **argv)
         {
             //payload (last field, contains protocol version)
             gateway_protocol_version = items[items.size()-1].c_str();
+
             //check protocol version
-            if( !boost::algorithm::starts_with(gateway_protocol_version, "1.4") && !boost::algorithm::starts_with(gateway_protocol_version, "1.3") )
+            if( !boost::algorithm::starts_with(gateway_protocol_version, "1.4") &&
+                !boost::algorithm::starts_with(gateway_protocol_version, "1.3") && 
+                !boost::algorithm::starts_with(gateway_protocol_version, "1.5") )
             {
                 //unknown protocol version, exit now
-                cout << "Unknown gateway protocol version. Exit. (received \"" << line  << "\" from gateway)" << endl;
+                AGO_ERROR() << "Unknown gateway protocol version. Exit. (received \"" << line  << "\" from gateway)";
                 exit(1);
             }
             else
             {
-                cout << " found v" << gateway_protocol_version << endl;
+                AGO_INFO() << " found v" << gateway_protocol_version;
             }
         }
     }
 
     //init agocontrol client
-    cout << "Initializing MySensors controller" << endl;
-    agoConnection = new AgoConnection("mysensors");
+    AGO_INFO() << "Initializing MySensors controller";
     agoConnection->addDevice("mysensorscontroller", "mysensorscontroller");
-    agoConnection->addHandler(commandHandler);
+    addCommandHandler();
 
-    //init threads
+    //init threads and mutexes
     pthread_mutex_init(&serialMutex, NULL);
     pthread_mutex_init(&devicemapMutex, NULL);
-    if( resendEnabled )
-    {
-        cout << "Resend feature enabled" << endl;
-        pthread_mutex_init(&resendMutex, NULL);
-        if( pthread_create(&resendThread, NULL, resendFunction, NULL) < 0 )
-        {
-            cerr << "Unable to create resend thread (errno=" << errno << ")" << endl;
-            exit(1);
-        }
-    }
-    else
-    {
-        cout << "Resend feature disabled" << endl;
-    }
-    if( pthread_create(&readThread, NULL, receiveFunction, NULL) < 0 )
-    {
-        cerr << "Unable to create read thread (errno=" << errno << ")" << endl;
-        exit(1);
-    }
+    readThread = new boost::thread(boost::bind(&AgoMySensors::receiveFunction, this));
 
     //register existing devices
-    cout << "Register existing devices:" << endl;
+    AGO_INFO() << "Register existing devices:";
     if( ( !devicemap["devices"].isVoid() ) && (devicemap["devices"].getType() == VAR_MAP ) )
     {
         qpid::types::Variant::List devicesToPurge;
         qpid::types::Variant::Map devices = devicemap["devices"].asMap();
         for (qpid::types::Variant::Map::const_iterator it = devices.begin(); it != devices.end(); it++)
         {
+            stringstream log;
             if( ( !it->second.isVoid() ) && (it->second.getType() == VAR_MAP ) )
             {
                 qpid::types::Variant::Map infos = it->second.asMap();
                 std::string internalid = (std::string)it->first;
-                cout << " - " << internalid << ":" << infos["type"].asString().c_str();
+                log << " - " << internalid << ":" << infos["type"].asString().c_str();
                 if( internalid.length()>0 && checkInternalid(internalid) )
                 {
                     agoConnection->addDevice(it->first.c_str(), (infos["type"].asString()).c_str());
@@ -2230,13 +3242,13 @@ int main(int argc, char **argv)
                 else
                 {
                     devicesToPurge.push_back(internalid);
-                    cout << " [INVALID]";
+                    log << " [INVALID]";
                 }
-                cout << endl;
+                AGO_INFO() << log.str();
             }
             else
             {
-                cout << "Invalid entry in device map" << endl;
+                AGO_WARNING() << "Invalid entry in device map";
             }
         }
 
@@ -2245,8 +3257,7 @@ int main(int argc, char **argv)
         {
             for( qpid::types::Variant::List::iterator it=devicesToPurge.begin(); it!=devicesToPurge.end(); it++ )
             {
-                if( DEBUG )
-                    cout << "Remove invalid device with internalid '" << (*it) << "' from map config file" << endl;
+                AGO_DEBUG() << "Remove invalid device with internalid '" << (*it) << "' from map config file";
                 devices.erase((*it));
             }
 
@@ -2258,15 +3269,44 @@ int main(int argc, char **argv)
     else
     {
         //problem with map file
-        cerr << "No device map file available. Exit now." << endl;
+        AGO_ERROR() << "No device map file available. Exit now.";
         exit(1);
     }
 
     //run check stale thread
-    static pthread_t checkStaleThread;
-    pthread_create(&checkStaleThread, NULL, checkStale, NULL);
+    if( bStale )
+    {
+        checkStaleThread = new boost::thread(boost::bind(&AgoMySensors::checkStaleFunction, this));
+    }
 
     //run client
-    cout << "Running MySensors controller..." << endl;
+    AGO_INFO() << "Running MySensors controller...";
     agoConnection->run();
 }
+
+/**
+ * Destructor
+ */
+void AgoMySensors::cleanupApp()
+{
+    AGO_TRACE() << "Waiting for threads";
+    if( readThread )
+    {
+        readThread->join();
+    }
+    if( checkStaleThread )
+    {
+        checkStaleThread->join();
+    }
+
+    AGO_TRACE() << "All webserver threads returned";
+    delete readThread;
+    delete checkStaleThread;
+
+    AGO_TRACE() << "Destroy mutexes";
+    pthread_mutex_destroy( &serialMutex );
+    pthread_mutex_destroy( &devicemapMutex );
+}
+
+AGOAPP_ENTRY_POINT(AgoMySensors);
+

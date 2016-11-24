@@ -40,9 +40,9 @@
 #include <qpid/messaging/Session.h>
 #include <qpid/messaging/Address.h>
 
-#include <jsoncpp/json/value.h>
-#include <jsoncpp/json/reader.h>
-#include <jsoncpp/json/writer.h>
+#include <json/value.h>
+#include <json/reader.h>
+#include <json/writer.h>
 
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/thread/mutex.hpp>
@@ -247,6 +247,32 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
                         paramList.push_back(param2);
                         deviceinfo["params"]=paramList;
                     }
+                } else if (device["devicetype"] == "dimmerrgb" || device["devicetype"] == "dimmerrgbw") {
+                    AGO_DEBUG() << "Values for dimmerrgb device: " << values;
+                    deviceinfo["type"]="DevRGBLight";
+                    qpid::types::Variant::List paramList;
+                    if (!values["state"].isVoid()) {
+                        qpid::types::Variant::Map param, param2;
+                        param["key"]="Status";
+                        param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
+                        paramList.push_back(param);
+                        param2["key"]="Level";
+                        param2["value"]=values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
+                        paramList.push_back(param2);
+
+                    }
+                    qpid::types::Variant::Map param3, param4;
+                    param3["key"]="dimmable";
+                    param3["value"]="1";
+                    paramList.push_back(param3);
+                    param4["key"]="whitechannel";
+                    if (device["devicetype"] == "dimmerrgb") {
+                        param4["value"]="0";
+                    } else {
+                        param4["value"]="1";
+                    }
+                    paramList.push_back(param4);
+                    deviceinfo["params"]=paramList;
                 } else if (device["devicetype"] == "drapes") {
                     AGO_DEBUG() << "Values for drapes/shutter device: " << values;
                     deviceinfo["type"]="DevShutter";
@@ -254,7 +280,7 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
                         qpid::types::Variant::Map param, param2, param3;
                         qpid::types::Variant::List paramList;
                         param["key"]="Level";
-                        param["value"]=values["state"].asInt64() == 0 ? "0" : "100"; // TODO: should reflect real level
+                        param["value"]=values["state"].asInt64() == 0 ? "100" : "0"; // TODO: should reflect real level
                         paramList.push_back(param);
                         param2["key"]="stopable";
                         param2["value"]=1; // TODO: add new device type to agocontrol so that we can distinguish
@@ -277,6 +303,18 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
                     deviceinfo["params"]=paramList;
                 } else if (device["devicetype"] == "co2sensor") {
                     deviceinfo["type"]="DevCO2";
+                    qpid::types::Variant::List paramList;
+                    if (!(values["co2"]).isVoid()) {
+                        qpid::types::Variant::Map agoValue;
+                        qpid::types::Variant::Map param;
+                        agoValue = (values["co2"]).asMap();
+                        param["key"]="Value";
+                        param["value"]=agoValue["level"].asString();
+                        param["unit"]=agoValue["unit"];
+                        param["graphable"]="false";
+                        paramList.push_back(param);
+                        deviceinfo["params"]=paramList;
+                    }
                 } else if (device["devicetype"] == "multilevelsensor") {
                     deviceinfo["type"]="DevGenericSensor";
                     qpid::types::Variant::List paramList;
@@ -290,6 +328,7 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
                         param["unit"]=agoValue["unit"];
                         param["graphable"]="false";
                         paramList.push_back(param);
+                        deviceinfo["params"]=paramList;
                     }
                     deviceinfo["params"]=paramList;
                 } else if (device["devicetype"] == "brightnesssensor") {
@@ -304,6 +343,7 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
                         param["unit"]=agoValue["unit"];
                         param["graphable"]="false";
                         paramList.push_back(param);
+                        deviceinfo["params"]=paramList;
                     }
                 } else if (device["devicetype"] == "smokedetector") {
                     deviceinfo["type"]="DevSmoke";
@@ -316,9 +356,14 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
                         agoValue = (values["temperature"]).asMap();
                         param["key"]="Value";
                         param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
+                        if (agoValue["unit"] == "degC") {
+                            param["unit"]="˚C";
+                        } else {
+                            param["unit"]="˚F";
+                        }
                         param["graphable"]="false";
                         paramList.push_back(param);
+                        deviceinfo["params"]=paramList;
                     }
                 } else if (device["devicetype"] == "humiditysensor") {
                     deviceinfo["type"]="DevHygrometry";
@@ -332,6 +377,7 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
                         param["unit"]=agoValue["unit"];
                         param["graphable"]="false";
                         paramList.push_back(param);
+                        deviceinfo["params"]=paramList;
                     }
                 } else if (device["devicetype"] == "thermostat") {
                     deviceinfo["type"]="DevThermostat";
@@ -405,7 +451,16 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
                         command["command"]="settemperature";
                         command["temperature"]=atof(items[5].c_str());
                     } else  if (items[4] == "pulseShutter") {
-                        command["command"]= items[5]=="up" ? "on" : "off";
+                        command["command"]= items[5]=="up" ? "off" : "on";
+                    } else  if (items[4] == "setColor") {
+                        stringstream colorstring(items[5]);
+                        unsigned int num = 0;
+                        colorstring >> hex >> num;
+                        command["command"] = "setcolor";
+                        command["white"] = (num / 0x1000000) % 0x100;
+                        command["red"] = (num / 0x10000) % 0x100;
+                        command["green"] = (num / 0x100) % 0x100;
+                        command["blue"] = num % 0x100;
                     }
                 } else { // we got action without parameter
                     if (items[4] == "stopShutter") {

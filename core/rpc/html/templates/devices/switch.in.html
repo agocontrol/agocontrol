@@ -1,67 +1,54 @@
-<div class="three columns dashboard-widget" data-bind="attr: {'data-uuid': uuid}">
+<div class="widget-lg">
 
-    <div class="row dashboard-widget-header">
-        <ul class="two_up tiles" >
-            <li class="dashboard-widget-header-icon">
-                <ko opts="if: stale">
-                    <div class="pretty large danger btn handle">
-                        <i data-bind="click: function(data, event) { agocontrol.showDetails(data) }" class="icon-lamp"></i>
-                    </div>
-                </ko>
-                <ko opts="ifnot: stale">
-                    <div class="pretty large primary btn handle">
-                        <i data-bind="click: function(data, event) { agocontrol.showDetails(data) }" class="icon-lamp"></i>
-                    </div>
-                </ko>
-            </li>
-            <li class="dashboard-widget-header-infos">
-                <div class="row">
-                <ko opts="if: name ">
-                    <div class="twelve columns"><h3 data-bind="text: name"/></div>
-                </ko>
-                <ko opts="ifnot: name ">
-                    <div class="twelve columns"><h3 data-bind="text: devicetype"/></div>
-                </ko>
-                <ko opts="if: room">
-                    <div class="twelve columns dashboard-widget-header-info">
-                        <i class="icon-location"></i>
-                        <span data-bind="text: room"/>
-                    </div>
-                </ko>
-                    <div class="twelve columns dashboard-widget-header-info">
-                        <i class="icon-info"></i>
-                        <ko opts="ifnot: state">
-                            <_span data-translateable="true">OFF</_span>
-                         </ko>
-                         <ko opts="if: state">
-                            <_span data-translateable="true">ON</_span>
-                         </ko>
-                    </div>
+    <div class="widget-box" data-bind="css:staleStyle, click:function(data, event) { agocontrol.showDetails(data); }">
+        <div class="inner">
+            <span data-bind="text:name, attr:{title:name, alt:name}"></span>
+            <div>
+                <div class="widget-box-state">
+                    <i class="en-info-circled"></i>
+                    <ko opts="ifnot:state">
+                    <_span data-translateable="true">OFF</_span>
+                    </ko>
+                    <ko opts="if:state">
+                    <_span data-translateable="true">ON</_span>
+                    </ko>
                 </div>
-            </li>
-        </ul>
+                <ko opts="if:room">
+                <div class="widget-box-location">
+                    <i class="en-location"></i>
+                    <span data-bind="text:room"/>
+                </div>
+                </ko>
+            </div>
+        </div>
+        <div class="icon">
+            <i class="fa en-switch"></i>
+        </div>
     </div>
 
-    <div class="row dashboard-widget-content dashboard-widget-content-buttons">
-        <ul class="two_up tiles">
-            <li class="dashboard-widget-content-button">
-            <ko opts="if: state">
-                <_div data-value="on" data-translateable="true" data-bind="click: turnOn" class="pretty medium default btn btn-full">ON</_div>
-            </ko>
-            <ko opts="ifnot: state">
-                <_div data-value="on" data-translateable="true" data-bind="click: turnOn" class="pretty medium primary btn btn-full">ON</_div>
-            </ko>
-            </li>
-            <li class="dashboard-widget-content-button">
-            <ko opts="if: state">
-                <_div data-value="off" data-translateable="true" data-bind="click: turnOff" class="pretty medium primary btn btn-full">OFF</_div>
-            </ko>
-            <ko opts="ifnot: state">
-                <_div data-value="off" data-translateable="true" data-bind="click: turnOff" class="pretty medium default btn btn-full">OFF</_div>
-            </ko>
-            </li>
-        </ul>
+    <div class="info-box">
+        <div class="info-box-content no-margin-left">
+            <div class="well">
+                <div class="btn-group btn-group-justified">
+                    <div class="btn-group">
+                        <ko opts="if: state">
+                        <_button type="button" data-translateable="true" data-bind="click: turnOn" class="btn btn-default">ON</_button>
+                        </ko>
+                        <ko opts="ifnot: state">
+                        <_button type="button" data-translateable="true" data-bind="click: turnOn" class="btn btn-primary">ON</_button>
+                        </ko>
+                    </div>
+                    <div class="btn-group">
+                        <ko opts="if: state">
+                        <_button type="button" data-translateable="true" data-bind="click: turnOff" class="btn btn-primary">OFF</_button>
+                        </ko>
+                        <ko opts="ifnot: state">
+                        <_button type="button" data-translateable="true" data-bind="click: turnOff" class="btn btn-default">OFF</_button>
+                        </ko>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
- 

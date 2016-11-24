@@ -42,22 +42,25 @@
      Version 0.2.0
      */
     var hashStorage = {
-	templates : {},
+    templates : {},
 
-	storeTemplate : function(templateId, templateContent) {
-	    if (templateContent) {
-		templateContent = templateContent.replace(/<ko opts=(.+)>/g, function(str, group) {
-		   group = group.replace(/"/g, "");
-		   group = group.replace(/\sand\s/g, " && ");
-		   return "<!-- ko " + group + " -->"; 
-		});
-		templateContent = templateContent.replace(/<\/ko>/g, "<!-- /ko -->");
-		var parser = new DOMParser();
-		var doc = parser.parseFromString(templateContent, "application/xml");
-		templateContent = prepareTemplate(doc);
-	    }
-	    this.templates[templateId] = templateContent;
-	},
+    storeTemplate : function(templateId, templateContent) {
+        if (templateContent)
+        {
+            /* Not needed anymore, knockout containerless control flow is directly converted after translations added
+             * It also optimizes client side process
+            templateContent = templateContent.replace(/<ko opts=(.+)>/g, function(str, group) {
+                group = group.replace(/"/g, "");
+                group = group.replace(/\sand\s/g, " && ");
+                return "<!-- ko " + group + " -->"; 
+            });
+            templateContent = templateContent.replace(/<\/ko>/g, "<!-- /ko -->");*/
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(templateContent, "application/xml");
+            templateContent = prepareTemplate(doc);
+        }
+        this.templates[templateId] = templateContent;
+    },
 
 	getTemplate : function(templateId) {
 	    return this.templates[templateId];
@@ -145,7 +148,7 @@
 		return "#" + templateId
 	    }, // DEFAULT MAPPING
 	    loadingTemplate : {
-        content : '<div style="width:100%; height:100%; text-align:center; vertical-align:middle;">Loading...</div>',
+        content : '<i class="fa fa-circle-o-notch fa-2x fa-spin"/>',
 		transitionIn : function(target, content) {
 		    var tgt = $(target);
 		    tgt.hide();

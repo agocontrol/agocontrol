@@ -1,20 +1,27 @@
-<div>
-<ko opts="ifnot: name">
-<span id="detailsTitle">Details</span>
-</ko>
-<ko opts="if: name">
-<span id="detailsTitle" data-bind="text: name">Details</span>
-</ko>
-<p>
-	<ko opts="if: room">
-		<_strong data-translateable="true">Room:</_strong> <span data-bind="text: room"></span><br />
-	</ko>
-	<_strong data-translateable="true">State:</_strong> <span data-bind="text: state"></span><br />
-	<strong>UUID:</strong> <span data-bind="text: uuid"></span><br />
-	<_strong data-translateable="true">Type: </_strong> <span data-bind="text: devicetype"></span><br />
-	<_strong data-translateable="true">Lastseen: </_strong> <span data-bind="text: timeStamp"></span><br />
-</p>
-<form>
-	<_strong data-translateable="true">Command:</_strong> <div style="display: inline" id="commandList"></div><_button data-translateable="true" data-bind="click: execCommand">Run</_button>
-</form>
+<div class="container-fluid">
+    <div class="row agorowbottom">
+        <ul style="list-style-type:none;">
+            <li>
+                <_strong data-translateable="true">Device type</_strong>:
+                <span data-bind="text:devicetype"/>
+            </li>
+            <li>
+                <_strong data-translateable="true">Room</_strong>:
+                <span data-bind="text:room"/>
+            </li>
+            <li>
+                <_strong data-translateable="true">Timestamp</_strong>:
+                <span data-bind="text:timeStamp"/>
+            </li>
+        </ul>
+    </div>
+    <div class="row" data-bind="if: execCommand">
+        <form class="form-inline">
+            <div class="form-group">
+                <_label data-translateable="true">Command</_label>
+            </div>
+            <div style="display: inline" id="commandList"/>
+            <_button type="button" data-translateable="true" data-bind="click: execCommand" class="btn btn-primary">Run</_button>
+        </form>
+    </div>
 </div>

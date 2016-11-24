@@ -21,9 +21,7 @@
 #include <math.h>
 
 #include <termios.h>
-#ifndef __FreeBSD__
-#include <malloc.h>
-#endif
+#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
@@ -41,9 +39,9 @@
 #include <qpid/messaging/Session.h>
 #include <qpid/messaging/Address.h>
 
-#include <jsoncpp/json/value.h>
-#include <jsoncpp/json/reader.h>
-#include <jsoncpp/json/writer.h>
+#include <json/value.h>
+#include <json/reader.h>
+#include <json/writer.h>
 
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/thread/mutex.hpp>
@@ -163,12 +161,12 @@ static void mg_printmap(struct mg_connection *conn, Variant::Map map);
 
 static void mg_printlist(struct mg_connection *conn, Variant::List list) {
     std::string json = variantListToJSONString(list);
-    mg_printf_data(conn, json.c_str());
+    mg_printf_data(conn, "%s", json.c_str());
 }
 
 static void mg_printmap(struct mg_connection *conn, Variant::Map map) {
     std::string json = variantMapToJSONString(map);
-    mg_printf_data(conn, json.c_str());
+    mg_printf_data(conn, "%s", json.c_str());
 }
 
 /**
@@ -594,6 +592,7 @@ void AgoRpc::uploadFiles(struct mg_connection *conn)
     char posted_var[1024] = "";
     std::string uuid = "";
     string uploadError = "";
+    qpid::types::Variant::Map uploadResult;
 
     //upload files
     while ((ofs = mg_parse_multipart(conn->content + ofs, conn->content_len - ofs, var_name, sizeof(var_name),
@@ -648,10 +647,14 @@ void AgoRpc::uploadFiles(struct mg_connection *conn)
                 {
                     //command failed, drop file
                     fs::remove(tempfile);
-                    AGO_ERROR() << "Uploaded file \"" << tempfile.string()
-                        << "\" dropped because command failed" << r.getMessage();
+                    AGO_ERROR() << "Uploaded file \"" << tempfile.string() << "\" dropped because command failed" << r.getMessage();
                     uploadError = r.getMessage();
                     continue;
+                }
+                else if( r.isOk() )
+                {
+                    //command succeed and has results to return
+                    uploadResult = r.getData();
                 }
 
                 // add file to output
@@ -661,9 +664,11 @@ void AgoRpc::uploadFiles(struct mg_connection *conn)
                 files.push_back(file);
 
                 //delete file (it should be processed by sendcommand)
-                //TODO: maybe a purge process could be interesting to implement
+                //XXX: maybe a purge process could be interesting to implement
                 fs::remove(tempfile);
-            }else{
+            }
+            else
+            {
                 AGO_ERROR() << "Failed to open file " << tempfile.string() << " for writing: " << strerror(errno);
             }
         }
@@ -683,6 +688,8 @@ void AgoRpc::uploadFiles(struct mg_connection *conn)
     mg_printf_data(conn, "{\"jsonrpc\": \"2.0\", \"result\": {\"files\": ");
     mg_printlist(conn, files);
     mg_printf_data(conn, ", \"count\": %d", files.size());
+    mg_printf_data(conn, ", \"result\": ");
+    mg_printmap(conn, uploadResult);
     mg_printf_data(conn, ", \"error\": \"%s\" } }", uploadError.c_str());
 }
 
@@ -849,8 +856,10 @@ int AgoRpc::mg_event_handler(struct mg_connection *conn, enum mg_event event)
 void AgoRpc::eventHandler(std::string subject, qpid::types::Variant::Map content)
 {
     // don't flood clients with unneeded events
-    if( subject=="event.environment.timechanged")
+    if( subject=="event.environment.timechanged" || subject=="event.device.discover" )
+    {
         return;
+    }
 
     //remove empty command from content
     Variant::Map::iterator it = content.find("command");

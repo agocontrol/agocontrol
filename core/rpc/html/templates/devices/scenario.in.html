@@ -1,35 +1,32 @@
-<div class="three columns dashboard-widget" data-bind="attr: {'data-uuid': uuid}">
+<div class="widget-lg">
 
-    <div class="row dashboard-widget-header">
-        <ul class="two_up tiles" >
-            <li class="dashboard-widget-header-icon">
-                <div class="pretty large primary btn handle">
-                    <i data-bind="click: function(data, event) { agocontrol.showDetails(data) }" class="icon-list"></i>
+    <div class="widget-box" data-bind="css:staleStyle, click:function(data, event) { agocontrol.showDetails(data); }">
+        <div class="inner">
+            <span data-bind="text:name, attr:{title:name, alt:name}"></span>
+            <div>
+                <ko opts="if:room">
+                <div class="widget-box-location">
+                    <i class="en-location"></i>
+                    <span data-bind="text:room"/>
                 </div>
-            </li>
-            <li class="dashboard-widget-header-infos">
-                <div class="row">
-                <ko opts="if: name ">
-                    <div class="twelve columns"><h3 data-bind="text: name"/></div>
                 </ko>
-                <ko opts="if: room ">
-                    <div class="twelve columns dashboard-widget-header-info">
-                        <i class="icon-location"></i>
-                        <span data-bind="text: room"/>
-                    </div>
-                </ko>
-                </div>
-            </li>
-        </ul>
+            </div>
+        </div>
+        <div class="icon">
+            <i class="fa en-list"></i>
+        </div>
     </div>
 
-    <div class="row dashboard-widget-content dashboard-widget-content-buttons">
-        <ul class="one_up">
-            <li class="dashboard-widget-content-button">
-                <div data-value="on" data-bind="click: turnOn" class="pretty medium primary btn btn-full">RUN SCENARIO</div>
-            </li>
-        </ul>
+    <div class="info-box">
+        <div class="info-box-content no-margin-left">
+            <div class="well">
+                <div class="btn-group btn-group-justified">
+                    <div class="btn-group">
+                        <_button type="button" data-translateable="true" data-bind="click: turnOn" class="btn btn-primary">RUN SCENARIO</_button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
-

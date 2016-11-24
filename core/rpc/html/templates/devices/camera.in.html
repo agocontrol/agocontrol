@@ -1,0 +1,46 @@
+<div>
+
+<!-- frame thumb only available on large devices -->
+<div class="widget-overlay hidden-xs hidden-sm hidden-md">
+
+    <!-- camera frame -->
+    <img class="widget-overlay-bg img-responsive center-block" data-bind="attr:{'src':cameraThumb}"/>
+
+    <!-- device name and details box link -->
+    <div class="info-box" data-bind="css:staleStyle">
+        <span class="info-box-icon" data-bind="click: function(data, event) { agocontrol.showDetails(data) }">
+            <i class="fa fa-video-camera"></i>
+        </span>
+        <div class="info-box-content">
+            <div class="info-box-title">
+                <span data-bind="text:name, attr:{title:name, alt:name}"/>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- default camera widget on small devices -->
+<div class="widget-lg hidden-lg">
+    <div class="widget-box" data-bind="css:staleStyle, click:function(data, event) { agocontrol.showDetails(data); }">
+        <div class="inner">
+            <span data-bind="text:name, attr:{title:name, alt:name}"></span>
+            <div>
+                <ko opts="if:room">
+                <div class="widget-box-location">
+                    <i class="en-location"></i>
+                    <span data-bind="text:room"/>
+                </div>
+                </ko>
+            </div>
+        </div>
+        <div class="icon">
+            <i class="fa fa-video-camera"></i>
+        </div>
+    </div>
+    
+    <div class="info-box">
+        <div class="info-box-content no-margin-left"/>
+    </div>
+</div>
+</div>

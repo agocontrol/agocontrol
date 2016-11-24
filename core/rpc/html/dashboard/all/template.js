@@ -6,8 +6,8 @@ function dashBoard(agocontrol)
 {
     var self = this;
     self.agocontrol = agocontrol;
-    self.itemsPerPage = 12;
-    self.itemsPerRow = 4;
+    self.defaultRow = 4;
+    self.defaultCol = 4;
     self.keyword = ko.observable("");
     self.currentPage = ko.observable(1);
     self.deviceList = ko.computed(function()
@@ -18,7 +18,7 @@ function dashBoard(agocontrol)
         var list = self.agocontrol.devices();
         list = list.filter(function(dev)
         {
-            if (dev.devicetype == "event" || $.trim(dev.name) == "")
+            if (dev.devicetype == "event" || $.trim(dev.name()) == "")
             {
                 return false;
             }
@@ -29,7 +29,7 @@ function dashBoard(agocontrol)
                 {
                     return true;
                 }
-                if (dev.name.toLowerCase().indexOf(keyword) != -1)
+                if (dev.name().toLowerCase().indexOf(keyword) != -1)
                 {
                     return true;
                 }
@@ -44,60 +44,67 @@ function dashBoard(agocontrol)
         return list;
     });
 
+    self.itemsPerPage = ko.pureComputed(function() {
+        if( typeof(Storage)!=='undefined' )
+        {
+            var row  = localStorage.getItem('dashboardRowSize');
+            if( row===null )
+            {
+                localStorage.setItem('dashboardRowSize', self.defaultRow);
+                row = self.defaultRow;
+            }
+            var col  = localStorage.getItem('dashboardColSize');
+            if( col===null )
+            {
+                localStorage.setItem('dashboardColSize', self.defaultCol);
+                col = self.defaultCol;
+            }
+            out = row * col;
+        }
+        else
+        {
+            out = self.defaultRow * self.defaultCol;
+        }
+        return out;
+    });
+
+    self.devicesPerLine = ko.pureComputed(function() {
+        if( typeof(Storage)!=='undefined' )
+        {
+            out  = localStorage.getItem('dashboardColSize');
+            if( out===null )
+            {
+                localStorage.setItem('dashboardColSize', self.defaultCol);
+                out = self.defaultCol;
+            }
+        }
+        else
+        {
+            out = self.defaultCol;
+        }
+        return out;
+    });
+
+    self.devicesPerPage = ko.computed(function()
+    {
+        var currentList = self.deviceList().chunk(self.itemsPerPage());
+        if (currentList.length < self.currentPage())
+        {
+            return [];
+        }
+        currentList = currentList[self.currentPage() - 1];
+        return currentList;
+    });
+
     self.pages = ko.computed(function()
     {
         var pages = [];
-        var max = Math.ceil(self.deviceList().length / self.itemsPerPage);
+        var max = Math.ceil(self.deviceList().length / self.itemsPerPage());
         for ( var i = 1; i <= max; i++)
         {
             pages.push({idx : i});
         }
         return pages;
-    });
-
-    self.firstRow = ko.computed(function()
-    {
-        var currentList = self.deviceList().chunk(self.itemsPerPage);
-        if (currentList.length < self.currentPage())
-        {
-            return [];
-        }
-        currentList = currentList[self.currentPage() - 1];
-        if (currentList.length >= 0)
-        {
-            return currentList.chunk(self.itemsPerRow)[0];
-        }
-        return [];
-    });
-
-    self.secondRow = ko.computed(function()
-    {
-        var currentList = self.deviceList().chunk(self.itemsPerPage);
-        if (currentList.length < self.currentPage())
-        {
-            return [];
-        }
-        currentList = currentList[self.currentPage() - 1];
-        if (currentList.length >= (self.itemsPerRow+1))
-        {
-            return currentList.chunk(self.itemsPerRow)[1];
-        }
-        return [];
-    });
-
-    self.thirdRow = ko.computed(function()
-    {
-        var currentList = self.deviceList().chunk(self.itemsPerPage);
-        if (currentList.length < self.currentPage())
-        {
-            return [];
-        }
-        currentList = currentList[self.currentPage() - 1];
-        if (currentList.length >= (self.itemsPerRow*2+1))
-        {
-            return currentList.chunk(self.itemsPerRow)[2];
-        }
-        return [];
     });
 
     //change page

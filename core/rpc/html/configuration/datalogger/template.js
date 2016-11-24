@@ -26,6 +26,7 @@ function dataloggerConfig(devices, agocontrol)
     self.dataLogging = ko.observable(0);
     self.gpsLogging = ko.observable(0);
     self.rrdLogging = ko.observable(0);
+    self.purgeDelay = ko.observable(0);
     self.dataCount = ko.observable(0);
     self.dataStart = ko.observable(0);
     self.dataEnd = ko.observable(0);
@@ -36,6 +37,7 @@ function dataloggerConfig(devices, agocontrol)
     self.journalStart = ko.observable(0);
     self.journalEnd = ko.observable(0);
     self.databaseSize = ko.observable(0);
+    self.rendering = ko.observable(null);
 
     //return human readable time
     self.timestampToHRTime = function(ts)
@@ -127,7 +129,7 @@ function dataloggerConfig(devices, agocontrol)
         {
             var content = {};
             content.uuid = self.controllerUuid;
-            content.command = 'getstatus';
+            content.command = 'getconfig';
             self.agocontrol.sendCommand(content)
                 .then(function(res) {
                     var data = res.data;
@@ -147,6 +149,8 @@ function dataloggerConfig(devices, agocontrol)
                     self.dataLogging(data.dataLogging);
                     self.gpsLogging(data.gpsLogging);
                     self.rrdLogging(data.rrdLogging);
+                    self.purgeDelay(data.purgeDelay);
+                    self.rendering(data.rendering);
 
                     //update database infos
                     self.databaseSize(self.sizeToHRSize(data.database.size));
@@ -211,13 +215,15 @@ function dataloggerConfig(devices, agocontrol)
         {
             var content = {};
             content.uuid = self.controllerUuid;
-            content.command = 'setenabledmodules';
+            content.command = 'setconfig';
             content.dataLogging = self.dataLogging();
             content.gpsLogging = self.gpsLogging();
             content.rrdLogging = self.rrdLogging();
+            content.purgeDelay = self.purgeDelay();
+            content.rendering = self.rendering();
             self.agocontrol.sendCommand(content)
                 .then(function(res) {
-                    notif.success("Logging flags saved");
+                    notif.success("Parameters saved");
                     //no need to get status here
                 });
         }
@@ -235,8 +241,7 @@ function dataloggerConfig(devices, agocontrol)
                 content.uuid = self.controllerUuid;
                 content.command = 'purgetable';
                 content.table = tablename;
-                //TODO doesn't work until sendcommand oldstyleCallback parameter is not removed !
-                self.agocontrol.sendCommand(content, 30)
+                self.agocontrol.sendCommand(content, null, 30)
                     .then(function(res) {
                         notif.success("Table purged successfully");
                         self.getStatus();

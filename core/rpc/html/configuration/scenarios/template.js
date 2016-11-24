@@ -18,46 +18,75 @@ function ScenarioConfig(agocontrol)
     {
         if( $(td).hasClass('edit_scenario') )
         {
-            $(td).editable(
-                function(value, settings)
-                {
+            $(td).editable(function(value, settings) {
                     var content = {};
                     content.device = item.uuid;
                     content.uuid = self.agocontrol.agoController;
                     content.command = "setdevicename";
                     content.name = value;
-                    self.agocontrol.sendCommand(content);
+                    self.agocontrol.sendCommand(content)
+                        .catch(function(err) {
+                            notif.error('Unable to rename device');
+                        });;
                     return value;
                 },
                 {
-                    data : function(value, settings)
-                    {
-                        return value;
-                    },
+                    data : function(value, settings) { return value; },
                     onblur : "cancel"
-                }
-            ).click();
+                }).click();
         }
         else if( $(td).hasClass('select_room') )
         {
-            $(td).editable(
-                function(value, settings)
-                {
+            var d = self.agocontrol.findDevice(item.uuid);
+            if( d && d.name() && d.name().length>0 )
+            {
+                $(td).editable(function(value, settings) {
                     var content = {};
-                    content.device = $(this).data('uuid');
+                    content.device = item.uuid;
                     content.uuid = self.agocontrol.agoController;
                     content.command = "setdeviceroom";
-                    content.room = value == "unset" ? "" : value;
-                    self.agocontrol.sendCommand(content);
-                    var name = "unset";
-                    for( var i=0; i<self.agocontrol.rooms().length; i++ )
+                    value = value == "unset" ? "" : value;
+                    content.room = value;
+                    self.agocontrol.sendCommand(content)
+                        .then(function(res) {
+                            //update inventory
+                            var d = self.agocontrol.findDevice(item.uuid);
+                            if( d && value==="" )
+                            {
+                                d.room = d.roomUID = "";
+                                self.agocontrol.inventory.devices[item.uuid].room = "";
+                                self.agocontrol.inventory.devices[item.uuid].roomUID = "";
+                            }
+                            else if( d )
+                            {
+                                var room = self.agocontrol.findRoom(value);
+                                if(room)
+                                {
+                                    d.room = room.name;
+                                    self.agocontrol.inventory.devices[item.uuid].room = room.name;
+                                }
+                                d.roomUID = value;
+                                self.agocontrol.inventory.devices[item.uuid].roomUID = value;
+                            }
+                        })
+                        .catch(function(err) {
+                            notif.error('Error updating room');
+                        });
+
+                    if( value==="" )
                     {
-                        if( self.agocontrol.rooms()[i].uuid==value )
+                        return "unset";
+                    }
+                    else
+                    {
+                        for( var i=0; i<self.agocontrol.rooms().length; i++ )
                         {
-                            name = self.agocontrol.rooms()[i].name;
+                            if( self.agocontrol.rooms()[i].uuid==value )
+                            {
+                                return self.agocontrol.rooms()[i].name;
+                            }
                         }
                     }
-                    return value == "unset" ? "unset" : name;
                 },
                 {
                     data : function(value, settings)
@@ -72,8 +101,12 @@ function ScenarioConfig(agocontrol)
                     },
                     type : "select",
                     onblur : "submit"
-                }
-            ).click();
+                }).click();
+            }
+            else
+            {
+                notif.warning('Please specify device name first');
+            }
         }
     };
 
@@ -85,7 +118,8 @@ function ScenarioConfig(agocontrol)
             {headerText:'Actions', rowText:''}
         ],
         rowCallback: self.makeEditable,
-        rowTemplate: 'rowTemplate'
+        rowTemplate: 'rowTemplate',
+        boxStyle: 'box-primary'
     });
 
     //Creates a scenario map out of the form fields inside a container
@@ -167,27 +201,58 @@ function ScenarioConfig(agocontrol)
     //Adds a command selection entry
     self.addCommand = function(containerID, defaultValues)
     {
-        var row = document.createElement("div");
-
         if (!containerID)
         {
             containerID = "scenarioBuilder";
         }
 
-        var removeBtn = document.createElement("input");
-        removeBtn.style.display = "inline";
-        removeBtn.type = "button";
-        removeBtn.value = "-";
-        row.appendChild(removeBtn);
+        var row = document.createElement("div");
 
+        //delete button
+        var removeBtn = document.createElement("button");
+        removeBtn.setAttribute("style", "display:inline");
+        removeBtn.setAttribute("class", "btn btn-danger btn-sm");
+        removeBtn.setAttribute("type", "button");
+        removeBtn.innerHTML = '<span class="en-cancel"></span>';
+        row.appendChild(removeBtn);
         removeBtn.onclick = function()
         {
             row.parentNode.removeChild(row);
         };
 
+        // Move up button
+        var upBtn = document.createElement("button");
+        upBtn.style.display = "inline";
+        upBtn.setAttribute("type", "button");
+        upBtn.setAttribute("class", "btn btn-default btn-sm");
+        upBtn.innerHTML = '<span class="en-up"></span>';
+        upBtn.onclick = function()
+        {
+            var prev = row.previousSibling;
+            document.getElementById(containerID).removeChild(row);
+            document.getElementById(containerID).insertBefore(row, prev);
+        };
+        row.appendChild(upBtn);
+
+        // Move down button
+        var downBtn = document.createElement("button");
+        downBtn.style.display = "inline";
+        downBtn.setAttribute("type", "button");
+        downBtn.setAttribute("class", "btn btn-default btn-sm");
+        downBtn.innerHTML = '<span class="en-down"></span>';
+        downBtn.onclick = function()
+        {
+            var next = row.nextSibling;
+            document.getElementById(containerID).removeChild(next);
+            document.getElementById(containerID).insertBefore(next, row);
+        };
+        row.appendChild(downBtn);
+
+        //device list
         var deviceSelect = document.createElement("select");
-        deviceSelect.name = "device";
-        deviceSelect.style.display = "inline";
+        deviceSelect.setAttribute("name", "device");
+        deviceSelect.setAttribute("class", "form-control input-sm");
+        deviceSelect.setAttribute("style", "display:inline; width:200px");
         deviceSelect.options.length = 0;
         self.agocontrol.devices().sort(function(a, b) {
             return a.room.localeCompare(b.room);
@@ -195,16 +260,16 @@ function ScenarioConfig(agocontrol)
         for ( var i = 0; i < self.agocontrol.devices().length; i++)
         {
             var dev = self.agocontrol.devices()[i];
-            if( self.agocontrol.schema().devicetypes[dev.devicetype] && self.agocontrol.schema().devicetypes[dev.devicetype].commands.length > 0 && dev.name)
+            if( self.agocontrol.schema().devicetypes[dev.devicetype] && self.agocontrol.schema().devicetypes[dev.devicetype].commands.length > 0 && dev.name() )
             {
                 var dspName = "";
                 if (dev.room)
                 {
-                    dspName = dev.room + " - " + dev.name;
+                    dspName = dev.name()+' ('+dev.room+')';
                 }
                 else
                 {
-                    dspName = dev.name;
+                    dspName = dev.name();
                 }
                 deviceSelect.options[deviceSelect.options.length] = new Option(dspName, dev.uuid);
                 deviceSelect.options[deviceSelect.options.length - 1]._dev = dev;
@@ -225,6 +290,7 @@ function ScenarioConfig(agocontrol)
 
         row.appendChild(deviceSelect);
 
+        //dynamic container for selected parameters
         var commandContainer = document.createElement("div");
         commandContainer.style.display = "inline";
 
@@ -233,7 +299,9 @@ function ScenarioConfig(agocontrol)
             commandContainer.innerHTML = "";
             var dev = deviceSelect.options[deviceSelect.selectedIndex]._dev;
             var commands = document.createElement("select");
-            commands.name = "command";
+            commands.setAttribute("name", "command");
+            commands.setAttribute("class", "form-control input-sm");
+            commands.setAttribute("style", "display:inline; width:200px");
             if (dev != "sleep")
             {
                 for ( var i = 0; i < self.agocontrol.schema().devicetypes[dev.devicetype].commands.length; i++)
@@ -284,10 +352,10 @@ function ScenarioConfig(agocontrol)
                     for ( var key in cmd.parameters)
                     {
                         var field = document.createElement("input");
-                        field = document.createElement("input");
                         field.setAttribute("type", "text");
-                        field.setAttribute("size", "15");
                         field.setAttribute("name", key);
+                        field.setAttribute("class", "form-control input-sm");
+                        field.setAttribute("style", "display:inline; width:150px;");
                         field.setAttribute("placeholder", cmd.parameters[key].name);
                         if (defaultValues && defaultValues[key])
                         {
@@ -302,10 +370,10 @@ function ScenarioConfig(agocontrol)
                     // Special case for the sleep command
                     commandContainer._params = [];
                     var field = document.createElement("input");
-                    field = document.createElement("input");
                     field.setAttribute("type", "text");
-                    field.setAttribute("size", "20");
                     field.setAttribute("name", "delay");
+                    field.setAttribute("class", "form-control input-sm");
+                    field.setAttribute("style", "display:inline; width:150px;");
                     field.setAttribute("placeholder", "Delay in seconds");
                     if (defaultValues && defaultValues["delay"])
                     {
@@ -321,85 +389,41 @@ function ScenarioConfig(agocontrol)
                 commands.onchange();
             }
         };
-
         deviceSelect.onchange();
-
         row.appendChild(commandContainer);
-
-        // Move up button
-        var upBtn = document.createElement("input");
-        upBtn.style.display = "inline";
-        upBtn.setAttribute("type", "button");
-        upBtn.setAttribute("value", "\u21D1");
-
-        upBtn.onclick = function()
-        {
-            var prev = row.previousSibling;
-            document.getElementById(containerID).removeChild(row);
-            document.getElementById(containerID).insertBefore(row, prev);
-        };
-
-        row.appendChild(upBtn);
-
-        // Move down button
-        var downBtn = document.createElement("input");
-        downBtn.style.display = "inline";
-        downBtn.setAttribute("type", "button");
-        downBtn.setAttribute("value", "\u21D3");
-        downBtn.onclick = function()
-        {
-            var next = row.nextSibling;
-            document.getElementById(containerID).removeChild(next);
-            document.getElementById(containerID).insertBefore(next, row);
-        };
-
-        row.appendChild(downBtn);
 
         document.getElementById(containerID).appendChild(row);
     };
 
     self.deleteScenario = function(item, event)
     {
-        var button_yes = $("#confirmDeleteButtons").data("yes");
-        var button_no = $("#confirmDeleteButtons").data("no");
-        var buttons = {};
-        buttons[button_no] = function()
-        {
-            $("#confirmDelete").dialog("close");
-        };
-        buttons[button_yes] = function()
-        {
-            self.doDeleteScenario(item, event);
-            $("#confirmDelete").dialog("close");
-        };
-        $("#confirmDelete").dialog({
-            modal : true,
-            height : 180,
-            width : 500,
-            buttons : buttons
-        });
+        $("#confirmPopup").data('item', item);
+        $("#confirmPopup").modal('show');
     };
 
     //Sends the delete scenario command
-    self.doDeleteScenario = function(item, event)
+    self.doDeleteScenario = function()
     {
         self.agocontrol.block($('#agoGrid'));
+        $("#confirmPopup").modal('hide');
+
+        var item = $("#confirmPopup").data('item');
         var content = {};
         content.scenario = item.uuid;
         content.uuid = self.agocontrol.scenarioController;
         content.command = 'delscenario';
         self.agocontrol.sendCommand(content)
-        .then(function(res) {
-            self.agocontrol.devices.remove(function(e) {
-                return e.uuid == item.uuid;
+            .then(function(res) {
+                self.agocontrol.devices.remove(function(e) {
+                    return e.uuid == item.uuid;
+                });
+            })
+            .catch(function(err) {
+                notif.error("Error while deleting scenarios!");
+            })
+            .finally(function() {
+                self.agocontrol.unblock($('#agoGrid'));
             });
-        })
-        .catch(function(err) {
-            notif.error("Error while deleting scenarios!");
-        })
-        .finally(function() {
-            self.agocontrol.unblock($('#agoGrid'));
-        });
     };
 
     self.editScenario = function(item)
@@ -411,6 +435,7 @@ function ScenarioConfig(agocontrol)
         self.agocontrol.sendCommand(content)
         .then(function(res) {
             // Build command list
+            $('#scenarioBuilderEdit').html('');
             for ( var idx in res.data.scenariomap)
             {
                 self.addCommand("scenarioBuilderEdit", res.data.scenariomap[idx]);
@@ -420,21 +445,7 @@ function ScenarioConfig(agocontrol)
             self.openScenario = item.uuid;
 
             // Open the dialog
-            if( $("#editScenarioDialogTitle") )
-            {
-                $("#editScenarioDialog").dialog({
-                    title : document.getElementById("editScenarioDialogTitle").innerHTML,
-                    modal : true,
-                    width : 940,
-                    height : 600,
-                    close : function()
-                    {
-                        // Done, restore stuff
-                        $('#scenarioBuilderEdit').html('');
-                        self.openScenario = null;
-                    }
-                });
-            }
+            $("#editPopup").modal('show');
         });
     };
 
@@ -447,7 +458,9 @@ function ScenarioConfig(agocontrol)
         content.scenariomap = self.buildScenarioMap("scenarioBuilderEdit");
         self.agocontrol.sendCommand(content)
         .then(function(res) {
-            $("#editScenarioDialog").dialog("close");
+            $('#scenarioBuilderEdit').html('');
+            self.openScenario = null;
+            $("#editPopup").modal('hide');
         });
     };
 

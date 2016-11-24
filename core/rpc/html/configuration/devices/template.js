@@ -24,7 +24,7 @@ function DeviceConfig(agocontrol)
                         column : "room",
                         value : dev.room,
                         selected : false,
-                        className : "default label"
+                        className : "btn btn-default btn-xs"
                     };
                 }
             }
@@ -60,7 +60,7 @@ function DeviceConfig(agocontrol)
                     column : "devicetype",
                     value : dev.devicetype,
                     selected : false,
-                    className : "default label"
+                    className : "btn btn-default btn-xs"
                 };
             }
         }
@@ -95,7 +95,7 @@ function DeviceConfig(agocontrol)
                         column : "handledBy",
                         value : dev.handledBy,
                         selected : false,
-                        className : "default label"
+                        className : "btn btn-default btn-xs"
                 };
             }
         }
@@ -119,24 +119,6 @@ function DeviceConfig(agocontrol)
         self.handlerFilters(handlerList);
     }
 
-    self.findDevice = function(uuid) {
-        var l = self.agocontrol.devices().filter(function(d) {
-            return d.uuid==uuid;
-        });
-        if(l.length == 1)
-            return l[0];
-        return null;
-    };
-
-    self.findRoom = function(uuid) {
-        var l = self.agocontrol.rooms().filter(function(d) {
-            return d.uuid==uuid;
-        });
-        if(l.length == 1)
-            return l[0];
-        return null;
-    };
-
     self.addFilter = function(item) {
         var tmp = "";
         var i = 0;
@@ -147,15 +129,15 @@ function DeviceConfig(agocontrol)
             {
                 if (self.deviceTypeFilters()[i].value == item.value)
                 {
-                    if( item.className == "default label" )
+                    if( item.className == "btn btn-default btn-xs" )
                     {
                         self.deviceTypeFilters()[i].selected = true;
-                        self.deviceTypeFilters()[i].className = "primary label";
+                        self.deviceTypeFilters()[i].className = "btn btn-primary btn-xs";
                     }
                     else
                     {
                         self.deviceTypeFilters()[i].selected = false;
-                        self.deviceTypeFilters()[i].className = "default label";
+                        self.deviceTypeFilters()[i].className = "btn btn-default btn-xs";
                     }
                 }
             }
@@ -170,15 +152,15 @@ function DeviceConfig(agocontrol)
             {
                 if (self.roomFilters()[i].value == item.value)
                 {
-                    if( item.className == "default label" )
+                    if( item.className == "btn btn-default btn-xs" )
                     {
                         self.roomFilters()[i].selected = true;
-                        self.roomFilters()[i].className = "primary label";
+                        self.roomFilters()[i].className = "btn btn-primary btn-xs";
                     }
                     else
                     {
                         self.roomFilters()[i].selected = false;
-                        self.roomFilters()[i].className = "default label";
+                        self.roomFilters()[i].className = "btn btn-default btn-xs";
                     }
                 }
             }
@@ -193,15 +175,15 @@ function DeviceConfig(agocontrol)
             {
                 if( self.handlerFilters()[i].value==item.value )
                 {
-                    if( item.className=="default label" )
+                    if( item.className=="btn btn-default btn-xs" )
                     {
                         self.handlerFilters()[i].selected = true;
-                        self.handlerFilters()[i].className = "primary label";
+                        self.handlerFilters()[i].className = "btn btn-primary btn-xs";
                     }
                     else
                     {
                         self.handlerFilters()[i].selected = false;
-                        self.handlerFilters()[i].className = "default label";
+                        self.handlerFilters()[i].className = "btn btn-default btn-xs";
                     }
                 }
             }
@@ -244,17 +226,10 @@ function DeviceConfig(agocontrol)
                 content.uuid = self.agocontrol.agoController;
                 content.command = "setdevicename";
                 content.name = value;
-                self.agocontrol.sendCommand(content, function(res) {
-                    if( res!==undefined && res.result!==undefined && res.result!=='no-reply' && res.result.returncode!=-1 )
-                    {
-                        var d = self.findDevice(item.uuid);
-                        d.name = value;
-                    }
-                    else
-                    {
+                self.agocontrol.sendCommand(content)
+                    .catch(function(err) {
                         notif.error('Error updating device name');
-                    }
-                });
+                    });
                 return value;
             },
             {
@@ -265,8 +240,8 @@ function DeviceConfig(agocontrol)
             
         if( $(td).hasClass('select_device_room') )
         {
-            var d = self.findDevice(item.uuid);
-            if( d && d.name && d.name.length>0 )
+            var d = self.agocontrol.findDevice(item.uuid);
+            if( d && d.name() && d.name().length>0 )
             {
                 $(td).editable(function(value, settings) {
                     var content = {};
@@ -275,33 +250,34 @@ function DeviceConfig(agocontrol)
                     content.command = "setdeviceroom";
                     value = value == "unset" ? "" : value;
                     content.room = value;
-                    self.agocontrol.sendCommand(content, function(res) {
-                        if( res!==undefined && res.result!==undefined && res.result!=='no-reply' && res.result.returncode!=-1 )
-                        {
+                    self.agocontrol.sendCommand(content)
+                        .then(function(res) {
                             //update inventory
-                            var d = self.findDevice(item.uuid);
-                            if(value === "")
+                            var d = self.agocontrol.findDevice(item.uuid);
+                            if( d && value==="" )
                             {
                                 d.room = d.roomUID = "";
+                                self.agocontrol.inventory.devices[item.uuid].room = "";
+                                self.agocontrol.inventory.devices[item.uuid].roomUID = "";
                             }
-                            else
+                            else if( d )
                             {
-                                var room = self.findRoom(value);
-                                if(room)
+                                var room = self.agocontrol.findRoom(value);
+                                if( room )
                                 {
                                     d.room = room.name;
+                                    self.agocontrol.inventory.devices[item.uuid].room = room.name;
                                 }
                                 d.roomUID = value;
+                                self.agocontrol.inventory.devices[item.uuid].roomUID = value;
                             }
 
                             //update room filters
                             self.updateRoomFilters();
-                        }
-                        else
-                        {
+                        })
+                        .catch(function(err) {
                             notif.error('Error updating room');
-                        }
-                    });
+                        });
                     if( value==="" )
                     {
                         return "unset";
@@ -341,71 +317,46 @@ function DeviceConfig(agocontrol)
 
     self.grid = new ko.agoGrid.viewModel({
         data: self.agocontrol.devices,
+        pageSize: 25,
         columns: [
             {headerText:'Name', rowText:'name'},
             {headerText:'Room', rowText:'room'},
             {headerText:'Device type', rowText:'devicetype'},
             {headerText:'Handled by', rowText:'handledBy'},
             {headerText:'Internalid', rowText:'internalid'},
-            {headerText:'Actions', rowText:''}
+            {headerText:'Actions', rowText:''},
+            {headerText:'', rowText:'uuid'}
         ],
         rowCallback: self.makeEditable,
-        rowTemplate: 'rowTemplate'
+        rowTemplate: 'rowTemplate',
+        boxStyle: 'box-primary'
     });
 
-    self.deleteDevice = function(item, event) {
-        var button_yes = $("#confirmDeleteButtons").data("yes");
-        var button_no = $("#confirmDeleteButtons").data("no");
-        var buttons = {};
-        buttons[button_no] = function() {
-            $("#confirmDelete").dialog("close");
-        };
-        buttons[button_yes] = function() {
-            self.doDeleteDevice(item, event);
-            $("#confirmDelete").dialog("close");
-        };
-        $("#confirmDelete").dialog({
-            modal : true,
-            height : 180,
-            width : 500,
-            buttons : buttons
-        });
+    self.deleteDevice = function(item, event)
+    {
+        $("#confirmPopup").data('item', item);
+        $("#confirmPopup").modal('show');
     };
 
-    self.doDeleteDevice = function(item, event) {
+    self.doDeleteDevice = function()
+    {
         self.agocontrol.block($('#agoGrid'));
-        var request = {};
-        request.method = "message";
-        request.params = {};
-        request.params.content = {
-            uuid : item.uuid
-        };
-        request.params.subject = "event.device.remove";
-        request.id = 1;
-        request.jsonrpc = "2.0";
+        $("#confirmPopup").modal('hide');
 
-        // XXX(1): sending an event does NOT yield a response
-        // XXX(2): dont build requests manually like this
-        $.ajax({
-            type : 'POST',
-            url : self.agocontrol.url,
-            data : JSON.stringify(request),
-            success : function() {
-                var content = {};
-                content.device = item.uuid;
-                content.uuid = self.agocontrol.agoController;
-                content.command = "setdevicename";
-                content.name = "";
-                self.agocontrol.sendCommand(content, function() {
-                    self.agocontrol.devices.remove(function(e) {
-                        return e.uuid == item.uuid;
-                    });
-                    self.agocontrol.unblock($('#agoGrid'));
+        var item = $("#confirmPopup").data('item');
+        var content = {};
+        content.device = item.uuid;
+        content.uuid = self.agocontrol.agoController;
+        content.command = "deletedevice";
+        self.agocontrol.sendCommand(content)
+            .then(function(res) {
+                self.agocontrol.devices.remove(function(e) {
+                    return e.uuid == item.uuid;
                 });
-            },
-            dataType : "json",
-            async : true
-        });
+            })
+            .finally(function() {
+                self.agocontrol.unblock($('#agoGrid'));
+            });
     };
 
     //update filters

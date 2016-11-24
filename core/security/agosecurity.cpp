@@ -10,6 +10,8 @@
 #include <sstream>
 #include <algorithm>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/locks.hpp>
 
 #include "agoapp.h"
 
@@ -54,8 +56,8 @@ private:
     bool isAlarmActivated;
     CurrentAlarm currentAlarm;
     qpid::types::Variant::Map alertGateways;
-    pthread_mutex_t alertGatewaysMutex;
-    pthread_mutex_t contactsMutex;
+    boost::mutex mutexAlertGateways;
+    boost::mutex mutexContacts;
     std::string email;
     std::string phone;
 
@@ -230,9 +232,9 @@ void AgoSecurity::enableAlarm(std::string zone, std::string housemode, int16_t d
     }
     catch(boost::thread_interrupted &e)
     {
-        //alarm has been canceled by user
+        //alarm has been cancelled by user
         AGO_DEBUG() << "Alarm thread cancelled";
-        agoConnection->emitEvent("securitycontroller", "event.security.alarmcanceled", content);
+        agoConnection->emitEvent("securitycontroller", "event.security.alarmcancelled", content);
 
         //finally change housemode to default one
         //this is implemented to toggle automatically to another housemode that disable alarm (but it's not mandatory)
@@ -347,16 +349,16 @@ TriggerStatus AgoSecurity::triggerZone(std::string zone, std::string housemode)
     if( !securitymap["config"].isVoid() )
     {
         qpid::types::Variant::Map config = securitymap["config"].asMap();
-        //AGO_DEBUG() << " -> config=" << config;
+        AGO_TRACE() << " -> config=" << config;
         for( qpid::types::Variant::Map::iterator it1=config.begin(); it1!=config.end(); it1++ )
         {
             //check housemode
-            //AGO_DEBUG() << " -> check housemode: " << it1->first << "==" << housemode;
+            AGO_TRACE() << " -> check housemode: " << it1->first << "==" << housemode;
             if( it1->first==housemode )
             {
                 //specified housemode found
                 qpid::types::Variant::List zones = it1->second.asList();
-                //AGO_DEBUG() << " -> zones: " << zones;
+                AGO_TRACE() << " -> zones: " << zones;
                 for( qpid::types::Variant::List::iterator it2=zones.begin(); it2!=zones.end(); it2++ )
                 {
                     //check zone
@@ -364,7 +366,7 @@ TriggerStatus AgoSecurity::triggerZone(std::string zone, std::string housemode)
                     std::string zoneName = zoneMap["zone"].asString();
                     int16_t delay = zoneMap["delay"].asInt16();
                     //check delay (if <0 it means inactive) and if it's current zone
-                    //AGO_DEBUG() << " -> check zone: " << zoneName << "==" << zone << " delay=" << delay;
+                    AGO_TRACE() << " -> check zone: " << zoneName << "==" << zone << " delay=" << delay;
                     if( zoneName==zone )
                     {
                         //specified zone found
@@ -431,66 +433,66 @@ void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string mess
 {
     bool found = false;
     bool send = true;
-    AGO_DEBUG() << "sendAlarm() BEGIN";
+    AGO_TRACE() << "sendAlarm() BEGIN";
 
-    pthread_mutex_lock(&alertGatewaysMutex);
-    for( qpid::types::Variant::Map::iterator it=alertGateways.begin(); it!=alertGateways.end(); it++ )
     {
-        if( it->first==uuid )
-        {
-            //gateway found
-            found = true;
-            std::string gatewayType = it->second.asString();
-            if( gatewayType=="smsgateway" )
-            {
-                pthread_mutex_lock(&contactsMutex);
+       boost::lock_guard<boost::mutex> lock(mutexAlertGateways);
+       boost::unique_lock<boost::mutex> contacts_lock(mutexContacts, boost::defer_lock_t());
+       for( qpid::types::Variant::Map::iterator it=alertGateways.begin(); it!=alertGateways.end(); it++ )
+       {
+          if( it->first==uuid )
+          {
+             //gateway found
+             found = true;
+             std::string gatewayType = it->second.asString();
+             if( gatewayType=="smsgateway" )
+             {
+                contacts_lock.lock();
                 if( phone.size()>0 )
                 {
-                    (*content)["command"] = "sendsms";
-                    (*content)["uuid"] = uuid;
-                    (*content)["to"] = phone;
-                    (*content)["text"] = message + "[" + zone + "]";
+                   (*content)["command"] = "sendsms";
+                   (*content)["uuid"] = uuid;
+                   (*content)["to"] = phone;
+                   (*content)["text"] = message + "[" + zone + "]";
                 }
                 else
                 {
-                    AGO_WARNING() << "Trying to send alert to undefined phone number. You must configure default one in system config";
-                    send = false;
+                   AGO_WARNING() << "Trying to send alert to undefined phone number. You must configure default one in system config";
+                   send = false;
                 }
-                pthread_mutex_unlock(&contactsMutex);
-            }
-            else if( gatewayType=="smtpgateway" )
-            {
-                pthread_mutex_lock(&contactsMutex);
+             }
+             else if( gatewayType=="smtpgateway" )
+             {
+                contacts_lock.lock();
                 if( phone.size()>0 )
                 {
-                    (*content)["command"] = "sendmail";
-                    (*content)["uuid"] = uuid;
-                    (*content)["to"] = email;
-                    (*content)["subject"] = "Agocontrol security";
-                    (*content)["body"] = message + "[" + zone + "]";
+                   (*content)["command"] = "sendmail";
+                   (*content)["uuid"] = uuid;
+                   (*content)["to"] = email;
+                   (*content)["subject"] = "Agocontrol security";
+                   (*content)["body"] = message + "[" + zone + "]";
                 }
                 else
                 {
-                    AGO_WARNING() << "Trying to send alert to undefined email address. You must configure default one in system config";
-                    send = false;
+                   AGO_WARNING() << "Trying to send alert to undefined email address. You must configure default one in system config";
+                   send = false;
                 }
-                pthread_mutex_unlock(&contactsMutex);
-            }
-            else if( gatewayType=="twittergateway" )
-            {
+             }
+             else if( gatewayType=="twittergateway" )
+             {
                 (*content)["command"] = "sendtweet";
                 (*content)["uuid"] = uuid;
                 (*content)["tweet"] = message + "[" + zone + "]";
-            }
-            else if( gatewayType=="pushgateway" )
-            {
+             }
+             else if( gatewayType=="pushgateway" )
+             {
                 (*content)["command"] = "sendpush";
                 (*content)["uuid"] = uuid;
                 (*content)["message"] = message + "[" + zone + "]";
-            }
-        }
+             }
+          }
+       }
     }
-    pthread_mutex_unlock(&alertGatewaysMutex);
 
     if( !found )
     {
@@ -503,7 +505,7 @@ void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string mess
     {
         agoConnection->sendMessageReply("", *content);
     }
-    AGO_DEBUG() << "sendAlarm() END";
+    AGO_TRACE() << "sendAlarm() END";
 }
 
 /**
@@ -511,7 +513,7 @@ void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string mess
  */
 void AgoSecurity::refreshDefaultContact()
 {
-    pthread_mutex_lock(&contactsMutex);
+    boost::lock_guard<boost::mutex> lock(mutexContacts);
     std::string oldEmail = email;
     std::string oldPhone = phone;
     email = getConfigOption("email", "", "system", "system");
@@ -526,7 +528,6 @@ void AgoSecurity::refreshDefaultContact()
     {
         AGO_DEBUG() << "Default phone number changed (now " << phone << ")";
     }
-    pthread_mutex_unlock(&contactsMutex);
 }
 
 /**
@@ -561,7 +562,7 @@ void AgoSecurity::refreshAlertGateways()
         //get available alert gateway uuids
         if( !inventory["devices"].isVoid() )
         {
-            pthread_mutex_lock(&alertGatewaysMutex);
+            boost::lock_guard<boost::mutex> lock(mutexAlertGateways);
 
             //clear list
             alertGateways.clear();
@@ -584,8 +585,6 @@ void AgoSecurity::refreshAlertGateways()
                     }
                 }
             }
-
-            pthread_mutex_unlock(&alertGatewaysMutex);
         }
     }
     AGO_TRACE() << "Found alert gateways: " << alertGateways;
@@ -690,12 +689,15 @@ void AgoSecurity::eventHandler(std::string subject, qpid::types::Variant::Map co
             AGO_DEBUG() << "No uuid for event.device.statechanged " << content;
         }
     }
-    else if( subject=="event.environment.timechanged" && !content["minute"].isVoid() && content["minute"].asInt8()%1==0 )
+    else if( subject=="event.environment.timechanged" && !content["minute"].isVoid() && !content["hour"].isVoid() )
     {
-        //refresh gateway list
-        AGO_DEBUG() << "Timechanged: get inventory";
-        refreshAlertGateways();
-        refreshDefaultContact();
+        //refresh gateway list every 5 minutes
+        if( content["minute"].asInt8()%5==0 )
+        {
+            AGO_DEBUG() << "Timechanged: get inventory";
+            refreshAlertGateways();
+            refreshDefaultContact();
+        }
     }
 }
 
@@ -945,10 +947,6 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
 
 void AgoSecurity::setupApp()
 {
-    //init
-    pthread_mutex_init(&alertGatewaysMutex, NULL);
-    pthread_mutex_init(&contactsMutex, NULL);
-
     //load config
     securitymap = jsonFileToVariantMap(getConfigPath(SECURITYMAPFILE));
 

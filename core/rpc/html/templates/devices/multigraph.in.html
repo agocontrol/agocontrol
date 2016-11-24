@@ -1,29 +1,26 @@
-<div class="three columns dashboard-widget" data-bind="attr: {'data-uuid': uuid}">
+<div class="widget-lg">
 
-    <div class="row dashboard-widget-header">
-        <ul class="two_up tiles">
-            <li class="dashboard-widget-header-icon">
-                <div class="pretty large primary btn handle">
-                    <i data-bind="click: function(data, event) { agocontrol.showDetails(data) }" class="icon-chart-line"/>
+    <div class="widget-box" data-bind="css:staleStyle, click:function(data, event) { agocontrol.showDetails(data); }">
+        <div class="inner">
+            <span data-bind="text:name, attr:{title:name, alt:name}"></span>
+            <div>
+                <ko opts="if:room">
+                <div class="widget-box-location">
+                    <i class="en-location"></i>
+                    <span data-bind="text:room"/>
                 </div>
-            </li>
-            <li class="dashboard-widget-header-infos">
-                <div class="row">
-                <ko opts="if: name ">
-                    <div class="twelve columns"><h3 data-bind="text: name"/></div>
                 </ko>
-                <ko opts="ifnot: name ">
-                    <div class="twelve columns"><h3 data-bind="text: devicetype"/></div>
-                </ko>
-                </div>
-            </li>
-        </ul>
+            </div>
+        </div>
+        <div class="icon">
+            <i class="fa en-chart-line"></i>
+        </div>
     </div>
 
-    <div class="row dashboard-widget-content dashboard-widget-content-values" style="text-align:center;">
-        <a href="#" data-bind="click: function(data, event) { agocontrol.showDetails(data) }">
-            <img data-bind="attr: {'src':multigraphThumb}"/>
-        </a>
+    <div class="info-box">
+        <div class="info-box-content no-margin-left">
+            <img style="margin-left:auto; margin-right:auto;" data-bind="attr: {'src':multigraphThumb}" class="img-responsive"/>
+        </div>
     </div>
 
 </div>

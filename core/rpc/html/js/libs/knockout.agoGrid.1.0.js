@@ -1,5 +1,5 @@
 /**
- * agoGrid is pure knockout gumbyfied grid
+ * agoGrid is pure knockout bootstraped grid
  * agoGrid is based on simpleGrid from knockoutjs website (http://knockoutjs.com/examples/grid.html)
  *
  * Benefits over jquery-datatables:
@@ -8,7 +8,7 @@
  *  - no language pack needed
  *  - fits to agocontrol needs
  *  - pure knockout
- *  - gumbified
+ *  - bootstraped
  *
  * agoGrid supports:
  * - sorting by columns (asc and desc)
@@ -23,8 +23,8 @@
  *  - data: data to display in grid (array) [MANDATORY].
  *  - columns: array of column names and column mappings.
  *             Format:
- *              - headerText : displayed column name [MANDATORY]
- *              - rowText: name of real column name in data item [MANDATORY but can be '']
+ *              - headerText : displayed column name [MANDATORY]. If headerText='' the column is hidden (useful to specify search strings)
+ *              - rowText: name of real column name in data item [MANDATORY]. If rowText='' the column is not used for searches (useful for toolbar)
  *             Sample:
  *              columns: [{headerText:'President', rowText:'name'}, {headerText:'Took office', rowText:'took'}, {headerText:'Left office', rowText:'left'}]
  *              data: [{name:'George Washington', took:'April 30, 1789', left:'March 4, 1797'}, {name:'John Adams', took:'March 4, 1797', left:'March 4, 1801'}] 
@@ -35,6 +35,10 @@
  *  - displaySearch: display search box (top right) [DEFAULT=true]
  *  - displayPagination: display pagination (top left and bottom right) [DEFAULT=true]
  *  - gridId: set grid table id [DEFAULT=agoGrid]
+ *  - boxStyle: set box style. See adminLTE for available style [DEFAULT='box-default']
+ *  - boxTitle: set box title. [DEFAULT='']
+ *  - tableStyle: set table style. See bootstrap for available table style [DEFAULT='table-hover table-bordered table-stripped']
+ *  - defaultSort: set default sort [DEFAULT=first grid key]
  *
  * Usage:
  *  1 - Declare new agoGrid (called myGrid) in your knockout code and configure it.
@@ -58,7 +62,7 @@
 
     ko.agoGrid = {
         // Defines a view model class you can use to populate a grid
-        viewModel: function (configuration) {
+        viewModel: function(configuration) {
             this.allData = configuration.data;
             this.data = configuration.data;
             this.displayRowCount = configuration.displayRowCount===undefined ? true : configuration.displayRowCount;
@@ -72,13 +76,16 @@
             this.hasNextPage = ko.observable(false);
             this.search = ko.observable('');
             this.filters = ko.observableArray([]);
-            this.sortKey = ko.observable('');
-            this.sortAsc = ko.observable(true);
             this.gridId = configuration.gridId || 'agoGrid';
             // If you don't specify columns configuration, we'll use scaffolding
             this.columns = configuration.columns || getColumnsForScaffolding(ko.unwrap(this.data));
+            this.sortKey = ko.observable(configuration.defaultSort ? configuration.defaultSort : this.columns.length>0 ? this.columns[0].rowText : '');
+            this.sortAsc = ko.observable(true);
             this.rowTemplate = configuration.rowTemplate || "ko_agoGrid_row";
             this.bodyTemplate = configuration.rowTemplate ? "ko_agoGrid_customBody" : "ko_agoGrid_body";
+            this.boxStyle = configuration.boxStyle ? configuration.boxStyle : "box-default";
+            this.boxTitle = configuration.boxTitle ? $.trim(configuration.boxTitle) : "";
+            this.tableStyle = ko.observable(configuration.tableStyle ? configuration.tableStyle : "table-hover table-bordered table-stripped");
 
             this.data = ko.computed(function() {
                 var out = [];
@@ -86,16 +93,26 @@
                 //apply filters
                 if( this.filters().length>0 )
                 {
-                    for( var i=0; i<this.filters().length; i++ )
-                    {
-                        for( var j=0; j<this.allData().length; j++ )
-                        {
-                            if( this.allData()[j][this.filters()[i].column]!==undefined && this.allData()[j][this.filters()[i].column]===this.filters()[i].value )
+                    out = this.allData().filter(function(item) {
+                            for( var i=0; i<this.filters().length; i++ )
                             {
-                                out.push(this.allData()[j]);
+                                if( item[this.filters()[i].column]!==undefined )
+                                {
+                                    //column exists, check filter now
+                                    if( item[this.filters()[i].column]!==this.filters()[i].value )
+                                    {
+                                        //item is filtered, stop here
+                                        return false;
+                                    }
+                                }
+                                else
+                                {
+                                    //column doesn't exist, keep item
+                                }
                             }
-                        }
-                    }
+                            //item is not filtered
+                            return true;
+                      }, this);
                 }
                 else
                 {
@@ -106,6 +123,7 @@
                 //apply search
                 if( $.trim(this.search()).length>0 )
                 {
+                    var searchLC = this.search().toLowerCase();
                     for( var i=out.length-1; i>=0; i-- )
                     {
                         var found = false;
@@ -113,7 +131,8 @@
                         {
                             if( this.columns[j].rowText && this.columns[j].rowText.length>0 )
                             {
-                                if( (''+out[i][this.columns[j].rowText]).toLowerCase().indexOf(this.search())>=0 )
+                                var str = ko.utils.unwrapObservable(out[i][this.columns[j].rowText]);
+                                if( (''+str).toLowerCase().indexOf(searchLC)>=0 )
                                 {
                                     found = true;
                                     break;
@@ -275,21 +294,23 @@
     //default header template
     templateEngine.addTemplate("ko_agoGrid_header", "\
                 <!-- ko if: displayPagination||displaySearch -->\
-                <div class=\"row\">\
-                    <div class=\"six columns\">\
+                <div class=\"row\" style=\"padding: 10px 15px 10px 15px;\">\
+                    <div class=\"col-md-5 hidden-xs\">\
                         <!-- ko if:displayPagination -->\
-                        <div class=\"picker\"> \
-                            <select data-bind=\"options:pageSizes, value:pageSize\"></select>\
-                        </div>\
+                        <select class=\"form-control input-sm\" data-bind=\"options:pageSizes, value:pageSize\" style=\"max-width:100px;\"></select>\
                         <!-- /ko -->\
                     </div>\
-                    <div class=\"six columns\" style=\"text-align:right;\">\
+                    <div class=\"col-xs-9 col-md-offset-2 col-md-5\" style=\"text-align:right;\">\
                         <!-- ko if:displaySearch -->\
-                        <div class=\"prepend append field\">\
-                            <span class=\"adjoined\"><i class=\"icon-search\"></i></span>\
-                            <input class=\"normal text input\" type=\"text\" data-bind=\"textInput:search\" />\
-                            <div class=\"medium primary btn\"><a href=\"#\" data-bind=\"click:function() { clearSearch(); }\">x</a></div>\
-                        </div>\
+                        <form class=\"form-inline\" data-bind=\"formNoEnter:{}\">\
+                            <span class=\"en-search hidden-xs\"></span>\
+                            <div class=\"input-group input-group-sm\">\
+                                <input type=\"text\" class=\"form-control\" data-bind=\"textInput:search\">\
+                                <span class=\"input-group-btn\">\
+                                    <button class=\"btn btn-primary\" type=\"button\" data-bind=\"click:function(){clearSearch();}\"><span class=\"en-cancel\"/></button>\
+                                </span>\
+                            </div>\
+                        </form>\
                         <!-- /ko -->\
                     </div>\
                 </div>\
@@ -297,18 +318,20 @@
 
     //default grid template
     templateEngine.addTemplate("ko_agoGrid_grid", "\
-                    <table class=\"rounded striped\" style=\"margin-top:0px; margin-bottom:0px;\" data-bind=\"attr: {id:gridId}\"> \
+                    <div class=\"table-responsive\"> \
+                    <table class=\"table table-hover table-bordered table-stripped\" style=\"margin-top:0px; margin-bottom:0px;\" data-bind=\"attr: {id:gridId}\"> \
                         <thead>\
                             <tr data-bind=\"foreach: columns\">\
+                               <!-- ko ifnot: headerText=='' -->\
                                <th>\
                                   <!-- ko ifnot: rowText=='' -->\
                                       <span style=\"cursor:pointer; text-overflow:ellipsis;\" data-bind=\"text:headerText, click:sortBy.bind($data, $context, rowText)\"></span>\
                                       <!-- ko if:rowText==sortKey() -->\
                                           <!-- ko if:sortAsc() -->\
-                                              <span><i class=\"icon-up-dir\"></i></span>\
+                                              <span class=\"en-down-dir\"></span>\
                                           <!-- /ko -->\
                                           <!-- ko ifnot:sortAsc() -->\
-                                              <span><i class=\"icon-down-dir\"></i></span>\
+                                              <span class=\"en-up-dir\"></span>\
                                           <!-- /ko -->\
                                       <!-- /ko -->\
                                   <!-- /ko -->\
@@ -316,11 +339,13 @@
                                       <span style=\"text-overflow:ellipsis;\" data-bind=\"text:headerText\"></span>\
                                   <!-- /ko -->\
                                </th>\
+                               <!-- /ko -->\
                             </tr>\
                         </thead>\
                         <tbody data-bind=\"template : { name:bodyTemplate, foreach:itemsOnCurrentPage, as:'myrow' }\">\
                         </tbody>\
-                    </table>");
+                    </table> \
+                    </div>");
 
     //default body template
     templateEngine.addTemplate("ko_agoGrid_body", "\
@@ -336,24 +361,38 @@
     //default footer template
     templateEngine.addTemplate("ko_agoGrid_footer", "\
                     <!-- ko if: displayPagination||displayRowCount -->\
-                    <div class=\"row\">\
-                        <div class=\"four columns\">\
+                    <div class=\"row\" style=\"padding: 10px 15px 10px 15px;\">\
+                        <div class=\"col-md-4 hidden-xs\">\
                             <!-- ko if:displayRowCount -->\
-                            <span style=\"font-weight:bold;\" data-bind=\"text:range\"></span>\
+                            <span data-bind=\"text:range\" style=\"font-weight:bold;\"></span>\
                             <!-- /ko -->\
                         </div>\
-                        <div class=\"eight columns\" style=\"text-align:right;\">\
+                        <div class=\"col-xs-12 col-md-8\" style=\"text-align:right;\">\
                             <!-- ko if:displayPagination -->\
-                            <div class=\"small oval default btn\"><a href=\"#\" data-bind=\"click:function() { gotoPreviousPage(); }\"><<</a></div>\
-                            <!-- ko foreach: ko.utils.range(0, maxPageIndex) -->\
-                                <!-- ko if:$data==currentPageIndex() -->\
-                                    <div class=\"small oval primary btn\"><a href=\"#\" data-bind=\"text:$data+1, click:function() { currentPageIndex($data); }\"></a></div>\
+                            <ul class=\"pagination pagination-sm\" style=\"margin: 0px !important;\">\
+                                <li>\
+                                    <a href=\"#\" data-bind=\"click:function() { gotoPreviousPage(); }\" aria-label=\"Previous\">\
+                                        <span aria-hidden=\"true\">&laquo;</span>\
+                                    </a>\
+                                </li>\
+                                <!-- ko foreach: ko.utils.range(0, maxPageIndex) -->\
+                                    <!-- ko if:$data==currentPageIndex() -->\
+                                    <li class=\"active\">\
+                                        <a href=\"#\" data-bind=\"text:$data+1, click:function() { currentPageIndex($data); }\"></a>\
+                                    </li>\
+                                    <!-- /ko -->\
+                                    <!-- ko ifnot:$data==currentPageIndex() -->\
+                                    <li>\
+                                        <a href=\"#\" data-bind=\"text:$data+1, click:function() { currentPageIndex($data); }\"></a>\
+                                    </li>\
+                                    <!-- /ko -->\
                                 <!-- /ko -->\
-                                <!-- ko ifnot:$data==currentPageIndex() -->\
-                                    <div class=\"small oval default btn\"><a href=\"#\" data-bind=\"text:$data+1, click:function() { currentPageIndex($data); }\"></a></div>\
-                                <!-- /ko -->\
-                            <!-- /ko -->\
-                            <div class=\"small oval default btn\"><a href=\"#\" data-bind=\"click:function() { gotoNextPage(); }\">>></a></div>\
+                                <li>\
+                                    <a href=\"#\" data-bind=\"click:function() { gotoNextPage(); }\" aria-label=\"Next\">\
+                                        <span aria-hidden=\"true\">&raquo;</span>\
+                                    </a>\
+                                </li>\
+                            </ul>\
                             <!-- /ko -->\
                         </div>\
                     </div>\
@@ -379,21 +418,42 @@
                     }
             );
 
+            //get options
+            var options = valueAccessor();
+
             // Allow the default templates to be overridden
             var gridTemplateName   = allBindings.get("agoGridTemplate") || "ko_agoGrid_grid",
                 headerTemplateName = allBindings.get("agoGridHeaderTemplate") || "ko_agoGrid_header";
                 footerTemplateName = allBindings.get("agoGridFooterTemplate") || "ko_agoGrid_footer";
 
-            // Render the header
-            var headerContainer = element.appendChild(document.createElement("DIV"));
-            ko.renderTemplate(headerTemplateName, childBindingContext, { templateEngine: templateEngine }, headerContainer, "replaceNode");
+            var container = element.appendChild(document.createElement("DIV"));
+            $(container).addClass("box");
+            $(container).addClass(options.boxStyle);
 
-            // Render the main grid
-            var gridContainer = element.appendChild(document.createElement("DIV"));
+            // Render box header
+            if( options.boxTitle.length>0 )
+            {
+                var boxHeader = container.appendChild(document.createElement("DIV"));
+                $(boxHeader).addClass("box-header with-border");
+                var boxTitle = boxHeader.appendChild(document.createElement("H3"));
+                $(boxTitle).addClass("box-title");
+                $(boxTitle).text(options.boxTitle);
+            }
+
+            // Render box body
+            var boxBody = container.appendChild(document.createElement("DIV"));
+            $(boxBody).addClass("box-body no-padding");
+
+            // Render box body header
+            var headerContainer = boxBody.appendChild(document.createElement("DIV"));
+            ko.renderTemplate(headerTemplateName, childBindingContext, { templateEngine: templateEngine }, headerContainer, "replaceNode");
+            
+            // Render box body grid
+            var gridContainer = boxBody.appendChild(document.createElement("DIV"));
             ko.renderTemplate(gridTemplateName, childBindingContext, { templateEngine: templateEngine }, gridContainer, "replaceNode");
 
-            // Render the footer
-            var footerContainer = element.appendChild(document.createElement("DIV"));
+            // Render box body footer
+            var footerContainer = boxBody.appendChild(document.createElement("DIV"));
             ko.renderTemplate(footerTemplateName, childBindingContext, { templateEngine: templateEngine }, footerContainer, "replaceNode");
         }
     };

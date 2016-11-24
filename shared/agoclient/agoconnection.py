@@ -23,6 +23,12 @@ class AgoResponse:
         else:
             raise Exception("Invalid response, neither result or error present")
 
+    def __str__(self):
+        if self.is_error():
+            return 'AgoResponse[ERROR] message="%s" data=[%s]' % (self.message(), str(self.data()))
+        else:
+            return 'AgoResponse[OK] message="%s" data=[%s]' % (self.message(), str(self.data()))
+
     def is_error(self):
         return "error" in self.response
 
@@ -152,7 +158,7 @@ class AgoConnection:
                 simplejson.dump(self.uuids, outfile)
         except (OSError, IOError) as exception:
             self.log.error("Cannot write uuid map file: %s", exception)
-        except ValueError, exception:  # includes simplejson error
+        except ValueError as exception:  # includes simplejson error
             self.log.error("Cannot encode uuid map: %s", exception)
 
     def load_uuid_map(self):
@@ -167,10 +173,10 @@ class AgoConnection:
                 self.log.debug("Cannot find uuid map file: %s", exception)
             else:
                 self.log.error("Cannot load uuid map file: %s", exception)
-        except ValueError, exception:  # includes simplejson error
+        except ValueError as exception:  # includes simplejson error
             self.log.error("Cannot decode uuid map from file: %s", exception)
 
-    def emit_device_announce(self, uuid, device):
+    def emit_device_announce(self, uuid, device, initial_name):
         """Send a device announce event, this will
         be honored by the resolver component.
         You can find more information regarding the resolver
@@ -180,7 +186,23 @@ class AgoConnection:
         content["uuid"] = uuid
         content["internalid"] = device["internalid"]
         content["handled-by"] = self.instance
+
+        if initial_name != None:
+            content["initial_name"] = initial_name
+
         self.send_message("event.device.announce", content)
+
+    def emit_device_discover(self, uuid, device):
+        """Send a device discover event, this will
+        be honored by the resolver component.
+        You can find more information regarding the resolver
+        here: http://wiki.agocontrol.com/index.php/Resolver """
+        content = {}
+        content["devicetype"] = device["devicetype"]
+        content["uuid"] = uuid
+        content["internalid"] = device["internalid"]
+        content["handled-by"] = self.instance
+        self.send_message("event.device.discover", content)
 
     def emit_device_remove(self, uuid):
         """Send a device remove event to the resolver"""
@@ -195,20 +217,23 @@ class AgoConnection:
         content["stale"] = stale
         self.send_message("event.device.stale", content)
 
-    def add_device(self, internalid, devicetype):
+    def add_device(self, internalid, devicetype, initial_name=None):
         """Add a device. Announcement to ago control will happen
         automatically. Commands to this device will be dispatched
         to the command handler.
-        The devicetype corresponds to an entry in the schema."""
-        if (self.internal_id_to_uuid(internalid) is None):
+        The devicetype corresponds to an entry in the schema.
+        If an initial_name is set, the device will be given that name when it's first seen."""
+        if self.internal_id_to_uuid(internalid) is None:
             self.uuids[str(uuid4())] = internalid
             self.store_uuid_map()
+
         device = {}
         device["devicetype"] = devicetype
         device["internalid"] = internalid
         device["stale"] = 0
+
         self.devices[self.internal_id_to_uuid(internalid)] = device
-        self.emit_device_announce(self.internal_id_to_uuid(internalid), device)
+        self.emit_device_announce(self.internal_id_to_uuid(internalid), device, initial_name)
 
     def remove_device(self, internalid):
         """Remove a device."""
@@ -316,12 +341,8 @@ class AgoConnection:
         """
         return self.response_result(iden=self.RESPONSE_SUCCESS, mess=message, data=data)
 
-    def send_message(self, content):
-        """Send message without subject."""
-        return self.send_message(None, content)
-
     def send_message(self, subject, content):
-        """Method to send an agocontrol message with a subject."""
+        """Method to send an agocontrol message with a subject. Subject can be None if necessary"""
         _content = content
         _content["instance"] = self.instance
         if self.log.isEnabledFor(logging.TRACE):
@@ -476,10 +497,10 @@ class AgoConnection:
         self.log.debug("Reporting child devices")
         for device in self.devices:
             #only report not stale device
-            if not self.devices[device].has_key("stale"):
-                self.devices[device]["stale"] = 0
-            if self.devices[device]["stale"]==0:
-                self.emit_device_announce(device, self.devices[device])
+            #if not self.devices[device].has_key("stale"):
+            #    self.devices[device]["stale"] = 0
+            #if self.devices[device]["stale"]==0:
+            self.emit_device_discover(device, self.devices[device])
 
     def _sendreply(self, addr, content):
         """Internal used to send a reply."""

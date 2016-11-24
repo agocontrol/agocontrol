@@ -28,6 +28,14 @@
 
 #include "agoapp.h"
 
+#ifndef KNXDEVICEMAPFILE
+#define KNXDEVICEMAPFILE "maps/knx.json"
+#endif
+
+#ifndef ETSGAEXPORTMAPFILE
+#define ETSGAEXPORTMAPFILE "maps/knx_etsgaexport.json"
+#endif
+
 using namespace qpid::messaging;
 using namespace qpid::types;
 using namespace tinyxml2;
@@ -61,7 +69,7 @@ private:
     void setupApp();
     void cleanupApp();
 
-    bool loadDevices(fs::path &filename, Variant::Map& _deviceMap);
+    bool loadDevicesXML(fs::path &filename, Variant::Map& _deviceMap);
     void reportDevices(Variant::Map devicemap);
     string uuidFromGA(Variant::Map devicemap, string ga);
     string typeFromGA(Variant::Map device, string ga);
@@ -76,7 +84,7 @@ public:
 /**
  * parses the device XML file and creates a qpid::types::Variant::Map with the data
  */
-bool AgoKnx::loadDevices(fs::path &filename, Variant::Map& _deviceMap) {
+bool AgoKnx::loadDevicesXML(fs::path &filename, Variant::Map& _deviceMap) {
     XMLDocument devicesFile;
     int returncode;
 
@@ -132,9 +140,6 @@ bool AgoKnx::loadDevices(fs::path &filename, Variant::Map& _deviceMap) {
 void AgoKnx::reportDevices(Variant::Map devicemap) {
     for (Variant::Map::const_iterator it = devicemap.begin(); it != devicemap.end(); ++it) {
         Variant::Map device;
-        Variant::Map content;
-        Message event;
-
         device = it->second.asMap();
         agoConnection->addDevice(it->first.c_str(), device["devicetype"].asString().c_str(), true);
     }
@@ -243,6 +248,12 @@ void *AgoKnx::listener() {
                             agoConnection->emitEvent(uuid.c_str(), "event.environment.temperaturechanged", tl.getFloatData(), "degC");
                         } else if (type == "brightness") {
                             agoConnection->emitEvent(uuid.c_str(), "event.environment.brightnesschanged", tl.getFloatData(), "lux");
+                        } else if (type == "humidity") {
+                            agoConnection->emitEvent(uuid.c_str(), "event.environment.humiditychanged", tl.getFloatData(), "percent");
+                        } else if (type == "airquality") {
+                            agoConnection->emitEvent(uuid.c_str(), "event.environment.co2changed", tl.getFloatData(), "ppm");
+                        } else if (type == "windspeed") {
+                            agoConnection->emitEvent(uuid.c_str(), "event.environment.windspeedchanged", tl.getFloatData(), "m/s");
                         } else if (type == "energy") {
                             agoConnection->emitEvent(uuid.c_str(), "event.environment.energychanged", tl.getFloatData(), "A");
                         } else if (type == "power") {
@@ -350,6 +361,148 @@ bool AgoKnx::sendFloatData(std::string dest, float data) {
 qpid::types::Variant::Map AgoKnx::commandHandler(qpid::types::Variant::Map content) {
     std::string internalid = content["internalid"].asString();
     AGO_TRACE() << "received command " << content["command"] << " for device " << internalid;
+
+    if (internalid == "knxcontroller")
+    {
+        qpid::types::Variant::Map returnData;
+
+        if (content["command"] == "adddevice")
+        {
+            checkMsgParameter(content, "devicemap", VAR_MAP);
+            // checkMsgParameter(content, "devicetype", VAR_STRING);
+
+            qpid::types::Variant::Map newdevice = content["devicemap"].asMap();
+            AGO_TRACE() << "adding knx device: " << newdevice;
+
+            std::string deviceuuid;
+            if(content.count("device"))
+                deviceuuid = content["device"].asString();
+            else
+                deviceuuid = generateUuid();
+
+            deviceMap[deviceuuid] = newdevice;
+            agoConnection->addDevice(deviceuuid.c_str(), newdevice["devicetype"].asString().c_str(), true);
+            if (variantMapToJSONFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE)))
+            {
+                returnData["device"] = deviceuuid;
+                return responseSuccess(returnData);
+            }
+            return responseFailed("Failed to write knx device map file");
+        }
+        else if (content["command"] == "getdevice")
+        {
+            checkMsgParameter(content, "device", VAR_STRING);
+            std::string device = content["device"].asString();
+
+            AGO_TRACE() << "getdevice request: " << device;
+            if (!deviceMap.count(device)) 
+                return responseError(RESPONSE_ERR_NOT_FOUND, "Device not found");
+
+            returnData["devicemap"] = deviceMap[device].asMap();
+            returnData["device"] = device;
+
+            return responseSuccess(returnData);
+        }
+        else if (content["command"] == "getdevices")
+        {
+            /*qpid::types::Variant::Map devicelist;
+            for (Variant::Map::const_iterator it = devicemap.begin(); it != devicemap.end(); ++it) {
+                Variant::Map device;
+                device = it->second.asMap();
+                devicelist.push_back(device);
+            }*/
+            returnData["devices"] = deviceMap;
+            return responseSuccess(returnData);
+        }
+        else if (content["command"] == "deldevice")
+        {
+            checkMsgParameter(content, "device", VAR_STRING);
+            
+            std::string device = content["device"].asString();
+            AGO_TRACE() << "deldevice request:" << device;
+            qpid::types::Variant::Map::iterator it = deviceMap.find(device);
+            if (it != deviceMap.end())
+            {
+                AGO_DEBUG() << "removing ago device" << device;
+                agoConnection->removeDevice(it->first.c_str());
+                deviceMap.erase(it);
+                if (!variantMapToJSONFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE)))
+                {
+                    return responseFailed("Failed to write knx device map file");
+                }
+            }
+            return responseSuccess();
+
+        } 
+        else if (content["command"] == "uploadfile")
+        {
+            checkMsgParameter(content, "filepath", VAR_STRING);
+
+            XMLDocument etsExport;
+            std::string etsdata = content["filepath"].asString();
+            AGO_TRACE() << "parse ets export request:" << etsdata;
+            /*
+            if (etsExport.Parse(etsdata.c_str()) != XML_NO_ERROR)
+                return responseFailed("Failed to parse XML input data");
+            */
+            int returncode = etsExport.LoadFile(etsdata.c_str());
+            if (returncode != XML_NO_ERROR) {
+                AGO_ERROR() << "error loading XML file '" << etsdata << "', code: " << returncode;
+                return responseFailed("Failed to parse XML input data");
+            }
+
+            XMLHandle docHandle(&etsExport);
+            XMLElement* groupRange = docHandle.FirstChildElement("GroupAddress-Export").FirstChild().ToElement();
+            if (groupRange) {
+                XMLElement *nextRange = groupRange;
+                qpid::types::Variant::Map rangeMap;
+                while (nextRange != NULL) {
+                    AGO_TRACE() << "node: " << nextRange->Attribute("Name");
+                    XMLElement *middleRange = nextRange->FirstChildElement( "GroupRange" );
+                    if (middleRange)
+                    {
+                        XMLElement *nextMiddleRange = middleRange;
+                        qpid::types::Variant::Map middleMap;
+                        while (nextMiddleRange != NULL)
+                        {
+                            AGO_TRACE() << "middle: " << nextMiddleRange->Attribute("Name");
+                            XMLElement *groupAddress = nextMiddleRange->FirstChildElement("GroupAddress");
+                            if (groupAddress)
+                            {
+                                XMLElement *nextGroupAddress = groupAddress;
+                                qpid::types::Variant::Map groupMap;
+                                while (nextGroupAddress != NULL)
+                                {
+                                    AGO_TRACE() << "Group: " << nextGroupAddress->Attribute("Name") << " Address: " << nextGroupAddress->Attribute("Address");
+                                    groupMap[nextGroupAddress->Attribute("Name")]=nextGroupAddress->Attribute("Address");
+                                    nextGroupAddress = nextGroupAddress->NextSiblingElement();
+                                }
+                                middleMap[nextMiddleRange->Attribute("Name")]=groupMap;
+
+                            }
+                            nextMiddleRange = nextMiddleRange->NextSiblingElement();
+
+                        }
+                        rangeMap[nextRange->Attribute("Name")]=middleMap;
+                    }
+                    nextRange = nextRange->NextSiblingElement();
+                }
+                returnData["groupmap"]=rangeMap;
+                variantMapToJSONFile(rangeMap, getConfigPath(ETSGAEXPORTMAPFILE));
+            } else 
+                return responseFailed("No 'GroupAddress-Export' tag found");
+
+            return responseSuccess(returnData);
+
+        }
+        else if (content["command"] == "getgacontent")
+        {
+            returnData["groupmap"] = jsonFileToVariantMap(getConfigPath(ETSGAEXPORTMAPFILE));
+            return responseSuccess(returnData);
+        }
+        return responseUnknownCommand();
+    }
+
     qpid::types::Variant::Map::const_iterator it = deviceMap.find(internalid);
     qpid::types::Variant::Map device;
     if (it != deviceMap.end()) {
@@ -429,11 +582,26 @@ void AgoKnx::setupApp() {
         addEventHandler();
     }
 
-    // load xml file into map
-    if (!loadDevices(devicesFile, deviceMap)) {
-        AGO_FATAL() << "can't load device xml";
-        throw StartupError();
+    agoConnection->addDevice("knxcontroller", "knxcontroller");
+
+    // check if old XML file exists and convert it to a json map
+    if (fs::exists(devicesFile)) {
+        AGO_DEBUG() << "Found XML config file, converting to json map";
+        // load xml file into map
+        if (!loadDevicesXML(devicesFile, deviceMap)) {
+            AGO_FATAL() << "can't load device xml";
+            throw StartupError();
+        }
+        // write json map
+        AGO_DEBUG() << "Writing json map into " << getConfigPath(KNXDEVICEMAPFILE);
+        variantMapToJSONFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE));
+        AGO_INFO() << "XML devices file has been converted to a json map. Renaming old file.";
+        fs::rename(devicesFile, fs::path(devicesFile.string() + ".converted"));
+    } else {
+        AGO_DEBUG() << "Loading json device map";
+        deviceMap = jsonFileToVariantMap(getConfigPath(KNXDEVICEMAPFILE));
     }
+
     // announce devices to resolver
     reportDevices(deviceMap);
 

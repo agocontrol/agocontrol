@@ -12,8 +12,11 @@ Agocontrol.prototype = {
     deferredMultigraphThumbs: [],
     refreshMultigraphThumbsInterval: null,
     eventHandlers: [],
+    deviceSize: null,
     _allApplications: ko.observableArray([]),
+    _allProtocols: ko.observableArray([]),
     _getApplications: Promise.pending(),
+    _getProtocols: Promise.pending(),
     _favorites: ko.observable(),
     _noProcesses: ko.observable(false),
 
@@ -27,9 +30,15 @@ Agocontrol.prototype = {
     supported_devices: ko.observableArray([]),
     processes: ko.observableArray([]),
     applications: ko.observableArray([]),
+    protocols: ko.observableArray([]),
     dashboards: ko.observableArray([]),
     configurations: ko.observableArray([]),
     helps: ko.observableArray([]),
+    serverTime: 0,
+    serverTimeUi: ko.observable(''),
+    journalEntries: ko.observableArray([]),
+    journalStatus: ko.observable('label label-success'),
+    intervalJournal: null,
 
     agoController: null,
     scenarioController: null,
@@ -37,6 +46,12 @@ Agocontrol.prototype = {
     inventory: null,
     dataLoggerController: null,
     systemController: null,
+    journal: null,
+
+    //ui config
+    skin: ko.observable('skin-yellow-light body-light'),
+    theme: null,
+    darkStyle: ko.observable(false),
 
     _init : function(){
         /**
@@ -45,6 +60,7 @@ Agocontrol.prototype = {
          */
         ko.computed(function(){
             var allApplications = this._allApplications();
+            var allProtocols = this._allProtocols();
             var favorites = this._favorites();
             var processes = this.processes();
             // Hack to get around lack of process list on FreeBSD
@@ -70,6 +86,7 @@ Agocontrol.prototype = {
                 }
             }
 
+            //add all other applications
             for( var i=0; i<allApplications.length; i++ )
             {
                 var application = allApplications[i];
@@ -102,8 +119,41 @@ Agocontrol.prototype = {
             }
 
             this.applications(applications);
-            this._getApplications.fulfill();
+            this._getApplications.resolve();
+
+            //protocols
+            var protocols = [];
+            for( var i=0; i<allProtocols.length; i++ )
+            {
+                var protocol = allProtocols[i];
+                var append = false;
+
+                if( protocol.depends===undefined || (protocol.depends!==undefined && $.trim(protocol.depends).length==0) )
+                {
+                    append = true;
+                }
+                else
+                {
+                    //check if process is installed (and not if it's currently running!)
+                    var proc = this.findProcess(protocol.depends);
+                    if( proc )
+                    {
+                        append = true;
+                    }
+                }
+
+                if( append )
+                {
+                    protocols.push(protocol);
+                }
+            }
+
+            this.protocols(protocols);
+            this._getProtocols.resolve();
+
         }, this);
+
+        
     },
 
     /**
@@ -114,18 +164,53 @@ Agocontrol.prototype = {
      *
      * Application availability is NOT guaranteed to be loaded immediately.
      */
-    initialize : function() {
+    initialize : function()
+    {
+        var self = this;
+
+        //get device size
+        self.deviceSize = getDeviceSize();
+
+        //get ui config (localstorage)
+        //this is used to avoid skin refresh at startup
+        if( typeof(Storage)!=="undefined" )
+        {
+            var skin = localStorage.getItem("skin");
+            if( skin )
+            {
+                self.theme = self.getThemeFromSkin(skin);
+                if( skin.indexOf('light')===-1 )
+                {
+                    self.darkStyle(true);
+                }
+                else
+                {
+                    self.darkStyle(false);
+                }
+                self.skin(skin);
+            }
+        }
+
+        //handle dark/light style changes
+        self.darkStyle.subscribe(function(value) {
+            if( self.theme )
+            {
+                self.setSkin(self.theme);
+            }
+        });
+
+        var p0 = this.getUiConfig();
         var p1 = this.getInventory()
-            .then(this.handleInventory.bind(this));
+            .then(this.handleInventory.bind(this))
+            .then(this.getJournalEntries.bind(this)); //need datalogger uuid
         var p2 = this.updateListing();
 
         // Required but non-dependent
         this.updateFavorites();
 
-        return Promise.all([p1, p2]);
+        return Promise.all([p0, p1, p2]);
     },
-
-
+    
     /**
      * Send a command to an arbitrary Ago component.
      *
@@ -287,6 +372,20 @@ Agocontrol.prototype = {
         return null;
     },
 
+    //find device
+    findDevice: function(uuid)
+    {
+        var self = this;
+        for ( var i=0; i<self.devices().length; i++)
+        {
+            if( self.devices()[i].uuid===uuid )
+            {
+                return self.devices()[i];
+            }
+        }
+        return null;
+    },
+
     //return specified process or null if not found
     findProcess: function(proc)
     {
@@ -348,6 +447,7 @@ Agocontrol.prototype = {
                     {
                         //add new device
                         self.devices.push(new device(self, devs[uuid], uuid));
+                        self.inventory.devices[uuid] = devs[uuid];
                     }
                 }
             });
@@ -372,6 +472,57 @@ Agocontrol.prototype = {
         var content = {};
         content.command = "inventory";
         return self.sendCommand(content);
+    },
+
+    //get journal entries for today
+    getJournalEntries: function()
+    {
+        var self = this;
+        if( self.dataLoggerController )
+        {
+            var content = {};
+            content.uuid = self.journal;
+            content.command = 'getmessages';
+            content.type = 'all';
+            content.filter = '';
+            self.sendCommand(content)
+                .then(function(res) {
+                    //save entries
+                    self.journalEntries(res.data.messages);
+
+                    //get journal status
+                    var jStatus = 1; //0=debug 1=info 2=warning 3=error
+                    for( var i=0; i<res.data.messages.length; i++ )
+                    {
+                        if( res.data.messages[i].type==="error" )
+                        {
+                            //max status, stop statement
+                            jStatus = 3;
+                            break;
+                        }
+                        else if( res.data.messages[i].type==="warning" )
+                        {
+                            jStatus = 2;
+                        }
+                    }
+                    if( jStatus===1 ) self.journalStatus('label label-info');
+                    else if( jStatus===2 ) self.journalStatus('label label-warning');
+                    else if( jStatus===3 ) self.journalStatus('label label-danger');
+
+                    //add journal entries auto refresh
+                    if( !self.intervalJournal  )
+                    {
+                        self.intervalJournal = window.setInterval(self.getJournalEntries.bind(self), 300000);
+                    }
+                })
+                .catch(function(err) {
+                    console.error(err);
+                });
+        }
+        else
+        {
+            console.warn('No datalogger found!');
+        }
     },
 
     //handle inventory
@@ -448,14 +599,18 @@ Agocontrol.prototype = {
     // Handle dashboard-part of inventory
     handleDashboards : function(floorplans) {
         var dashboards = [];
-        dashboards.push({name:'all', ucName:'All my devices', action:'', editable:false});
+        dashboards.push({name:'all', ucName:ko.observable('All my devices'), action:'', editable:false, icon:'fa-th-large'});
         for( uuid in floorplans )
         {
             var dashboard = floorplans[uuid];
             dashboard.uuid = uuid;
             dashboard.action = '';
-            dashboard.ucName = dashboard.name;
+            dashboard.ucName = ko.observable(dashboard.name);
             dashboard.editable = true;
+            if( dashboard.icon===undefined )
+            {
+                dashboard.icon = null;
+            }
             dashboards.push(dashboard);
         }
         this.dashboards.replaceAll(dashboards);
@@ -467,7 +622,7 @@ Agocontrol.prototype = {
         var content = {};
         content.command = "getprocesslist";
         content.uuid = self.systemController;
-        self.sendCommand(content, 1)
+        self.sendCommand(content)
             .then(function(res) {
                 var values = [];
                 for( var procName in res.data )
@@ -476,11 +631,10 @@ Agocontrol.prototype = {
                     proc.name = procName;
                     values.push(proc);
                 }
-
                 self.processes.pushAll(values);
             })
             .catch(function(err){
-                notif.warn('Unable to get processes list, Applications will not be available: '+getErrorMessage(err));
+                notif.warning('Unable to get processes list, Applications will not be available: '+getErrorMessage(err));
                 self._noProcesses(true);
             });
     },
@@ -522,6 +676,10 @@ Agocontrol.prototype = {
             for( var i=0; i<result.applications.length; i++ )
             {
                 var application = result.applications[i];
+                if( application.icon===undefined )
+                {
+                    application.icon = null;
+                }
                 application.ucName = ucFirst(application.name);
                 applications.push(application);
             }
@@ -529,45 +687,24 @@ Agocontrol.prototype = {
             // Update internal observable
             self._allApplications(applications);
 
-            //CONFIGURATION PAGES
-            var categories = {};
-            for( var i=0; i<result.config.length; i++ )
+            //PROTOCOLS
+            var protocols = [];
+            for( var i=0; i<result.protocols.length; i++ )
             {
-                //check missing category
-                if( result.config[i].category===undefined )
+                var protocol = result.protocols[i];
+                if( protocol.icon===undefined )
                 {
-                    result.config[i].category = 'Uncategorized';
+                    protocol.icon = null;
                 }
-                //add new category if necessary
-                var category = ucFirst(result.config[i].category);
-                if( categories[category]===undefined )
-                {
-                    categories[category] = [];
-                }
-                //append page to its category
-                categories[category].push(result.config[i]);
+                protocol.ucName = ucFirst(protocol.name);
+                protocols.push(protocol);
             }
 
-            var configurations = [];
-            for( var category in categories )
-            {
-                var subMenus = [];
-                for( var i=0; i<categories[category].length; i++ )
-                {
-                    subMenus.push(categories[category][i]);
-                }
-                if( subMenus.length==1 )
-                {
-                    //no submenu
-                    configurations.push({'menu':subMenus[0], 'subMenus':null});
-                }
-                else
-                {
-                    //submenus
-                    configurations.push({'menu':category, 'subMenus':subMenus});
-                }
-            }
-            self.configurations.replaceAll(configurations);
+            //Update internal observable
+            self._allProtocols(protocols);
+
+            //CONFIGURATION PAGES
+            self.configurations.replaceAll(result.config);
 
             //SUPPORTED DEVICES
             self.supported_devices(result.supported)
@@ -580,9 +717,17 @@ Agocontrol.prototype = {
                 help.url = null;
                 helps.push(help);
             }
-            helps.push({name:'Wiki', url:'http://wiki.agocontrol.com/'});
-            helps.push({name:'About', url:'http://www.agocontrol.com/about/'});
+            helps.push({name:'Wiki', url:'http://wiki.agocontrol.com/', description:'Get support on agocontrol wiki'});
+            helps.push({name:'About', url:'http://www.agocontrol.com/about/', description:'All about agocontrol'});
             self.helps.replaceAll(helps);
+
+            //SERVER TIME
+            self.serverTime = result.server_time;
+            self.serverTimeUi( timestampToString(self.serverTime) );
+            window.setInterval(function() {
+                self.serverTime += 60;
+                self.serverTimeUi( timestampToString(self.serverTime) );
+            }, 60000);
         });
     },
 
@@ -600,6 +745,23 @@ Agocontrol.prototype = {
                 return null;
             });
     },
+
+    getProtocol: function(protocolName) {
+        var self = this;
+        return this._getProtocols.promise
+            .then(function() {
+                var pros = self.protocols();
+                for( var i=0; i<pros.length; i++ )
+                {
+                    if( pros[i].name==protocolName )
+                    {
+                        return pros[i];
+                    }
+                }
+                return null;
+            });
+    },
+
     getDashboard:function(name){
         var dashboards = this.dashboards();
         for( var i=0; i < dashboards.length; i++ )
@@ -645,11 +807,19 @@ Agocontrol.prototype = {
                     }
 
                     // request timeout (server side), continue polling
-                    self.handleEvent(false, data);
+                    try {
+                        self.handleEvent(false, data);
+                    }finally{
+                        self.getEvent();
+                    }
                 }
                 else
                 {
-                    self.handleEvent(true, data);
+                    try {
+                        self.handleEvent(true, data);
+                    }finally{
+                        self.getEvent();
+                    }
                 }
             },
             error: function(jqXHR, textStatus, errorThrown)
@@ -667,142 +837,203 @@ Agocontrol.prototype = {
     handleEvent: function(requestSucceed, response)
     {
         var self = this;
-        var done = false;
 
-        if( requestSucceed )
+        if(!requestSucceed )
+            return;
+
+        //send event to other handlers
+        for( var i=0; i<self.eventHandlers.length; i++ )
         {
-            //send event to other handlers
-            for( var i=0; i<self.eventHandlers.length; i++ )
+            self.eventHandlers[i](response.result);
+        }
+
+        //remove device from inventory
+        if( response.result.event=="event.device.remove" )
+        {
+            //remove thumb request if device is multigraph
+            for( var i=0; i<self.multigraphThumbs.length; i++ )
             {
-                self.eventHandlers[i](response.result);
+                if( self.multigraphThumbs[i].uuid===response.result.uuid )
+                {
+                    self.multigraphThumbs[i].removed = true;
+                }
             }
 
-            //remove device from inventory
-            if( response.result.event=="event.device.remove" )
+            //then remove device from inventory
+            if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid] )
             {
-                if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid] )
-                {
-                    delete self.inventory.devices[response.result.uuid];
-                }
-                else
-                {
-                    console.warn('Unable to delete device "'+response.result.uuid+'" because it wasn\'t found in inventory');
-                }
-
-                //nothing else to do
-                done = true;
+                delete self.inventory.devices[response.result.uuid];
+                self.devices.remove(function(item) {
+                    return item.uuid===response.result.uuid;
+                });
+            }
+            else
+            {
+                console.warn('Unable to delete device "'+response.result.uuid+'" because it wasn\'t found in inventory');
             }
 
-            //add new device if necessary
-            if( !done && response.result.event=="event.device.announce" )
-            {
-                if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid]===undefined )
-                {
-                    //brand new device, get inventory and fill local one with new infos
-                    self.getInventory()
-                        .then(function(result) {
-                            var tmpDevices = self.cleanInventory(result.data.devices);
-                            if( tmpDevices && tmpDevices[response.result.uuid] )
-                            {
-                                self.inventory.devices[response.result.uuid] = tmpDevices[response.result.uuid];
-                            }
-                            else
-                            {
-                                console.warn('Unable to add new device because no infos about it in retrieved inventory');
-                            }
-                        });
-                }
+            return;
+        }
 
-                //nothing else to do
-                done = true;
-            }
-    
-            if( !done )
+        //update device infos if necessary
+        if(response.result.event=="event.device.announce" )
+        {
+            if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid]===undefined )
             {
-                for( var i=0; i<self.devices().length; i++ )
+                //brand new device, refresh all inventory
+                self.refreshDevices();
+                /*self.getInventory()
+                    .then(function(result) {
+                        var tmpDevices = self.cleanInventory(result.data.devices);
+                        if( tmpDevices && tmpDevices[response.result.uuid] )
+                        {
+                            self.inventory.devices[response.result.uuid] = tmpDevices[response.result.uuid];
+                        }
+                        else
+                        {
+                            console.warn('Unable to update device because no infos about it in inventory');
+                        }
+                    });*/
+            }
+
+            return;
+        }
+
+        //update device name
+        if( response.result.event=="event.system.devicenamechanged" )
+        {
+            if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid]!==undefined )
+            {
+                self.inventory.devices[response.result.uuid].name = response.result.name;
+                var dev = self.findDevice(response.result.uuid);
+                if( dev!==null )
                 {
-                    if( self.devices()[i].uuid==response.result.uuid )
+                    dev.name(response.result.name);
+                }
+            }
+
+            return;
+        }
+
+        //handle stale event
+        if(response.result.event=="event.device.stale" )
+        {
+            if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid]!==undefined )
+            {
+                self.inventory.devices[response.result.uuid].stale = response.result.stale;
+                var dev = self.findDevice(response.result.uuid);
+                if( dev!==null )
+                {
+                    dev.stale(response.result.stale);
+                }
+            }
+
+            return;
+        }
+
+        //update dashboard name
+        if(response.result.event=="event.system.floorplannamechanged" )
+        {
+            for( var i=0; i<self.dashboards().length; i++ )
+            {
+                if( self.dashboards()[i].uuid && self.dashboards()[i].uuid===response.result.uuid )
+                {
+                    self.dashboards()[i].name = response.result.name;
+                    self.dashboards()[i].ucName(response.result.name);
+                    //stop statement
+                    break;
+                }
+            }
+
+            return;
+        }
+
+        var dev = self.findDevice(response.result.uuid);
+        if(dev) {
+            //update media infos
+            if(response.result.event=="event.device.mediainfos" )
+            {
+                if( dev.updateMediaInfos )
+                {
+                    //update device media infos
+                    dev.updateMediaInfos(response.result);
+                }
+            }
+
+            // update device last seen datetime
+            dev.timeStamp(datetimeToString(new Date()));
+
+            // update device level
+            if( response.result.level !== undefined)
+            {
+                // update custom device member
+                if (response.result.event.indexOf('event.device') != -1 && response.result.event.indexOf('changed') != -1)
+                {
+                    // event that update device member
+                    var member = response.result.event.replace('event.device.', '').replace('changed', '');
+                    if (dev[member] !== undefined)
                     {
-                        // update device last seen datetime
-                        self.devices()[i].timeStamp(formatDate(new Date()));
-
-                        //update device level
-                        if( response.result.level !== undefined)
-                        {
-                            // update custom device member
-                            if (response.result.event.indexOf('event.device') != -1 && response.result.event.indexOf('changed') != -1)
-                            {
-                                // event that update device member
-                                var member = response.result.event.replace('event.device.', '').replace('changed', '');
-                                if (self.devices()[i][member] !== undefined)
-                                {
-                                    self.devices()[i][member](response.result.level);
-                                }
-                            }
-                            // Binary sensor has its own event
-                            else if (response.result.event == "event.security.sensortriggered")
-                            {
-                                if (self.devices()[i]['state'] !== undefined)
-                                {
-                                    self.devices()[i]['state'](response.result.level);
-                                }
-                            }
-                    }   
-
-                        //update device stale
-                        if( response.result.event=="event.device.stale" && response.result.stale!==undefined )
-                        {
-                            self.devices()[i]['stale'](response.result.stale);
-                        }
-
-                        //update quantity
-                        if (response.result.quantity)
-                        {
-                            var values = self.devices()[i].values();
-                            //We have no values so reload from inventory
-                            if (values[response.result.quantity] === undefined)
-                            {
-                                self.getInventory()
-                                    .then(function(result) {
-                                        var tmpInv = self.cleanInventory(result.data.devices);
-                                        var uuid = result.data.uuid;
-                                        if (tmpInv[uuid] !== undefined)
-                                        {
-                                            if (tmpInv[uuid].values)
-                                            {
-                                                self.devices()[i].values(tmpInv[uuid].values);
-                                            }
-                                        }
-                                    });
-                                break;
-                            }
-    
-                            if( response.result.level !== undefined )
-                            {
-                               if( response.result.quantity==='forecast' && typeof response.result.level=="string" )
-                                {
-                                    //update forecast value for barometer sensor only if string specified
-                                    self.devices()[i].forecast(response.result.level);
-                                }
-                                //save new level
-                                values[response.result.quantity].level = response.result.level;
-                            }
-                            else if( response.result.latitude!==undefined && response.result.longitude!==undefined )
-                            {
-                                values[response.result.quantity].latitude = response.result.latitude;
-                                values[response.result.quantity].longitude = response.result.longitude;
-                            }
-    
-                            self.devices()[i].values(values);
-                        }
-    
-                        break;
+                        dev[member](response.result.level);
+                    }
+                }
+                // Binary sensor has its own event
+                else if (response.result.event == "event.security.sensortriggered")
+                {
+                    if (dev['state'] !== undefined)
+                    {
+                        dev['state'](response.result.level);
                     }
                 }
             }
-        }
 
-        self.getEvent();
+            //update device stale
+            if( response.result.event=="event.device.stale" && response.result.stale!==undefined )
+            {
+                dev['stale'](response.result.stale);
+            }
+
+            //update quantity
+            if (response.result.quantity)
+            {
+                var values = dev.values();
+                //We have no values so reload from inventory
+                if (values[response.result.quantity] === undefined)
+                {
+                    self.getInventory()
+                        .then(function(result) {
+                            var tmpInv = self.cleanInventory(result.data.devices);
+                            var uuid = dev.uuid;
+                            if (tmpInv[uuid] !== undefined)
+                            {
+                                if (tmpInv[uuid].values)
+                                {
+                                    dev.values(tmpInv[uuid].values);
+                                }
+                            }
+                        });
+                    // Let getInventory fill up all values.
+                    return;
+                }
+
+                if( response.result.level !== undefined )
+                {
+                   if( response.result.quantity==='forecast' && typeof response.result.level=="string" )
+                    {
+                        //update forecast value for barometer sensor only if string specified
+                        dev.forecast(response.result.level);
+                    }
+                    //save new level
+                    values[response.result.quantity].level = response.result.level;
+                }
+                else if( response.result.latitude!==undefined && response.result.longitude!==undefined )
+                {
+                    values[response.result.quantity].latitude = response.result.latitude;
+                    values[response.result.quantity].longitude = response.result.longitude;
+                }
+
+                dev.values(values);
+            }
+        }
     },
 
     //add event handler
@@ -820,14 +1051,17 @@ Agocontrol.prototype = {
     removeEventHandler: function(callback)
     {
         var self = this;
-        var index = self.eventHandlers.indexOf(callback);
-        if( callback && index!==-1 )
+        if( self.eventHandlers.length>0 )
         {
-            self.eventHandlers.splice(index, 1);
-        }
-        else
-        {
-            console.error('Unable to remove callback from eventHandlers list because callback was not found!');
+            var index = self.eventHandlers.indexOf(callback);
+            if( callback && index!==-1 )
+            {
+                self.eventHandlers.splice(index, 1);
+            }
+            else
+            {
+                console.error('Unable to remove callback from eventHandlers list because callback was not found!');
+            }
         }
     },
 
@@ -887,5 +1121,173 @@ Agocontrol.prototype = {
         }
     },
 
+    //get ui config
+    //this function uses cgi to be fast as possible (no need to wait inventory handling)
+    getUiConfig: function()
+    {
+        var self = this;
+        return $.ajax({
+            url : "cgi-bin/ui.cgi?param=theme",
+            method : "GET"
+        }).done(function(res) {
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply' && res.result==1 )
+            {
+                //apply skin if saved otherwise apply default one
+                if( res.content.skin )
+                {
+                    var skin = res.content.skin;
+                    self.skin(skin);
+
+                    //save config to local storage
+                    if( typeof(Storage)!=='undefined' && localStorage.getItem('skin')===null )
+                    {
+                        localStorage.setItem('skin', skin);
+                    }
+                }
+            }
+            else
+            {
+                if( res.result.error )
+                {
+                    console.error('Unable to get theme: '+res.result.error);
+                }
+                else
+                {
+                    console.error('Unable to get theme');
+                }
+            }
+        });
+    },
+
+    //get theme from skin
+    getThemeFromSkin: function(skin)
+    {
+        var re = /(skin-\w*).*/g;
+        var m = re.exec(skin);
+        var theme = 'skin-yellow-light';
+        if( m!==null )
+        {
+            theme = m[1]
+        }
+        return theme;
+    },
+
+    //change ui skin
+    setSkin: function(skin)
+    {
+        var self = this;
+
+        //update theme
+        self.theme = self.getThemeFromSkin(skin);
+
+        //build new skin string
+        if( self.darkStyle() )
+        {
+            skin = self.theme+' body-dark';
+        }
+        else
+        {
+            skin = self.theme+'-light body-light';
+        }
+
+        //check if same skin already applied
+        if( skin==self.skin() )
+        {
+            return;
+        }
+
+        //save new skin
+        self.skin(skin);
+
+        //save changes
+        $.ajax({
+            url : "cgi-bin/ui.cgi?key=skin&param=theme&value="+skin,
+            method : "GET",
+            async : true,
+        }).done(function(res) {
+            if( !res || !res.result || res.result===0 ) 
+            {
+                notif.error('Unable to save skin');
+            }
+            else
+            {
+                localStorage.setItem('skin', skin);
+                notif.success('Skin saved');
+            }
+        });
+    },
+
+    //set dashboard size
+    setDashboardSize: function(size)
+    {
+        var self = this;
+
+        //save changes
+        $.ajax({
+            url : "cgi-bin/ui.cgi?key=size&param=theme&value="+size,
+            method : "GET",
+            async : true,
+        }).done(function(res) {
+            if( !res || !res.result || res.result===0 ) 
+            {
+                notif.error('Unable to save dashboard size');
+            }
+            else
+            {
+                if( size=='3x3' )
+                {
+                    localStorage.setItem('dashboardColSize', 3);
+                    localStorage.setItem('dashboardRowSize', 3);
+                }
+                else if( size=='4x3' )
+                {
+                    localStorage.setItem('dashboardColSize', 4);
+                    localStorage.setItem('dashboardRowSize', 3);
+                }
+                else if( size=='4x4' )
+                {
+                    localStorage.setItem('dashboardColSize', 4);
+                    localStorage.setItem('dashboardRowSize', 4);
+                }
+                notif.success('Dashboard size saved. Please refresh page.', 0);
+            }
+        });
+    },
+
+    //collapse/expand menu
+    collapseMenu: function(VM, ev)
+    {
+        var self = VM.agocontrol;
+        var collapsed = $('body').hasClass('sidebar-collapse');
+
+        var skin = self.skin();
+        skin = skin.replace('sidebar-collapse', '');
+        if( !collapsed )
+        {
+            skin = skin + ' sidebar-collapse';
+        }
+        self.skin(skin);
+
+        //trigger window resize event (useful for blockly)
+        window.setTimeout(function() {
+            window.dispatchEvent(new Event('resize'));
+        }, 500);
+
+        //save changes
+        $.ajax({
+            url : "cgi-bin/ui.cgi?key=skin&param=theme&value="+skin,
+            method : "GET",
+            async : true,
+        }).done(function(res) {
+            if( !res || !res.result || res.result===0 ) 
+            {
+                notif.error('Unable to save skin');
+            }
+            else
+            {
+                localStorage.setItem('skin', skin);
+            }
+        });
+    }
 };
 

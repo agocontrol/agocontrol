@@ -1,48 +1,35 @@
-<div class="three columns dashboard-widget" data-bind="attr: {'data-uuid': uuid}">
-
-    <div class="row dashboard-widget-header">
-        <ul class="two_up tiles" >
-            <li class="dashboard-widget-header-icon">
-                <ko opts="if: stale">
-                    <div class="pretty large danger btn handle">
-                        <i data-bind="click: function(data, event) { agocontrol.showDetails(data) }" class="icon-retweet"></i>
-                    </div>
-                </ko>
-                <ko opts="ifnot: stale">
-                    <div class="pretty large primary btn handle">
-                        <i data-bind="click: function(data, event) { agocontrol.showDetails(data) }" class="icon-retweet"></i>
-                    </div>
-                </ko>
-            </li>
-            <li class="dashboard-widget-header-infos">
-                <div class="row">
-                <ko opts="if: name ">
-                    <div class="twelve columns"><h3 data-bind="text: name"/></div>
-                </ko>
-                <ko opts="ifnot: name ">
-                    <div class="twelve columns"><h3 data-bind="text: devicetype"/></div>
-                </ko>
-                <ko opts="if: room ">
-                    <div class="twelve columns dashboard-widget-header-info">
-                        <i class="icon-location"/>
-                        <span data-bind="text: room"/>
-                    </div>
-                </ko>
+<div class="widget-lg">
+	
+	<div class="widget-box" data-bind="css:staleStyle, click:function(data, event) { agocontrol.showDetails(data); }">
+        <div class="inner">
+            <span data-bind="text:name, attr:{title:name, alt:name}"></span>
+            <div>
+                <ko opts="if:room">
+                <div class="widget-box-location">
+                    <i class="en-location"></i>
+                    <span data-bind="text:room"/>
                 </div>
-            </li>
-        </ul>
+                </ko>
+            </div>
+        </div>
+        <div class="icon">
+            <i class="fa en-retweet"></i>
+        </div>
     </div>
 
-    <div class="row dashboard-widget-content dashboard-widget-content-values">
-        <ul class="two_up tiles">
-            <li class="dashboard-widget-content-quantity">
-                <span>Current value</span>
-            </li>
-            <li class="dashboard-widget-content-unit">
-                <span data-bind="text: state"/>
-            </li>
-        </ul>
+    <div class="info-box">
+        <div class="info-box-content no-margin-left">
+            <div class="well">
+                <div class="row">
+                    <div class="col-xs-6 col-md-6 text-center">
+                        <h4 class="nowrap">Current value</h4>
+                    </div>
+                    <div class="col-xs-6 col-md-6 text-center">
+                        <h4><strong class="nowrap" data-bind="text:state"></strong></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
-

@@ -1,0 +1,426 @@
+<div>
+
+    <!-- camera details -->
+    <div class="modal fade" id="cameraDetails" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal"><span>x</span></button>
+                    <_h4 data-translateable="true" class="modal-title">Details</_h4>
+                </div>
+                <div class="modal-body">
+                    <div class="nav-tabs-custom">
+                        <ul class="nav nav-tabs" data-bind="bootstrapTabs:{}">
+                            <li class="active"><_a href="#general-details" class="en-info-circled" data-translateable="true">General</_a></li>
+                            <li><_a href="#config-details" class="en-tools" data-translateable="true">Config</_a></li>
+                            <li><_a href="#motion-details" class="en-rss" data-translateable="true">Motion</_a></li>
+                            <li><_a href="#recording-details" class="en-database" data-translateable="true">Recording</_a></li>
+                            <li><_a href="#advanced-details" class="en-cog" data-translateable="true">Advanced</_a></li>
+                        </ul>
+                        <div class="tab-content">
+                            <!-- general tab -->
+                            <div id="general-details" class="tab-pane fade in active">
+                                <form class="form-horizontal">
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Camera ip address</_label>
+                                        <div class="col-sm-6">
+                                            <input type="text" class="form-control" _placeholder="Ip address" data-translateable="true" data-bind="textInput:cameraIp"></input>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Camera port</_label>
+                                        <div class="col-sm-6">
+                                            <input type="text" class="form-control" _placeholder="Port" data-translateable="true" data-bind="textInput:cameraPort"></input>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Camera login</_label>
+                                        <div class="col-sm-6">
+                                            <input type="text" class="form-control" _placeholder="Login" data-translateable="true" data-bind="textInput:cameraLogin"></input>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Camera password</_label>
+                                        <div class="col-sm-6">
+                                            <input type="text" class="form-control" _placeholder="Password" data-translateable="true" data-bind="textInput:cameraPassword"></input>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="col-sm-4 control-label"></label>
+                                        <div class="col-sm-6">
+                                            <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:updateCameraCredentials">Save changes</_button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Camera URI</_label>
+                                        <div class="col-sm-6">
+                                            <input type="text" disabled="disabled" class="form-control" _placeholder="URI" data-bind="textInput:cameraUri"></input>
+                                        </div>
+                                    </div>
+                                    <hr style="width:100%"/>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true"></_label>
+                                        <div class="col-sm-6">
+                                            <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:doOperation.bind($data, generalData, 'devicemgmt', 'GetDeviceInformation', {}, false, false)">Get device infos</_button>
+                                        </div>
+                                    </div>
+                                    <ko opts="foreach: generalData">
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true" data-bind="text:key"></_label>
+                                        <div class="col-sm-6">
+                                            <input type="text" disabled="disabled" class="form-control" data-bind="textInput:value"></input>
+                                        </div>
+                                    </div>
+                                    </ko>
+                                </form>
+                            </div>
+
+                            <!-- config tab -->
+                            <div id="config-details" class="tab-pane fade">
+                                <div class="callout callout-info">
+                                    <_span data-translateable="true">Update configuration. If you feel limited and need to configure more things, please use "Advanced" tab</_span>
+                                </div>
+                                <div class="row text-center agorowbottom">
+                                    <div class="col-sm-12">
+                                        <button type="button" class="btn btn-primary" data-bind="click:getConfigOperation.bind($data, configData, 'devicemgmt', 'GetHostname', {}, 'SetHostname')">Hostname</button>
+                                        <button type="button" class="btn btn-primary" data-bind="click:getConfigOperation.bind($data, configData, 'devicemgmt', 'GetSystemDateAndTime', {}, 'SetSystemDateAndTime')">Date and time</button>
+                                        <button type="button" class="btn btn-primary" data-bind="click:getConfigOperation.bind($data, configData, 'devicemgmt', 'GetNTP', {}, 'SetNTP')">NTP</button>
+                                    </div>
+                                </div>
+                                <form class="form-horizontal">
+                                <ko opts="foreach: configData()">
+                                    <ko opts="if: type=='basic'">
+                                    <div class="form-group">
+                                        <label class="col-sm-4 control-label" data-bind="text:key"></label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" data-bind="textInput:value"></input>
+                                        </div>
+                                    </div>
+                                    </ko>
+                                    <ko opts="if: type=='array'">
+                                        <ko opts="foreach: value">
+                                            <ko opts="if: type=='basic'">
+                                            <div class="form-group">
+                                                <label class="col-sm-4 control-label" data-bind="text:$parents[0].key+key"></label>
+                                                <div class="col-sm-8">
+                                                    <input type="text" class="form-control" data-bind="textInput:value"></input>
+                                                </div>
+                                            </div>
+                                            </ko>
+                                            <ko opts="if: type=='array'">
+                                                <ko opts="foreach: value">
+                                                    <div class="form-group">
+                                                        <label class="col-sm-4 control-label" data-bind="text:$parents[1].key+$parents[0].key+key"/>
+                                                        <div class="col-sm-8">
+                                                            <input type="text" class="form-control" data-bind="textInput:value"></input>
+                                                        </div>
+                                                    </div>
+                                                </ko>
+                                            </ko>
+                                        </ko>
+                                    </ko>
+                                </ko>
+                                <ko opts="if: configData().length>0">
+                                    <div class="form-group">
+                                        <label class="col-sm-4 control-label"></label>
+                                        <div class="col-sm-6">
+                                            <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:setConfigOperation">Save changes</_button>
+                                        </div>
+                                    </div>
+                                </ko>
+                                </form>
+                            </div>
+
+                            <!-- motion tab -->
+                            <div id="motion-details" class="tab-pane fade">
+                                <div class="callout callout-info">
+                                    <_span data-translateable="true">Enabling motion will create a new binary device that allows you to create events with it</_span>
+                                </div>
+                                <form class="form-horizontal">
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Enable motion</_label>
+                                        <div class="col-sm-6">
+                                            <select class="form-control" data-bind="options:yesNoOptions, optionsText:'caption', optionsValue:'value', value:motionEnable"/>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Camera profile</_label>
+                                        <div class="col-sm-6">
+                                            <div class="input-group">
+                                                <select class="form-control" data-bind="options:cameraProfiles, optionsText:'desc', value:motionProfile"/>
+                                                <span class="input-group-btn">
+                                                    <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:getCameraProfiles">Get all profiles</_button>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Detection sensitivity</_label>
+                                        <div class="col-sm-6">
+                                            <input type="text" class="form-control" data-bind="textInput:motionSensitivity"/>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Detection deviation</_label>
+                                        <div class="col-sm-6">
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" data-bind="textInput:motionDeviation"/>
+                                                <span class="input-group-addon">
+                                                    <i _title="The higher the value, the more motion is allowed" data-toggle="tooltip" data-placement="top" class="fa fa-exclamation-circle" data-translateable="true"></i>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">On duration</_label>
+                                        <div class="col-sm-6">
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" data-bind="textInput:motionOnDuration"/>
+                                                <span class="input-group-addon">
+                                                    <i _title="In seconds" data-toggle="tooltip" data-placement="top" class="fa fa-exclamation-circle" data-translateable="true"></i>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="col-sm-4 control-label"></label>
+                                        <div class="col-sm-6">
+                                            <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:setMotion">Save changes</_button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- recording tab -->
+                            <div id="recording-details" class="tab-pane fade">
+                                <div class="callout callout-info">
+                                    <_span data-translateable="true">Please note that recording will only work if motion is enabled</_span>
+                                </div>
+                                <form class="form-horizontal">
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Enable recording</_label>
+                                        <div class="col-sm-6">
+                                            <select class="form-control" data-bind="options:recordingTypes, optionsText:'caption', optionsValue:'value', value:recordingType"/>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Recording profile</_label>
+                                        <div class="col-sm-6">
+                                            <div class="input-group">
+                                                <select class="form-control" data-bind="options:cameraProfiles, optionsText:'desc', optionsCaption:'Select a profile', value:recordingProfile"/>
+                                                <span class="input-group-btn">
+                                                    <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:getCameraProfiles">Get all profiles</_button>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Recording duration after last motion detected</_label>
+                                        <div class="col-sm-6">
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" data-bind="textInput:recordingDuration"/>
+                                                <span class="input-group-addon">
+                                                    <i _title="In seconds" data-toggle="tooltip" data-placement="top" class="fa fa-exclamation-circle" data-translateable="true"></i>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Draw detected area</_label>
+                                        <div class="col-sm-6">
+                                            <select class="form-control" data-bind="options:recordingContourTypes, optionsText:'caption', optionsValue:'value', value:recordingContourType"/>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="col-sm-4 control-label"></label>
+                                        <div class="col-sm-6">
+                                            <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:setRecording">Save changes</_button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+            
+                            <!-- advanced tab -->
+                            <div id="advanced-details" class="tab-pane fade">
+                                <div class="callout callout-info">
+                                    <_span data-translateable="true">This tab allows you to execute onvif requests</_span>
+                                </div>
+                                <form class="form-horizontal">
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Service name</_label>
+                                        <div class="col-sm-6">
+                                            <div class="input-group">
+                                                <select class="form-control" data-bind="options:onvifServices, value:onvifService"/>
+                                                <a class="input-group-addon" href="http://www.onvif.org/onvif/ver20/util/operationIndex.html" target="_blank">
+                                                    <_span data-translateable="true">OnVIF operations</_span>
+                                                    <i class="fa fa-link"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <_label class="col-sm-4 control-label" data-translateable="true">Operation name</_label>
+                                        <div class="col-sm-6">
+                                            <input type="text" class="form-control" data-translateable="true" _placeholder="Operation" data-bind="textInput:onvifOperation"></input>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="col-sm-4 control-label"></label>
+                                        <div class="col-sm-8">
+                                            <_button type="button" class="btn btn-primary" data-translateable="true" data-bind="click:doOperation.bind($data, onvifResponse, onvifService(), onvifOperation(), JSON.parse(onvifParameters()), true)">Execute</_button>
+                                            <_button type="button" class="btn btn-primary" data-translateable="true" data-bind="click:checkJson">Check parameters</_button>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-6 text-center">
+                                            <_span data-translateable="true">Request parameters</_span>
+                                        </div>
+                                        <div class="col-sm-6 text-center">
+                                            <_span data-translateable="true">Response</_span>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-6 text-center">
+                                            <textarea class="form-control" style="height:250px; font-size:13px; line-height:16px;" data-translateable="true" data-bind="textInput:onvifParameters" _placeholder="Request parameters"></textarea>
+                                        </div>
+                                        <div class="col-sm-6 text-center">
+                                            <textarea class="form-control" style="height:250px; font-size:13px; line-height:16px;" data-bind="textInput:onvifResponse" _placeholder="Response"  data-translateable="true"></textarea>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- title -->
+    <section class="content-header">
+        <h1>OnVIF</h1>
+    </section>
+
+    <!-- content -->
+    <section class="content">
+        <div class="nav-tabs-custom">
+            <ul class="nav nav-tabs" data-bind="bootstrapTabs:{}">
+                <li class="active"><_a href="#cameras-tab" class="en-camera" data-translateable="true">Cameras</_a></li>
+                <li><_a href="#recordings-tab" class="en-database" data-translateable="true">Recordings</_a></li>
+                <li><_a href="#addcamera-tab" class="en-plus-circled" data-translateable="true">Add camera</_a></li>
+                <li><_a href="#recordingsconfig-tab" class="en-tools" data-translateable="true">Recordings config</_a></li>
+            </ul>
+            <div class="tab-content">
+
+                <!-- cameras tab -->
+                <div id="cameras-tab" class="tab-pane fade in active">
+                    <script type="text/html" id="camerasRowTemplate">
+                        <td data-bind="text:ip"/>
+                        <ko opts="if: motion_uri_desc">
+                        <td data-bind="text:motion_uri_desc"/>
+                        </ko>
+                        <ko opts="ifnot: motion_uri_desc">
+                        <td style="color:red;">Not configured!</td>
+                        </ko>
+                        <td>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-primary btn-xs" _alt="Edit" _title="Edit" data-translateable="true" data-bind="click: $parent.editCamera">
+                                    <span class="en-pencil"></span>
+                                </button>
+                                <button type="button" class="btn btn-primary btn-xs" _alt="Delete" _title="Delete" data-translateable="true" data-bind="click: $parent.deleteCamera">
+                                    <span class="en-cancel"></span>
+                                </button>
+                            </div>
+                        </td>
+                    </script>
+                    <div data-bind="agoGrid:camerasGrid"/>
+                </div>
+                
+                <!-- recordings tab -->
+                <div id="recordings-tab" class="tab-pane fade">
+                    <script type="text/html" id="recordingsRowTemplate">
+                        <td data-bind="text:filename"/>
+                        <td data-bind="text:type"/>
+                        <td data-bind="text:timestampToHRstring(timestamp)"/>
+                        <td data-bind="text:sizeToHRSize(size)"/>
+                        <td>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-primary btn-xs" _alt="Download" _title="Download" data-translateable="true" data-bind="click: $parent.downloadRecording">
+                                    <span class="en-pencil"></span>
+                                </button>
+                            </div>
+                        </td>
+                    </script>
+                    <div data-bind="agoGrid:recordingsGrid"/>
+                </div>
+
+                <!-- add camera tab -->
+                <div id="addcamera-tab" class="tab-pane fade">
+                    <form class="form-horizontal">
+                        <div class="form-group">
+                            <_label class="col-sm-4 control-label" data-translateable="true">Camera ip address</_label>
+                            <div class="col-sm-6">
+                                <input type="text" class="form-control" _placeholder="Ip address" data-translateable="true" data-bind="textInput:cameraIp"></input>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <_label class="col-sm-4 control-label" data-translateable="true">Camera port</_label>
+                            <div class="col-sm-6">
+                                <input type="text" class="form-control" _placeholder="Port" data-translateable="true" data-bind="textInput:cameraPort"></input>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <_label class="col-sm-4 control-label" data-translateable="true">Camera login</_label>
+                            <div class="col-sm-6">
+                                <input type="text" class="form-control" _placeholder="Login" data-translateable="true" data-bind="textInput:cameraLogin"></input>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <_label class="col-sm-4 control-label" data-translateable="true">Camera password</_label>
+                            <div class="col-sm-6">
+                                <input type="text" class="form-control" _placeholder="Password" data-translateable="true" data-bind="textInput:cameraPassword"></input>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-4 control-label"></label>
+                            <div class="col-sm-6">
+                                <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:getCameraProfilesFromScratch">Get camera profiles</_button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <_label class="col-sm-4 control-label" data-translateable="true">Select camera profile</_label>
+                            <div class="col-sm-6">
+                                <select class="form-control" data-bind="options:cameraProfiles, optionsText:'desc', value:motionProfile"/>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-4 control-label"></label>
+                            <div class="col-sm-6">
+                                <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:addCamera">Save camera</_button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- recordings config tab -->
+                <div id="recordingsconfig-tab" class="tab-pane fade">
+                    <form class="form-horizontal">
+                        <div class="form-group">
+                            <_label class="col-sm-4 control-label" data-translateable="true">Recordings purge delay</_label>
+                            <div class="col-sm-6">
+                                <select class="form-control" data-bind="options:recordingsDelays, optionsValue:'value', optionsText:'caption', value:recordingsDelay"/>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="col-sm-4 control-label"></label>
+                            <div class="col-sm-6">
+                                <_button class="btn btn-primary" type="button" data-translateable="true" data-bind="click:saveRecordingsConfig">Save changes</_button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+        
+</div>
