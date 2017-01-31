@@ -1,8 +1,11 @@
 #include <signal.h>
+#include <sys/wait.h>
+
 #include <stdexcept>
 #include <boost/algorithm/string/case_conv.hpp>
-#include <boost/program_options/parsers.hpp>
 #include <boost/algorithm/string/join.hpp>
+#include <boost/asio/placeholders.hpp>
+#include <boost/program_options/parsers.hpp>
 
 
 
@@ -21,17 +24,10 @@ namespace fs = boost::filesystem;
 
 namespace agocontrol {
 
-/* Single instance of AgoApp which gets info on signals */
-static AgoApp *app_instance;
-static void static_sighandler(int signo) {
-    if(app_instance != NULL)
-        app_instance->sighandler(signo);
-}
-
-
 AgoApp::AgoApp(const char *appName_)
     : appName(appName_)
       , exit_signaled(false)
+      , signals(ioService_)
       , agoConnection(NULL)
 {
     // Keep a "short" name too, trim leading 'Ago' from app name
@@ -147,9 +143,9 @@ int AgoApp::parseCommandLine(int argc, const char **argv) {
 
 
 void AgoApp::setup() {
+    setupSignals();
     setupLogging();
     setupAgoConnection();
-    setupSignals();
     setupApp();
     setupIoThread();
 
@@ -164,11 +160,8 @@ void AgoApp::setup() {
 
 void AgoApp::cleanup() {
     cleanupApp();
-    cleanupAgoConnection();
     cleanupIoThread();
-
-    // Global signal mapper
-    app_instance = NULL;
+    cleanupAgoConnection();
 }
 
 void AgoApp::setupLogging() {
@@ -247,41 +240,76 @@ void AgoApp::addEventHandler() {
 
 
 
+void AgoApp::signal_add_with_restart(int signal) {
+    AGO_TRACE() << "Handling signal " << signal;
+    signals.add(signal);
 
-void AgoApp::setupSignals() {
-    struct sigaction sa;
-    sa.sa_handler = static_sighandler;
-    sa.sa_flags = 0;
-    //	sa.sa_flags = SA_RESTART;
-
-    sigfillset(&sa.sa_mask);
-
-    // static_sighandler calls global
-    // static app_instance->sighandler
-    app_instance = this;
-
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGQUIT, &sa, NULL);
+    // We want to make sure that syscalls are automatically restarted,
+    // or our logging may break down (and all other sorts of weird stuff).
+    struct sigaction fix;
+    sigaction(signal, NULL, &fix);
+    fix.sa_flags = SA_RESTART;
+    sigaction(signal, &fix, NULL);
 }
 
-void AgoApp::sighandler(int signo) {
-    switch(signo) {
+void AgoApp::setupSignals() {
+    // Before anything other threads start, mask all signals in all threads.
+    // This will then be inherited. In our ioThread we will unmask signals
+    // to make sure they are all handled there, and also very important,
+    // so syscalls in other threads are not interupted
+    AGO_TRACE() << "Masking signals for all threads";
+    sigset_t set;
+    sigfillset(&set);
+    pthread_sigmask(SIG_BLOCK, &set, NULL);
+
+    // Handle these signals
+    signal_add_with_restart(SIGINT);
+    signal_add_with_restart(SIGTERM);
+    signal_add_with_restart(SIGCHLD);
+
+    signals.async_wait(boost::bind(&AgoApp::signal_handler, this,
+                                   boost::asio::placeholders::error,
+                                   boost::asio::placeholders::signal_number));
+}
+
+void AgoApp::signal_handler(const boost::system::error_code& error, int signal_number) {
+    AGO_TRACE() << "signal_handler called, error=" << error << " signal_number=" << signal_number;
+    if(error) return; // Cancelled; shutdown
+    switch (signal_number) {
         case SIGINT:
-        case SIGQUIT:
+        case SIGTERM:
             AGO_DEBUG() << "Exit signal catched, shutting down";
             signalExit();
             break;
 
+        case SIGCHLD: {
+            // Reap completed child processes so that we don't end up with zombies.
+            int status = 0;
+            pid_t pid;
+            while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+                AGO_DEBUG() << "Reaped child " << pid;
+            }
+            break;
+        }
         default:
-            AGO_WARNING() << "Unmapped signal " << signo << " received";
+            AGO_WARNING() << "Unmapped signal " << signal_number << " received";
+            break;
     }
+
+    // Wait for next signal
+    signals.async_wait(boost::bind(&AgoApp::signal_handler, this,
+                                   boost::asio::placeholders::error,
+                                   boost::asio::placeholders::signal_number));
 }
 
 void AgoApp::signalExit() {
+    if(exit_signaled) return;
+
     exit_signaled = true;
 
     // Dispatch signalExitThr call in separate thread, for application
     // to do more serious shutdown procedures
+    // TODO: Revise now when it's running in boost::asio
     boost::thread t(boost::bind(&AgoApp::doShutdown, this));
     t.detach();
 }
@@ -295,32 +323,32 @@ void AgoApp::doShutdown() {
     }
 }
 
+void AgoApp::iothread_run() {
+    // Re-enable signals in this threads
+    AGO_TRACE() << "Unmasking signals";
+    sigset_t set;
+    sigfillset(&set);
+    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
 
-
-boost::asio::io_service& AgoApp::ioService() {
-    if(!ioWork.get()) {
-        // Enqueue work on the IO service to indicate we want it running
-        ioWork = std::unique_ptr<boost::asio::io_service::work>(
-                new boost::asio::io_service::work(ioService_)
-                );
-    }
-
-    return ioService_;
+    // Leave thread to running the ioService
+    AGO_TRACE() << "Handing over to io_service::run";
+    ioService_.run();
 }
 
 void AgoApp::setupIoThread() {
-    if(!ioWork.get()) {
-        // No work job enqueued, skipping
-        AGO_TRACE() << "Skipping IO thread, nothing scheduled";
-        return;
-    }
+    ioWork = std::unique_ptr<boost::asio::io_service::work>(
+            new boost::asio::io_service::work(ioService_)
+    );
 
     // This thread will run until we're out of work.
     AGO_TRACE() << "Starting IO thread";
-    ioThread = boost::thread(boost::bind(&boost::asio::io_service::run, &ioService_));
+    ioThread = boost::thread(boost::bind(&AgoApp::iothread_run, this));
+    // &boost::asio::io_service::run, &ioService_));
 }
 
 void AgoApp::cleanupIoThread(){
+    // Stop listening for signals (it blocks the ioService)
+    signals.cancel();
     if(!ioThread.joinable()) {
         AGO_TRACE() << "No IO thread alive";
         return;

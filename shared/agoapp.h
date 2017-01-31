@@ -4,6 +4,7 @@
 #include "agoclient.h"
 #include <memory>
 #include <boost/asio/io_service.hpp>
+#include <boost/asio/signal_set.hpp>
 #include <boost/thread.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -56,7 +57,13 @@ namespace agocontrol {
         boost::asio::io_service ioService_;
         std::unique_ptr<boost::asio::io_service::work> ioWork;
 
+        boost::asio::signal_set signals;
+
         int parseCommandLine(int argc, const char **argv);
+
+        void signal_add_with_restart(int signal);
+        void signal_handler(const boost::system::error_code& error, int signal_number);
+        void iothread_run();
 
     protected:
         /* This can be overriden from the applications constructor.
@@ -77,13 +84,9 @@ namespace agocontrol {
 
         /* Obtain a reference to the ioService for async operations.
          *
-         * By doing this, we also tell AgoApp base that we want to have an IO
-         * thread running for the duration of the program.
-         *
-         * If this is never called during setup() phase, we will not start the IO thread.
-         * However, if called at least once, we can call it whenever again later.
+         * This will be executed by AgoApp's IO thread running for the duration of the program.
          */
-        boost::asio::io_service& ioService();
+        boost::asio::io_service& ioService() { return ioService_; }
 
         /* Application should implement this function if it like to present
          * any extra command line options to the user.
@@ -253,9 +256,6 @@ namespace agocontrol {
          * This can be overridden if non-standard behavior is required.
          */
         virtual int appMain();
-
-        // Not really public
-        void sighandler(int signo);
     };
 
     class ConfigurationError: public std::runtime_error {

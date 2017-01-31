@@ -472,14 +472,15 @@ void agocontrol::AgoConnection::run() {
             usleep(50);
         }
     }
+    AGO_TRACE() << "Leaving run() message loop";
 }
 
 void agocontrol::AgoConnection::shutdown() {
+    if(shutdownSignaled) return;
     shutdownSignaled = true;
-    if(connection.isOpen()) {
-        AGO_DEBUG() << "Closing broker connection";
-        connection.close();
-    }
+
+    AGO_DEBUG() << "Closing notification receiver";
+    receiver.close();
 }
 
 /**
