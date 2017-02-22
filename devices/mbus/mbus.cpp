@@ -205,27 +205,27 @@ void AgoMbus::parseXml(std::string xmlstring, bool announce) {
                     std::string internalid = manufacturerId + "-" + sensorId + "/" + recordId;
                     if (unitName.find("deg C") != std::string::npos) {
                         float value = atol(valueString.c_str());
-                        if (unitName.find("1e-1"))  value = value / 10;
-                        if (unitName.find("1e-2"))  value = value / 100;
+                        if (unitName.find("1e-1") != std::string::npos)  value = value / 10;
+                        if (unitName.find("1e-2") != std::string::npos)  value = value / 100;
                         if (announce) agoConnection->addDevice(internalid.c_str(), "temperaturesensor");
                         agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", value, "degC");
                         
                     } else if (unitName.find("Volume")!= std::string::npos) {
                         float value = atol(valueString.c_str());
-                        if (unitName.find("1e-1"))  value = value / 10;
-                        if (unitName.find("1e-2"))  value = value / 100;
+                        if (unitName.find("1e-1") != std::string::npos)  value = value / 10;
+                        if (unitName.find("1e-2") != std::string::npos)  value = value / 100;
                         if (announce) agoConnection->addDevice(internalid.c_str(), "flowmeter");
                         agoConnection->emitEvent(internalid.c_str(), "event.environment.volumechanged", value, "m^3");
 
                     } else if (unitName.find("Energy")!= std::string::npos) {
                         float value = atol(valueString.c_str());
-                        if (unitName.find("10 kWh"))  value = value * 10;
+                        if (unitName.find("10 kWh") != std::string::npos)  value = value * 10;
                         if (announce) agoConnection->addDevice(internalid.c_str(), "energymeter");
                         agoConnection->emitEvent(internalid.c_str(), "event.environment.energychanged", value, "kWh");
 
                     } else if (unitName.find("Power")!= std::string::npos) {
                         float value = atol(valueString.c_str());
-                        if (unitName.find("100 W"))  value = value * 100;
+                        if (unitName.find("100 W") != std::string::npos)  value = value * 100;
                         if (announce) agoConnection->addDevice(internalid.c_str(), "powermeter");
                         agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", value, "W");
 
