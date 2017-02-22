@@ -130,32 +130,32 @@ void AgoMbus::setupApp() {
 
 
 std::string AgoMbus::fetchXml(int address) {
-	std::string xmldata;
+    std::string xmldata;
 
-	mbus_frame reply;
-	mbus_frame_data reply_data;
+    mbus_frame reply;
+    mbus_frame_data reply_data;
 
-	memset((void *)&reply, 0, sizeof(mbus_frame));
-	memset((void *)&reply_data, 0, sizeof(mbus_frame_data));
+    memset((void *)&reply, 0, sizeof(mbus_frame));
+    memset((void *)&reply_data, 0, sizeof(mbus_frame_data));
 
-	if (mbus_send_request_frame(handle, address) == -1)
+    if (mbus_send_request_frame(handle, address) == -1)
         {
             AGO_ERROR() << "Failed to send M-Bus request frame!";
         } else {
-		if (mbus_recv_frame(handle, &reply) != MBUS_RECV_RESULT_OK) {
-			AGO_ERROR() << "Failed to receive M-Bus response frame: " << mbus_error_str();
-		} else {
-			// handle frame
-			if (mbus_frame_data_parse(&reply, &reply_data) == -1) {
-				AGO_ERROR() << "M-bus data parse error: " << mbus_error_str();
-			} else {
-				xmldata = std::string(mbus_frame_data_xml(&reply_data));
-			}
+        if (mbus_recv_frame(handle, &reply) != MBUS_RECV_RESULT_OK) {
+            AGO_ERROR() << "Failed to receive M-Bus response frame: " << mbus_error_str();
+        } else {
+            // handle frame
+            if (mbus_frame_data_parse(&reply, &reply_data) == -1) {
+                AGO_ERROR() << "M-bus data parse error: " << mbus_error_str();
+            } else {
+                xmldata = std::string(mbus_frame_data_xml(&reply_data));
+            }
 
-		}
-	}
+        }
+    }
 
-	return xmldata;
+    return xmldata;
 }
 
 
@@ -177,69 +177,72 @@ void AgoMbus::parseXml(std::string xmlstring, bool announce) {
         AGO_ERROR() << "error parsing XML, code: " << returncode;
     } else {
 
-		XMLHandle docHandle(&sensor);
-		XMLElement* slaveInformation = docHandle.FirstChildElement( "MBusData" ).ToElement()->FirstChildElement("SlaveInformation");
-		if (slaveInformation) {  
+        XMLHandle docHandle(&sensor);
+        XMLElement* slaveInformation = docHandle.FirstChildElement( "MBusData" ).ToElement()->FirstChildElement("SlaveInformation");
+        if (slaveInformation) {  
                         std::string sensorId;
                         std::string manufacturerId;
-			// AGO_TRACE() << "Found SlaveInformation tag";
-			XMLElement *id = slaveInformation->FirstChildElement("Id");
-			if (id) sensorId =  id->GetText();
-			XMLElement *manufacturer = slaveInformation->FirstChildElement("Manufacturer");
-			if (manufacturer) manufacturerId = manufacturer->GetText();
-			if (announce) AGO_INFO() << "Manufacturer: " << manufacturerId << " " << "Sensor Id: " << sensorId;
-			XMLElement* dataRecord = docHandle.FirstChildElement( "MBusData" ).ToElement()->FirstChildElement( "DataRecord" )->ToElement();
-			if (dataRecord) {
-				XMLElement *nextDataRecord = dataRecord;
-				while (nextDataRecord != NULL) {
+            // AGO_TRACE() << "Found SlaveInformation tag";
+            XMLElement *id = slaveInformation->FirstChildElement("Id");
+            if (id) sensorId =  id->GetText();
+            XMLElement *manufacturer = slaveInformation->FirstChildElement("Manufacturer");
+            if (manufacturer) manufacturerId = manufacturer->GetText();
+            if (announce) AGO_INFO() << "Manufacturer: " << manufacturerId << " " << "Sensor Id: " << sensorId;
+            XMLElement* dataRecord = docHandle.FirstChildElement( "MBusData" ).ToElement()->FirstChildElement( "DataRecord" )->ToElement();
+            if (dataRecord) {
+                XMLElement *nextDataRecord = dataRecord;
+                while (nextDataRecord != NULL) {
                                         std::string recordId, functionName, unitName, valueString;
                                         recordId = nextDataRecord->Attribute("id");
-					XMLElement *function = nextDataRecord->FirstChildElement( "Function" );
-					if (function) functionName = function->GetText();
-					XMLElement *unit = nextDataRecord->FirstChildElement( "Unit" );
-					if (unit) unitName = unit->GetText();
-					XMLElement *value = nextDataRecord->FirstChildElement( "Value" );
-					if (value) valueString = value->GetText();
-                                        if (announce) AGO_INFO()  << "Record id: " << recordId << ";" << functionName << ";Value " << valueString << " " << unitName;
-					
-					std::string internalid = manufacturerId + "-" + sensorId + "/" + recordId;
-					if (unitName.find("deg C") != std::string::npos) {
-						float value = atol(valueString.c_str());
-						if (unitName.find("1e-2"))  value = value / 100;
-						if (announce) agoConnection->addDevice(internalid.c_str(), "temperaturesensor");
-						agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", value, "degC");
-						
-					} else if (unitName.find("Volume")!= std::string::npos) {
-						float value = atol(valueString.c_str());
-						if (unitName.find("1e-2"))  value = value / 100;
-						if (announce) agoConnection->addDevice(internalid.c_str(), "flowmeter");
-						agoConnection->emitEvent(internalid.c_str(), "event.environment.volumechanged", value, "m^3");
+                    XMLElement *function = nextDataRecord->FirstChildElement( "Function" );
+                    if (function) functionName = function->GetText();
+                    XMLElement *unit = nextDataRecord->FirstChildElement( "Unit" );
+                    if (unit) unitName = unit->GetText();
+                    XMLElement *value = nextDataRecord->FirstChildElement( "Value" );
+                    if (value) valueString = value->GetText();
+                    if (announce) AGO_INFO()  << "Record id: " << recordId << ";" << functionName << ";Value " << valueString << " " << unitName;
+                    
+                    std::string internalid = manufacturerId + "-" + sensorId + "/" + recordId;
+                    if (unitName.find("deg C") != std::string::npos) {
+                        float value = atol(valueString.c_str());
+                        if (unitName.find("1e-1"))  value = value / 10;
+                        if (unitName.find("1e-2"))  value = value / 100;
+                        if (announce) agoConnection->addDevice(internalid.c_str(), "temperaturesensor");
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", value, "degC");
+                        
+                    } else if (unitName.find("Volume")!= std::string::npos) {
+                        float value = atol(valueString.c_str());
+                        if (unitName.find("1e-1"))  value = value / 10;
+                        if (unitName.find("1e-2"))  value = value / 100;
+                        if (announce) agoConnection->addDevice(internalid.c_str(), "flowmeter");
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.volumechanged", value, "m^3");
 
-					} else if (unitName.find("Energy")!= std::string::npos) {
-						float value = atol(valueString.c_str());
-						if (announce) agoConnection->addDevice(internalid.c_str(), "energymeter");
-						agoConnection->emitEvent(internalid.c_str(), "event.environment.energychanged", value, "kWh");
+                    } else if (unitName.find("Energy")!= std::string::npos) {
+                        float value = atol(valueString.c_str());
+                        if (unitName.find("10 kWh"))  value = value * 10;
+                        if (announce) agoConnection->addDevice(internalid.c_str(), "energymeter");
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.energychanged", value, "kWh");
 
-					} else if (unitName.find("Power")!= std::string::npos) {
-						float value = atol(valueString.c_str());
-						if (unitName.find("100 W"))  value = value * 100;
-						if (announce) agoConnection->addDevice(internalid.c_str(), "powermeter");
-						agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", value, "W");
+                    } else if (unitName.find("Power")!= std::string::npos) {
+                        float value = atol(valueString.c_str());
+                        if (unitName.find("100 W"))  value = value * 100;
+                        if (announce) agoConnection->addDevice(internalid.c_str(), "powermeter");
+                        agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", value, "W");
 
-					}
-					nextDataRecord = nextDataRecord->NextSiblingElement();
-				}
-			}
-		}
+                    }
+                    nextDataRecord = nextDataRecord->NextSiblingElement();
+                }
+            }
+        }
     }
 
 }
 
 void AgoMbus::receiveFunction() {
     while(!isExitSignaled()) {
-	for(std::list<int>::iterator list_iter = sensorList.begin(); list_iter != sensorList.end(); list_iter++) {
-		parseXml(fetchXml(*list_iter));
-	}
+    for(std::list<int>::iterator list_iter = sensorList.begin(); list_iter != sensorList.end(); list_iter++) {
+        parseXml(fetchXml(*list_iter));
+    }
         boost::this_thread::sleep(pt::seconds(30));
     }
 }
