@@ -114,7 +114,7 @@ public:
 };
 
 // helper to determine last element
-#ifndef _LIBCPP_ITERATOR
+#if !defined(_LIBCPP_ITERATOR) and __cplusplus < 201103L
     template <typename Iter>
 Iter next(Iter iter)
 {
