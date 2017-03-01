@@ -12,9 +12,15 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/attributes.hpp>
 #include <boost/log/utility/setup/file.hpp>
+#include <boost/log/utility/exception_handler.hpp>
 #include <boost/log/support/date_time.hpp>
 
+// Avoid warning on empty_deleter_deprecated
+#if BOOST_VERSION >= 105600
+#include <boost/core/null_deleter.hpp>
+#else
 #include <boost/utility/empty_deleter.hpp>
+#endif
 
 #include "agolog.h"
 
@@ -43,6 +49,23 @@ inline std::basic_ostream< CharT, TraitsT >& operator<< (
     return strm;
 }
 
+// http://www.boost.org/doc/libs/1_63_0/libs/log/doc/html/log/detailed/utilities.html#log.detailed.utilities.exception_handlers
+struct ago_log_exception_handler
+{
+    typedef void result_type;
+
+    void operator() (std::runtime_error const& e) const
+    {
+        std::cout << "boost log std::runtime_error: " << e.what()  << " errno=" << errno << std::endl;
+        throw;
+    }
+    void operator() (std::logic_error const& e) const
+    {
+        std::cout << "boost log std::logic_error: " << e.what()  << " errno=" << errno << std::endl;
+        throw;
+    }
+};
+
 
 void log_container::initDefault() {
     if(inited)
@@ -53,6 +76,13 @@ void log_container::initDefault() {
 
     setOutputConsole();
     setCurrentLevel(AGO_DEFAULT_LEVEL);
+
+    // Setup exception handler
+    logging::core::get()->set_exception_handler(logging::make_exception_handler<
+            std::runtime_error,
+            std::logic_error
+       >(ago_log_exception_handler()));
+
 }
 
 void log_container::setCurrentLevel(severity_level lvl) {
@@ -71,8 +101,18 @@ void log_container::setOutputConsole() {
         boost::make_shared< sinks::text_ostream_backend >();
 
     backend->add_stream(
-            boost::shared_ptr< std::ostream >(&std::clog, boost::empty_deleter())
+            boost::shared_ptr< std::ostream >(&std::clog,
+#if BOOST_VERSION >= 105600
+                                              boost::null_deleter()
+#else
+                                              boost::empty_deleter()
+#endif
+            )
             );
+
+    // If our output stream fails, make sure we throw exception rather than
+    // just stop logging
+    std::clog.exceptions ( std::ostream::failbit | std::ostream::badbit );
 
     // Enable auto-flushing after each log record written
     backend->auto_flush(true);
