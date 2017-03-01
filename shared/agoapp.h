@@ -53,9 +53,18 @@ namespace agocontrol {
         std::string appShortName;
 
         bool exit_signaled;
+
+        // IO thread is for proper async work which does not block
+        // This is always used, at a minimum it handles IO signals.
         boost::thread ioThread;
         boost::asio::io_service ioService_;
         std::unique_ptr<boost::asio::io_service::work> ioWork;
+
+        // Threadpool IOService allows long-running tasks.
+        // This is only launched if needed
+        boost::asio::io_service threadpoolIoService_;
+        std::unique_ptr<boost::asio::io_service::work> threadpoolIoWork;
+        boost::thread_group threadpool;
 
         boost::asio::signal_set signals;
 
@@ -85,8 +94,16 @@ namespace agocontrol {
         /* Obtain a reference to the ioService for async operations.
          *
          * This will be executed by AgoApp's IO thread running for the duration of the program.
+         * Make sure to not block for any longer durations in this!
+         * Use threadPool for longer-running jobs.
          */
         boost::asio::io_service& ioService() { return ioService_; }
+
+        /* Obtain a reference to the ioService for threadpool operations.
+         *
+         * This will be executed by AgoApp's IO thread running for the duration of the program.
+         */
+        boost::asio::io_service& threadPool();
 
         /* Application should implement this function if it like to present
          * any extra command line options to the user.
@@ -106,6 +123,7 @@ namespace agocontrol {
         /* App specific init can be done in this */
         virtual void setupApp() { };
         void setupIoThread();
+        void setupThreadPool();
 
         /* After appMain has returned, we will call cleanup to release
          * any resources */
@@ -113,6 +131,8 @@ namespace agocontrol {
         void cleanupAgoConnection();
         virtual void cleanupApp() { };
         void cleanupIoThread();
+
+        void cleanupThreadPool();
 
         bool isExitSignaled() { return exit_signaled; }
 

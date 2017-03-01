@@ -159,6 +159,7 @@ void AgoApp::setup() {
 }
 
 void AgoApp::cleanup() {
+    cleanupThreadPool();
     cleanupApp();
     cleanupIoThread();
     cleanupAgoConnection();
@@ -345,7 +346,6 @@ void AgoApp::setupIoThread() {
     // This thread will run until we're out of work.
     AGO_TRACE() << "Starting IO thread";
     ioThread = boost::thread(boost::bind(&AgoApp::iothread_run, this));
-    // &boost::asio::io_service::run, &ioService_));
 }
 
 void AgoApp::cleanupIoThread(){
@@ -363,6 +363,39 @@ void AgoApp::cleanupIoThread(){
 }
 
 
+boost::asio::io_service& AgoApp::threadPool() {
+    // Ensure started
+    setupThreadPool();
+    return threadpoolIoService_;
+}
+
+void AgoApp::setupThreadPool() {
+    if(threadpoolIoWork.get())
+        // already inited.
+        return;
+
+    threadpoolIoWork = std::unique_ptr<boost::asio::io_service::work>(
+            new boost::asio::io_service::work(threadpoolIoService_)
+    );
+
+    // This thread will run until we're out of work.
+    int numThreads = 5;
+    AGO_TRACE() << "Starting thread pool with " << numThreads << " threads";
+    for(int i=0; i < numThreads; i++) {
+        threadpool.create_thread(boost::bind(&boost::asio::io_service::run, &threadpoolIoService_));
+    }
+}
+
+void AgoApp::cleanupThreadPool(){
+    if(!threadpoolIoWork.get())
+        // Not inited, or already cancelled
+        return;
+
+    AGO_TRACE() << "Resetting threadPool work & joining IO thread, waiting for it to exit";
+    threadpoolIoWork.reset();
+    threadpool.join_all();
+    AGO_TRACE() << "Threadpool dead";
+}
 
 
 int AgoApp::appMain() {
