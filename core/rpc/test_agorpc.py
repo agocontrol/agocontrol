@@ -9,8 +9,14 @@ import json
 import urllib2
 import random
 import threading
+import time
 
-from qpid.messaging import Connection, Message, Empty
+import logging
+
+from qpid.messaging import Connection, Message, Empty, LinkClosed
+
+logging.basicConfig()
+
 
 RPC_PARSE_ERROR = -32700
 RPC_INVALID_REQUEST = -32600
@@ -19,6 +25,8 @@ RPC_INVALID_PARAMS = -32602
 RPC_INTERNAL_ERROR = -32603
 # -32000 to -32099 impl-defined server errors
 RPC_NO_EVENT = -32000
+RPC_MESSAGE_ERROR = -32001
+RPC_COMMAND_ERROR = -31999
 
 class RPCTest(unittest.TestCase):
     longMessage = True
@@ -67,35 +75,62 @@ class RPCTest(unittest.TestCase):
             self.assertIn('command', msg.content)
             self.assertEquals('some-command', msg.content['command'])
             self.assertEquals(1234, msg.content['int-param'])
-            return {'result':4321, 'string':'test'}
+            return {'_newresponse':True, 'result':{'int':4321, 'string':'test'}}
 
         qpr = DummyQpidResponder(self.qpid_session, mock)
         try:
             qpr.start()
             rep = self.bus_message('', {'command':'some-command', 'int-param':1234, 'UT-EXP':True})
-            self.assertEquals(4321, rep['result'])
+            # rep is result from response
+            self.assertEquals(4321, rep['int'])
             self.assertEquals('test', rep['string'])
+        finally:
+            qpr.shutdown()
+
+    def testBusMessageErr(self):
+        def mock(msg):
+            self.assertIn('command', msg.content)
+            self.assertEquals('some-err-command', msg.content['command'])
+            self.assertEquals(12345, msg.content['int-param'])
+            return {'_newresponse':True, 'error':{'int':4321, 'string':'test'}}
+
+        qpr = DummyQpidResponder(self.qpid_session, mock)
+        try:
+            qpr.start()
+            rep = self.bus_message('', {'command':'some-err-command', 'int-param':12345, 'UT-EXP':True}, rpc_error_code=RPC_COMMAND_ERROR)
+            # rep is error from response; contains message, code and data.
+            self.assertEquals('Command returned error', rep['message'])
+            self.assertEquals(4321, rep['data']['int'])
+            self.assertEquals('test', rep['data']['string'])
         finally:
             qpr.shutdown()
 
     def testUnknownBusMessage(self):
         self.jsonrpc_request('message', None, rpc_error_code = RPC_INVALID_PARAMS)
-        ret = self.bus_message('', {'command':'non-existent'})
-        self.assertEquals("no-reply", ret)
+        s = time.time()
+        # Must take at least 0.5s
+        ret = self.bus_message('', {'command':'non-existent'}, rpc_error_code = RPC_MESSAGE_ERROR, timeout=0.5)
+        e = time.time()
+        self.assertEquals("error.no.reply", ret['message'])
+        self.assertGreaterEqual(e-s, 0.5)
+        self.assertLessEqual(e-s, 1.0) # but quite near 0.5..
+
 
     def testInventory(self):
         """Executes an inventory request, assumes agoresolver is alive"""
         rep = self.bus_message('', {'command':'inventory'})
         dbg_msg = "REP: '%s'" % rep
         self.assertEquals(dict, type(rep), dbg_msg)
-        self.assertEquals(rep['returncode'], 0, dbg_msg)
-        self.assertTrue('devices' in rep, dbg_msg)
-        self.assertTrue('schema' in rep, dbg_msg)
-        self.assertTrue('rooms' in rep, dbg_msg)
-        self.assertTrue('floorplans' in rep, dbg_msg)
-        self.assertTrue('system' in rep, dbg_msg)
-        self.assertTrue('variables' in rep, dbg_msg)
-        self.assertTrue('environment' in rep, dbg_msg)
+        self.assertEquals(rep.get('identifier'), 'success', dbg_msg)
+        self.assertTrue('data' in rep, dbg_msg)
+        data = rep['data']
+        self.assertTrue('devices' in data, dbg_msg)
+        self.assertTrue('schema' in data, dbg_msg)
+        self.assertTrue('rooms' in data, dbg_msg)
+        self.assertTrue('floorplans' in data, dbg_msg)
+        self.assertTrue('system' in data, dbg_msg)
+        self.assertTrue('variables' in data, dbg_msg)
+        self.assertTrue('environment' in data, dbg_msg)
 
     def testGetEventErrors(self):
         err = self.jsonrpc_request('getevent', None, rpc_error_code= RPC_INVALID_PARAMS)
@@ -106,7 +141,7 @@ class RPCTest(unittest.TestCase):
         sub_id = self.jsonrpc_request('subscribe', None)
         self.assertIn(type(sub_id), (str,unicode))
         err = self.jsonrpc_request('getevent', {'uuid':sub_id, 'timeout':0}, rpc_error_code = RPC_NO_EVENT)
-        self.assertEquals(err['message'], 'no messages for subscription')
+        self.assertEquals(err['message'], 'No messages available')
 
         # Send a message
         message = Message(content={'test':1, 'notify':True}, subject='event.something.subject')
@@ -130,16 +165,32 @@ class RPCTest(unittest.TestCase):
         self.assertEquals("success", rep)
 
 
-    def bus_message(self, subject, content, rpc_error_code=None):
+    def testSubscribeTimeout(self):
+        # Ensure we can do subseccond precision on getevent timeouts
+        sub_id = self.jsonrpc_request('subscribe', None)
+        self.assertIn(type(sub_id), (str,unicode))
+        s = time.time()
+        err = self.jsonrpc_request('getevent', {'uuid':sub_id, 'timeout':0.5}, rpc_error_code = RPC_NO_EVENT)
+        e = time.time()
+        self.assertEquals(err['message'], 'No messages available')
+        self.assertGreaterEqual(e-s, 0.5)
+        self.assertLessEqual(e-s, 0.6)
+
+    def bus_message(self, subject, content, rpc_error_code=None, timeout=None):
         """Send a Agocontrol qpid Bus message via the RPC interface"""
         params = {
             'content': content,
             'subject': subject
             }
 
-        return self.jsonrpc_request('message', params, rpc_error_code = rpc_error_code)
+        if timeout is not None:
+            params['replytimeout'] = timeout
+            # Give HTTP request a bit more time.
+            timeout = timeout + 0.5
 
-    def jsonrpc_request(self, method, params=None, req_id=None, rpc_error_code=None):
+        return self.jsonrpc_request('message', params, rpc_error_code = rpc_error_code, timeout=timeout)
+
+    def jsonrpc_request(self, method, params=None, req_id=None, rpc_error_code=None, timeout=None):
         """Execute a JSON-RPC 2.0 request with the specified method, and specified params
         dict. If req_id is None, a random ID number is selected.
         
@@ -160,7 +211,8 @@ class RPCTest(unittest.TestCase):
         dbg_msg = "REQ: %s" % req_raw
 
         http_req = urllib2.Request(self.url_jsonrpc, req_raw)
-        http_rep = urllib2.urlopen(http_req, timeout=5)
+        if not timeout: timeout = 5
+        http_rep = urllib2.urlopen(http_req, timeout=timeout)
 
         self.assertEquals(200, http_rep.code, dbg_msg)
         self.assertEquals('application/json', http_rep.info()['Content-Type'], dbg_msg)
@@ -212,7 +264,7 @@ class DummyQpidResponder(threading.Thread):
         self.stop = False
         while not self.stop:
             try:
-                msg = self.receiver.fetch(timeout=0.1)
+                msg = self.receiver.fetch(timeout=10)
                 self.session.acknowledge()
                 if not 'UT-EXP' in msg.content:
                     # Ignore other spurious msgs
@@ -220,13 +272,14 @@ class DummyQpidResponder(threading.Thread):
 
                 rep = self.handler(msg)
                 if rep:
-                    #print "Got msg %s, replying with %s" % (msg.content, rep)
+                    logging.info("Got msg %s, replying with %s", (msg.content, rep))
                     snd = self.session.sender(msg.reply_to)
                     snd.send(Message(rep))
 
-            except Empty:
+            except (Empty, LinkClosed):
                 continue
 
     def shutdown(self):
         self.stop = True
-        #self.join()
+        self.session.close()
+        self.join()
