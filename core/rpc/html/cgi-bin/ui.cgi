@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import os
+import sys
+
+for dir in os.environ.get('MONGOOSE_CGI','').split(':'):
+    sys.path.append(dir)
+
+import agoclient
 
 #update metadata of specified template
 # - only update existing param, it never create new ones
@@ -9,8 +16,7 @@ import json
 import os
 import re
 
-# TODO: Make configurable
-UI_DIR='/etc/opt/agocontrol/ui/'
+UI_DIR = os.path.join(agoclient.CONFDIR, '/ui')
 
 def loadFile(f):
     content = {}
@@ -85,7 +91,7 @@ try:
     if key and param and value:
         #check file
         if param in allowedContent.keys():
-            path = os.path.join('/etc/opt/agocontrol/ui/', param+'.json')
+            path = os.path.join(UI_DIR, param+'.json')
             if not os.path.exists(path):
                 try:
                     f = open(path, 'w')
@@ -124,6 +130,8 @@ try:
                 result['content'] = {}
             else:
                 result['content'] = loadFile(path)
+        else:
+            result['error'] = '%s is not allowed' % (param)
 
     else:
         #missing parameter

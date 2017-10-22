@@ -101,7 +101,7 @@ function agoBlocklyPlugin(devices, agocontrol)
         }
         return null;
     };
-    
+
     //get block with warning
     self.getBlockWithWarning = function()
     {
@@ -115,7 +115,7 @@ function agoBlocklyPlugin(devices, agocontrol)
         }
         return null;
     };
-    
+
     //blink specified block
     self.blinkBlock = function(block)
     {
@@ -564,37 +564,44 @@ function agoBlocklyPlugin(devices, agocontrol)
         //init upload
         $('#fileupload').fileupload({
             dataType: 'json',
-            formData: { 
+            url: location.protocol + "//" + location.hostname + (location.port && ":" + location.port) + location.pathname + 'upload',
+            formData: {
                 uuid: self.luaControllerUuid
             },
             done: function (e, data) {
-                if( data.result && data.result.result )
+                // TODO: Centralize fileupload logic
+                // Response has a list named "files" which holds
+                // result for each file we attempted to upload
+                if( !data.result || !data.result.files )
                 {
-                    if( data.result.result.error.len>0 )
+                    notif.fatal('Unable to import script: internal error');
+                    return;
+                }
+
+                $.each(data.result.files, function (index, file) {
+                    if( file.error )
                     {
-                        notif.error('Unable to import script');
-                        console.error('Unable to upload script: '+data.result.result.error);
+                        notif.error('Unable to import '+ file.name +":" + file.error.message);
                     }
                     else
                     {
-                        if( data.result.result.count>0 )
-                        {
-                            $.each(data.result.result.files, function (index, file) {
-                                notif.success('Script "'+file.name+'" imported successfully');
-                            });
-                            self.loadScripts();
-                        }
-                        else
-                        {
-                            //no file uploaded
-                            notif.error('Script import failed: '+data.result.result.error);
-                        }
+                        notif.success('Script "'+file.name+'" imported successfully');
                     }
-                }
-                else
-                {
-                    notif.fatal('Unable to import script: internal error');
-                }
+                });
+
+                // Close import-dialog
+                $("#importDialog").modal('hide');
+                $('#progress').css('width', 0+'%');
+
+                // Show load-scripts dialog
+                self.loadScripts(function(){
+                    $("#loadDialog").modal('show');
+                });
+            },
+            fail: function(e, data) {
+                console.log(e, data)
+                notif.fatal('Unable to import script: upload failed');
+                $('#progress').css('width', 0+'%');
             },
             progressall: function (e, data) {
                 var progress = parseInt(data.loaded / data.total * 100, 10);
@@ -656,7 +663,7 @@ function agoBlocklyPlugin(devices, agocontrol)
         //prepare regexp
         var re = /^.*content\.subject\ ==\ \'(\w+\.\w+\.\w+)\'.*$/gm;
         var m;
-         
+
         //search for events
         while( (m = re.exec(lua))!==null )
         {
@@ -831,7 +838,7 @@ function agoBlocklyPlugin(devices, agocontrol)
     //export script
     self.uiExportScript = function(script)
     {
-        downloadurl = location.protocol + "//" + location.hostname + (location.port && ":" + location.port) + "/download?filename="+script+"&uuid="+self.luaControllerUuid;
+        downloadurl = location.protocol + "//" + location.hostname + (location.port && ":" + location.port) + location.pathname + "download?filename="+script+"&uuid="+self.luaControllerUuid;
         window.open(downloadurl, '_blank');
     };
 

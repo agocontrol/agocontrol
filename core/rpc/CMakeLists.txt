@@ -6,11 +6,13 @@ ENDIF(COMMAND cmake_policy)
 
 set (RPC_LIBRARIES
     agoclient
+    agohttp
     pthread
 )
 
 set (RPCPASSWD_LIBRARIES
     pthread
+    agohttp
 )
 
 IF (NOT FREEBSD)
@@ -19,12 +21,12 @@ IF (NOT FREEBSD)
 ENDIF (NOT FREEBSD)
 
 # add the executable
-add_executable (agorpc agorpc.cpp mongoose.c)
+add_executable (agorpc agorpc.cpp)
 target_link_libraries (agorpc ${RPC_LIBRARIES})
 
 add_executable (get_table_lang.cgi get_table_lang.cpp)
 
-add_executable (rpc-htpasswd rpc-htpasswd.cpp mongoose.c)
+add_executable (rpc-htpasswd rpc-htpasswd.cpp)
 target_link_libraries (rpc-htpasswd ${RPCPASSWD_LIBRARIES})
 
 set_property(

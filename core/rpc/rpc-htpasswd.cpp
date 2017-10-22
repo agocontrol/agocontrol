@@ -5,13 +5,34 @@
 #include <unistd.h>
 #include <iostream>
 
-#include "mongoose.h"
+#include "agohttp/mongoose.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX MAX_PATH
 #endif
 
 using namespace std;
+
+/* Copy of cs_md5 from mongoose.c which is not exposed */
+void ago_cs_md5(char buf[33], ...) {
+    unsigned char hash[16];
+    const uint8_t *msgs[20], *p;
+    size_t msg_lens[20];
+    size_t num_msgs = 0;
+    va_list ap;
+
+    va_start(ap, buf);
+    while ((p = va_arg(ap, const unsigned char *) ) != NULL) {
+        msgs[num_msgs] = p;
+        msg_lens[num_msgs] = va_arg(ap, size_t);
+        num_msgs++;
+    }
+    va_end(ap);
+
+    mg_hash_md5_v(num_msgs, msgs, msg_lens, hash);
+    cs_to_hex(buf, hash, sizeof(hash));
+}
+
 
 
 //code from https://github.com/cesanta/mongoose/blob/master/examples/server.c#L339
@@ -53,7 +74,7 @@ int modify_passwords_file(const char *fname, const char *domain,
         if (!strcmp(u, user) && !strcmp(d, domain)) {
             found++;
             if (pass != NULL) {
-                mg_md5(ha1, user, ":", domain, ":", pass, NULL);
+                ago_cs_md5(ha1, user, strlen(user), ":", 1, domain, strlen(domain), ":", 1, pass, strlen(pass), NULL);
                 fprintf(fp2, "%s:%s:%s\n", user, domain, ha1);
             }
         } else {
@@ -63,7 +84,7 @@ int modify_passwords_file(const char *fname, const char *domain,
 
     // If new user, just add it
     if (!found && pass != NULL) {
-        mg_md5(ha1, user, ":", domain, ":", pass, NULL);
+        ago_cs_md5(ha1, user, strlen(user), ":", 1, domain, strlen(domain), ":", 1, pass, strlen(pass), NULL);
         fprintf(fp2, "%s:%s:%s\n", user, domain, ha1);
     }
 

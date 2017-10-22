@@ -110,6 +110,9 @@ namespace agocontrol {
         // Note that this creates a copy; Variant::map does not allow get without copy
         // before C++-11
         /*const*/ qpid::types::Variant::Map/*&*/ getData() /*const*/;
+
+        // Get a copy of the raw message; only use in agorpc!
+        /*const*/ qpid::types::Variant::Map/*&*/ getResponse() /*const*/ { return response; };
     };
 
 }/* namespace agocontrol */

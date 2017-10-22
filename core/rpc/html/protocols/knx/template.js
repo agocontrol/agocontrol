@@ -130,6 +130,7 @@ function KNX(agocontrol)
     {
         //init upload
         $('#fileupload').fileupload({
+            url: location.protocol + "//" + location.hostname + (location.port && ":" + location.port) + location.pathname + 'upload',
             dataType: 'json',
             formData: { 
                 uuid: self.controllerUuid

@@ -79,3 +79,6 @@ install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/agoclient/__init__.py DESTINATION 
 install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/agoclient/_logging.py DESTINATION ${PYTHON2DIST}/agoclient)
 install (DIRECTORY DESTINATION ${CONFDIR}/uuidmap)
 
+
+
+add_subdirectory (agohttp)
