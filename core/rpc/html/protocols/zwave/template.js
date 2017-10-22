@@ -1042,8 +1042,10 @@ function zwaveConfig(zwave) {
         if(typeof node === "number")
             node = self.getNode(node);
 
-        if( !node.numgroups )
+        if( !node.numgroups ){
+            self.nodeAssociations.replaceAll([]);
             return;
+        }
 
         zwave.getAllAssociations(node.id)
             .then(function(res) {
@@ -1193,11 +1195,12 @@ function zwaveConfig(zwave) {
     //create association
     self.createAssociation = function() {
         //console.log("add association node="+self.selectedNode.id+" group="+(self.selectedNode.numgroups+1)+" target="+self.selectedNodeForAssociation().key);
+        var node = self.selectedNode;
         zwave
-            .addAssociation(self.selectedNode.id, (self.selectedNode.numgroups+1), self.selectedNodeForAssociation().key)
+            .addAssociation(node.id, (node.numgroups+1), self.selectedNodeForAssociation().key)
             .then(function(res) {
                 // Reload associations
-                self.loadAssociations();
+                self.loadAssociations(node);
                 notif.success('#addassociationok');
             });
     };
