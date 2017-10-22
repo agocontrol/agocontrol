@@ -899,7 +899,10 @@ void AgoLua::searchEvents(const fs::path& scriptPath, qpid::types::Variant::List
     end = lua.end();
     while(boost::regex_search(start, end, what, exprEvent, flags))
     {
-        foundEvents->push_back(std::string(what[1]));
+        std::string eventName(what[1]);
+        if(std::find(foundEvents->begin(), foundEvents->end(), eventName) == foundEvents->end())
+            foundEvents->push_back(eventName);
+
         // update search position:
         start = what[0].second;
         // update flags:
@@ -1226,6 +1229,7 @@ bool AgoLua::canExecuteScript(qpid::types::Variant::Map content, const fs::path 
         qpid::types::Variant::List events;
         searchEvents(script, &events);
         infos["events"] = events;
+        AGO_DEBUG() << "Script " << script << " uses the following events: " << events;
         scripts[script.string()] = infos;
         scriptsInfos["scripts"] = scripts;
         variantMapToJSONFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
