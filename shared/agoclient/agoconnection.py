@@ -103,6 +103,9 @@ class AgoConnection:
         self.handler = None
         self.eventhandler = None
         self.agocontroller = None
+        self.inventory = None
+        self.inventory_last_update = 0
+        self.inventory_max_age = 60
         self.load_uuid_map()
 
     def __del__(self):
@@ -428,19 +431,27 @@ class AgoConnection:
 
         return replymessage
 
-    def get_inventory(self):
-        """Returns the inventory from the resolver. Return value is a dict"""
+    def get_inventory(self, cached_allowed=False):
+        """Returns the inventory from the resolver. Return value is a dict. If cached_allowed is true, it may return a cached version"""
+        if cached_allowed:
+            if self.inventory_last_update > 0 and (time.time() - self.inventory_last_update) < self.inventory_max_age:
+                return self.inventory
+
         content = {}
         content["command"] = "inventory"
         response = self.send_request(content)
         if response.is_ok():
-            return response.data()
+            self.inventory = response.data()
+            self.inventory_last_update = time.time()
+            return self.inventory
         else:
             # TODO: Report errors properly?
+            self.inventory = None
+            self.inventory_last_update = 0
             return {}
             #raise ResponseError(response)
 
-    def get_agocontroller(self, inventory=None):
+    def get_agocontroller(self, allow_cache=True):
         """Returns the uuid of the agocontroller device"""
         if self.agocontroller:
             return self.agocontroller
@@ -448,9 +459,7 @@ class AgoConnection:
         retry = 10
         while retry > 0:
             try:
-                if inventory == None:
-                    # May be null if not passed in first time
-                    inventory = self.get_inventory()
+                inventory = self.get_inventory(allow_cache)
 
                 if inventory != None and "devices" in inventory:
                     devices = inventory['devices']
@@ -469,7 +478,7 @@ class AgoConnection:
 #                self.log.warning("Unable to resolve agocontroller, not in inventory response? retrying")
                 self.log.warning("Unable to resolve agocontroller, retrying")
 
-            inventory = None
+            allow_cache = False
             time.sleep(1)
             retry -= 1
 
