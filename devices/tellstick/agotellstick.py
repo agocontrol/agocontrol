@@ -271,7 +271,6 @@ class AgoTellstick(agoclient.AgoApp):
         self.ignoreModels = {}
         self.ignoreDevices = {}
         self.SensorMaxWait = 300
-        self.inventory = {}
 
         self.tellstick = None
         self.SensorPollInterval = 300.0  # 5 minutes
@@ -324,20 +323,13 @@ class AgoTellstick(agoclient.AgoApp):
         except ValueError:
             setnames = 'No'
 
-        self.setnames = (True if setnames.lower() == 'yes' else False)
+        self.setnames = (True if setnames.lower() in ('yes', 'true', '1') else False)
         self.log.info("setnames: Device names will " + (
             "" if self.setnames else "not ") + "be fetched from Tellstick config file")
 
         self.tellstick.init(self.SensorPollInterval, self.TempUnits)
 
         self.connection.add_handler(self.message_handler)
-
-        # Get agocontroller, required to set names on new devices
-        self.inventory = self.connection.get_inventory()
-        self.agoController = self.connection.get_agocontroller(self.inventory)
-        if self.agoController is None:
-            self.log.error("No agocontroller found, cannot set device names")
-            raise agoclient.agoapp.StartupError()
 
         ####################################################
         self.log.info("Getting list of models and devices to ignore")
@@ -393,18 +385,6 @@ class AgoTellstick(agoclient.AgoApp):
         self.tellstick.ignoreDevices = self.ignoreDevices
 
     def listNewDevices(self):
-        def setNameIfNecessary(deviceUUID, name):
-            dev = self.inventory['devices'].get(deviceUUID)
-            if (dev is None or dev['name'] == '') and name != '':
-                content = {"command": "setdevicename",
-                           "uuid"   : self.agoController,
-                           "device" : deviceUUID,
-                           "name"   : name}
-
-                message = Message(content=content)
-                self.connection.send_message(None, content)
-                self.log.debug("'setdevicename' message sent for %s, name=%s", deviceUUID, name)
-
         switches = self.tellstick.listSwitches()
         for devId, dev in switches.iteritems():
             model = dev["model"]
@@ -447,7 +427,7 @@ class AgoTellstick(agoclient.AgoApp):
 
                 # If a new device, set name from the tellstick config file
                 if self.setnames:
-                    setNameIfNecessary(deviceUUID, name)
+                    self.connection.maybe_set_device_name(devId, name)
 
     def app_cleanup(self):
         if self.tellstick:

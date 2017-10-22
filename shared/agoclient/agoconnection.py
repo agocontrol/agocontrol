@@ -503,6 +503,33 @@ class AgoConnection:
         _content["uuid"] = self.internal_id_to_uuid(internal_id)
         return self.send_message(event_type, content)
 
+    def maybe_set_device_name(self, internal_id, proposed_name):
+        """Set the device name, unless the inventory already has a name set"""
+        if proposed_name == '': return
+
+        inv = self.get_inventory(True)
+        device_uuid = self.internal_id_to_uuid(internal_id)
+        dev = inv.get('devices', {}).get(device_uuid)
+        self.log.debug("For %s / %s got device %s", internal_id, device_uuid, dev)
+        if (dev == None or dev['name'] == ''):
+            self.set_device_name(internal_id, proposed_name)
+
+    def set_device_name(self, internal_id, name):
+        """Set the device name, unconditionally"""
+        controller = self.get_agocontroller()
+        if not controller:
+            raise Exception("No controller available, cannot set name")
+
+        content = {}
+        content["command"] = "setdevicename"
+        content["uuid"] = controller
+        content["device"] = self.internal_id_to_uuid(internal_id)
+        content["name"] = name
+
+        message = Message(content=content)
+        self.send_message(None, content)
+        self.log.debug("'setdevicename' message sent for %s, name=%s", internal_id, name)
+
     def report_devices(self):
         """Report all our devices."""
         self.log.debug("Reporting child devices")
