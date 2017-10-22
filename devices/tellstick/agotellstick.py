@@ -342,7 +342,7 @@ class AgoTellstick(agoclient.AgoApp):
         try:
             self.SensorMaxWait = float(
                 self.get_config_option('MaxWait', 300, section='Sensors', app='tellstick'))
-            self.log.debug("SensorMaxWait set to %s" + str(self.SensorMaxWait))
+            self.log.debug("SensorMaxWait set to %s", str(self.SensorMaxWait))
         except ValueError:
             self.SensorMaxWait = 300.0  # 5 minutes
             self.log.debug("SensorMaxWait defaulted to 300s")
