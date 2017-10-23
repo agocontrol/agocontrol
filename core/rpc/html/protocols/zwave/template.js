@@ -936,7 +936,7 @@ function zwaveConfig(zwave) {
 
     self.getNode = function(id) {
         var nodes = self.nodes();
-        for( var i=0; nodes.length; i++ )
+        for( var i=0; i < nodes.length; i++ )
         {
             if( nodes[i].id===id )
             {
@@ -1069,6 +1069,10 @@ function zwaveConfig(zwave) {
                     for( j=0; j < associations.length; j++)
                     {
                         var targetNode = self.getNode(associations[j]);
+                        if(targetNode == null) {
+                            notif.error('Association to unknown node id #'+associations[j]);
+                            continue;
+                        }
                         assos.push({asso: targetNode.type+'('+targetNode.id+')',
                             node: node.id,
                             group: group,
