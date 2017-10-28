@@ -1,4 +1,8 @@
 #!/usr/bin/python
+
+import time
+import agoclient
+
 AGO_TELLSTICK_VERSION = '0.0.91'
 ############################################
 #
@@ -16,11 +20,6 @@ __version__ = AGO_TELLSTICK_VERSION
 ############################################
 
 # TODO: Add filter to sensor reading. Example of bad data:
-
-
-import time
-from qpid.messaging import Message
-import agoclient
 
 
 class AgoTellstick(agoclient.AgoApp):
@@ -121,7 +120,6 @@ class AgoTellstick(agoclient.AgoApp):
     #        print ('%d: DeviceChangeEvent Device: %d - %s' %(time.time(), deviceId, self.tellstick.getName(deviceId)))
     #        print ('  changeEvent: %d' %( changeEvent ))
     #        print ('  changeType: %d' %( changeType ))
-
 
     # def agoRawDeviceEvent(self, data, controllerId, callbackId):
     #    if debug:
@@ -277,9 +275,8 @@ class AgoTellstick(agoclient.AgoApp):
         self.general_delay = 0.5
         self.setnames = False
         self.TempUnits = "C"
-        #super(AgoTellstick, self).__init__()
+        # super(AgoTellstick, self).__init__()
         agoclient.AgoApp.__init__(self)
-
 
     def setup_app(self):
         try:
@@ -422,7 +419,7 @@ class AgoTellstick(agoclient.AgoApp):
                     self.log.info("devId=%s added as switch", str(devId))
 
                 deviceUUID = self.connection.internal_id_to_uuid(devId)
-                # info ("deviceUUID=" + deviceUUID + " name=" + self.tellstick.getName(devId))
+                # info("deviceUUID=" + deviceUUID + " name=" + self.tellstick.getName(devId))
                 # info("Switch Name=" + dev.name + " protocol=" + dev.protocol + " model=" + dev.model)
 
                 # If a new device, set name from the tellstick config file
