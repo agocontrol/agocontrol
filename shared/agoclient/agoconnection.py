@@ -103,6 +103,9 @@ class AgoConnection:
         self.handler = None
         self.eventhandler = None
         self.agocontroller = None
+        self.inventory = None
+        self.inventory_last_update = 0
+        self.inventory_max_age = 60
         self.load_uuid_map()
 
     def __del__(self):
@@ -428,19 +431,27 @@ class AgoConnection:
 
         return replymessage
 
-    def get_inventory(self):
-        """Returns the inventory from the resolver. Return value is a dict"""
+    def get_inventory(self, cached_allowed=False):
+        """Returns the inventory from the resolver. Return value is a dict. If cached_allowed is true, it may return a cached version"""
+        if cached_allowed:
+            if self.inventory_last_update > 0 and (time.time() - self.inventory_last_update) < self.inventory_max_age:
+                return self.inventory
+
         content = {}
         content["command"] = "inventory"
         response = self.send_request(content)
         if response.is_ok():
-            return response.data()
+            self.inventory = response.data()
+            self.inventory_last_update = time.time()
+            return self.inventory
         else:
             # TODO: Report errors properly?
+            self.inventory = None
+            self.inventory_last_update = 0
             return {}
             #raise ResponseError(response)
 
-    def get_agocontroller(self, inventory=None):
+    def get_agocontroller(self, allow_cache=True):
         """Returns the uuid of the agocontroller device"""
         if self.agocontroller:
             return self.agocontroller
@@ -448,9 +459,7 @@ class AgoConnection:
         retry = 10
         while retry > 0:
             try:
-                if inventory == None:
-                    # May be null if not passed in first time
-                    inventory = self.get_inventory()
+                inventory = self.get_inventory(allow_cache)
 
                 if inventory != None and "devices" in inventory:
                     devices = inventory['devices']
@@ -469,7 +478,7 @@ class AgoConnection:
 #                self.log.warning("Unable to resolve agocontroller, not in inventory response? retrying")
                 self.log.warning("Unable to resolve agocontroller, retrying")
 
-            inventory = None
+            allow_cache = False
             time.sleep(1)
             retry -= 1
 
@@ -493,6 +502,33 @@ class AgoConnection:
         _content = content
         _content["uuid"] = self.internal_id_to_uuid(internal_id)
         return self.send_message(event_type, content)
+
+    def maybe_set_device_name(self, internal_id, proposed_name):
+        """Set the device name, unless the inventory already has a name set"""
+        if proposed_name == '': return
+
+        inv = self.get_inventory(True)
+        device_uuid = self.internal_id_to_uuid(internal_id)
+        dev = inv.get('devices', {}).get(device_uuid)
+        self.log.debug("For %s / %s got device %s", internal_id, device_uuid, dev)
+        if (dev == None or dev['name'] == ''):
+            self.set_device_name(internal_id, proposed_name)
+
+    def set_device_name(self, internal_id, name):
+        """Set the device name, unconditionally"""
+        controller = self.get_agocontroller()
+        if not controller:
+            raise Exception("No controller available, cannot set name")
+
+        content = {}
+        content["command"] = "setdevicename"
+        content["uuid"] = controller
+        content["device"] = self.internal_id_to_uuid(internal_id)
+        content["name"] = name
+
+        message = Message(content=content)
+        self.send_message(None, content)
+        self.log.debug("'setdevicename' message sent for %s, name=%s", internal_id, name)
 
     def report_devices(self):
         """Report all our devices."""

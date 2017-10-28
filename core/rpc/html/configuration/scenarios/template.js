@@ -185,7 +185,7 @@ function ScenarioConfig(agocontrol)
             cnt.name = self.scenarioName();
             return self.agocontrol.sendCommand(cnt)
             .then(function(nameRes) {
-                self.agocontrol.refreshDevices(false);
+                // Inventory will be refreshed via announcedevice
                 self.scenarioName('');
                 $('#scenarioBuilder').html("");
             });
@@ -254,13 +254,21 @@ function ScenarioConfig(agocontrol)
         deviceSelect.setAttribute("class", "form-control input-sm");
         deviceSelect.setAttribute("style", "display:inline; width:200px");
         deviceSelect.options.length = 0;
-        self.agocontrol.devices().sort(function(a, b) {
-            return a.room.localeCompare(b.room);
+
+        var devices = self.agocontrol.devices();
+        devices.sort(function(a, b) {
+            var r = a.room.localeCompare(b.room);
+            if(r == 0 && a.name && b.name) {
+                r = a.name().localeCompare(b.name());
+            }
+            return r;
         });
-        for ( var i = 0; i < self.agocontrol.devices().length; i++)
+        var schema = self.agocontrol.schema();
+        for ( var i = 0; i < devices.length; i++)
         {
-            var dev = self.agocontrol.devices()[i];
-            if( self.agocontrol.schema().devicetypes[dev.devicetype] && self.agocontrol.schema().devicetypes[dev.devicetype].commands.length > 0 && dev.name() )
+            var dev = devices[i];
+            if( schema.devicetypes[dev.devicetype] &&
+                schema.devicetypes[dev.devicetype].commands.length > 0 && dev.name() )
             {
                 var dspName = "";
                 if (dev.room)

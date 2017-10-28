@@ -4,7 +4,7 @@
 
 using namespace qpid::types;
 
-static const qpid::types::Variant::Map EMPTY_DATA;
+static const qpid::types::Variant::Map EMPTY_DATA = Variant::Map();
 static const std::string EMPTY_STRING;
 qpid::types::Variant::Map agocontrol::responseResult(const std::string& identifier)
 {

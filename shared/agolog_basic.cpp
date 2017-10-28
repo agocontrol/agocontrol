@@ -59,6 +59,8 @@ record_pump::~record_pump()
 
 void log_container::setOutputConsole() {
     get().setSink(boost::shared_ptr<log_sink>( new console_sink() ) );
+
+    std::cout.exceptions ( std::ostream::failbit | std::ostream::badbit );
 }
 
 void log_container::setOutputSyslog(const std::string &ident, int facility) {

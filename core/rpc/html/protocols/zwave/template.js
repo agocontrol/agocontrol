@@ -936,7 +936,7 @@ function zwaveConfig(zwave) {
 
     self.getNode = function(id) {
         var nodes = self.nodes();
-        for( var i=0; nodes.length; i++ )
+        for( var i=0; i < nodes.length; i++ )
         {
             if( nodes[i].id===id )
             {
@@ -1042,8 +1042,10 @@ function zwaveConfig(zwave) {
         if(typeof node === "number")
             node = self.getNode(node);
 
-        if( !node.numgroups )
+        if( !node.numgroups ){
+            self.nodeAssociations.replaceAll([]);
             return;
+        }
 
         zwave.getAllAssociations(node.id)
             .then(function(res) {
@@ -1067,6 +1069,10 @@ function zwaveConfig(zwave) {
                     for( j=0; j < associations.length; j++)
                     {
                         var targetNode = self.getNode(associations[j]);
+                        if(targetNode == null) {
+                            notif.error('Association to unknown node id #'+associations[j]);
+                            continue;
+                        }
                         assos.push({asso: targetNode.type+'('+targetNode.id+')',
                             node: node.id,
                             group: group,
@@ -1193,11 +1199,12 @@ function zwaveConfig(zwave) {
     //create association
     self.createAssociation = function() {
         //console.log("add association node="+self.selectedNode.id+" group="+(self.selectedNode.numgroups+1)+" target="+self.selectedNodeForAssociation().key);
+        var node = self.selectedNode;
         zwave
-            .addAssociation(self.selectedNode.id, (self.selectedNode.numgroups+1), self.selectedNodeForAssociation().key)
+            .addAssociation(node.id, (node.numgroups+1), self.selectedNodeForAssociation().key)
             .then(function(res) {
                 // Reload associations
-                self.loadAssociations();
+                self.loadAssociations(node);
                 notif.success('#addassociationok');
             });
     };

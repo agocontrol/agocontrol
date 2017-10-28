@@ -362,11 +362,12 @@ Agocontrol.prototype = {
     {
         var self = this;
 
-        for( var i=0; i<self.rooms().length; i++ )
+        var rooms = self.rooms();
+        for( var i=0; i<rooms.length; i++ )
         {
-            if( self.rooms()[i].uuid==uuid )
+            if( rooms[i].uuid==uuid )
             {
-                return self.rooms()[i];
+                return rooms[i];
             }
         }
         return null;
@@ -376,11 +377,12 @@ Agocontrol.prototype = {
     findDevice: function(uuid)
     {
         var self = this;
-        for ( var i=0; i<self.devices().length; i++)
+        var devices = self.devices();
+        for ( var i=0; i< devices.length; i++)
         {
-            if( self.devices()[i].uuid===uuid )
+            if( devices[i].uuid===uuid )
             {
-                return self.devices()[i];
+                return devices[i];
             }
         }
         return null;
@@ -392,12 +394,13 @@ Agocontrol.prototype = {
         var self = this;
         if( proc && $.trim(proc).length>0 && self.processes().length>0 )
         {
-            for( var i=0; i<self.processes().length; i++ )
+            var processes = self.processes()
+            for( var i=0; i< processes.length; i++ )
             {
-                if( self.processes()[i].name===proc )
+                if( processes[i].name===proc )
                 {
                     //process found
-                    return self.processes()[i];
+                    return processes[i];
                 }
             }
         }
@@ -418,14 +421,11 @@ Agocontrol.prototype = {
                     if (devs[uuid].room !== undefined && devs[uuid].room)
                     {
                         devs[uuid].roomUID = devs[uuid].room;
-                        if (self.rooms()[devs[uuid].room] !== undefined)
-                        {
-                            devs[uuid].room = self.rooms()[devs[uuid].room].name;
-                        }
+                        var room = self.findRoom(devs[uuid].room);
+                        if (room)
+                            devs[uuid].room = room.name;
                         else
-                        {
                             devs[uuid].room = "";
-                        }
                     }
                     else
                     {
@@ -433,12 +433,13 @@ Agocontrol.prototype = {
                     }
 
                     var found = false;
-                    for ( var i=0; i<self.devices().length; i++)
+                    var existingDevices = self.devices();
+                    for ( var i=0; i< existingDevices.length; i++)
                     {
-                        if( self.devices()[i].uuid===uuid )
+                        if( existingDevices[i].uuid===uuid )
                         {
                             // device already exists in devices array. Update its content
-                            self.devices()[i].update(devs[uuid], uuid);
+                            existingDevices[i].update(devs[uuid], uuid);
                             found = true;
                             break;
                         }
