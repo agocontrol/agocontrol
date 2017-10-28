@@ -203,7 +203,7 @@ class AgoWeatherReporter(agoclient.AgoApp):
                 temperaturnu = {}
                 temperaturnu["Hash"] = TN_Hash
                 temperaturnu["Delay"] = TN_Delay
-                temperaturnu["LastUpdate"] = -1
+                temperaturnu["LastUpdate"] = datetime(1970, 1, 1, 0, 0, 0)
                 sensor["temperatur.nu"] = temperaturnu
 
             sensor["unit"] = "degC"  # TODO: Look it up
