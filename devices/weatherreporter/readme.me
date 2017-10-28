@@ -1,0 +1,47 @@
+Weather Reporter
+===================
+
+This device listens to weather related events (change of temperature, humiduty) and creates correspending events at weather crowd sourcing sites.
+
+
+Services
+-----
+### Weather Underground ###
+Weather Underground is one of the lerger weather crowndourcing sites
+<https://www.wunderground.com/>
+
+
+### Temperatur.nu ###
+Temperatur.nu <http://www.temperatur.nu/> is the largest temperature crowdsourcing site in Sweden. Only relevant to swedish uploaders.
+
+
+### Configuration example ###
+
+```
+[weatherreporter]
+log_level=trace
+
+[General]
+Delay = 150
+sensors=S01,S02
+
+[WeatherUnderground]
+Password=THIS_IS_A_SECRET
+Delay=151
+
+[temperatur.nu]
+Delay=152
+
+[S01]
+Desc=Outdoors, garage
+UUID = 1111-1111-1111
+WU-Station=ABCDEFGHI
+TN-Hash = 12345678901234567890123456789012
+
+[S02]
+Desc=Outdoors, patio
+UUID = 12345678901234567890123456789012
+
+```
+
+
