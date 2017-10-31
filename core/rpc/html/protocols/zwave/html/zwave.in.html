@@ -209,6 +209,7 @@
         <_span id="reallyremoveassociation" data-translateable="true">Really remove this association?</_span>
         <_span id="reallyremovenode" data-translateable="true">Really remove this node?</_span>
         <_span id="reallyreset" data-translateable="true">Reset controller (everything will be lost!)</_span>
+        <_span id="reallytransferprimary" data-translateable="true">Are you sure you want to transfer primary role to another controller?</_span>
         <_span id="refreshnodeok" data-translateable="true">Refresh node infos command sent</_span>
         <_span id="refreshnodeko" data-translateable="true">Refresh node infos command failed</_span>
         <_span id="requestparamsok" data-translateable="true">Request node parameters sent</_span>
@@ -341,6 +342,16 @@
                             <div class="col-sm-4">
                                 <div class="input-group">
                                     <_button type="button" data-translateable="true" data-bind="click:cancel" class="btn btn-primary">Cancel</_button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                    <form class="form-horizontal">
+                        <div class="form-group">
+                            <_label class="col-sm-4 control-label" data-translateable="true">Transfer Primary Role</_label>
+                            <div class="col-sm-4">
+                                <div class="input-group">
+                                    <_button type="button" data-translateable="true" data-bind="click:transferPrimaryRole" class="btn btn-primary">Transfer</_button>
                                 </div>
                             </div>
                         </div>

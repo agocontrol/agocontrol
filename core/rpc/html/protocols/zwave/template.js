@@ -713,6 +713,18 @@ function Zwave(devices, agocontrol)
             });
     };
 
+    self.transferPrimaryRole = function() {
+        var content = {
+            uuid: self.controllerUuid,
+            command: 'transferprimaryrole'
+        };
+
+        self.agocontrol.sendCommand(content)
+            .then(function(res) {
+                notif.success('Transfer Primary initated');
+            });
+    };
+
     /***************
      * NODE COMMANDS
      ***************/
@@ -1306,6 +1318,14 @@ function zwaveConfig(zwave) {
     //heal network
     self.healNetwork = function() {
         zwave.healNetwork();
+    };
+
+    self.transferPrimaryRole = function() {
+        var msg = $('#reallytransferprimary').html();
+        if( confirm(msg) )
+        {
+            zwave.transferPrimaryRole();
+        }
     };
 
     //get statitics

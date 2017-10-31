@@ -1741,6 +1741,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
         case Notification::Type_DriverReset:
         case Notification::Type_Notification:
         {
+            // XXX: Must not call this for Type_DriverReset
             uint8 _notificationCode = _notification->GetNotification();
             ValueID id = _notification->GetValueID();
             ZWaveNode *device = devices.findValue(id);
@@ -1790,6 +1791,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
         case Notification::Type_NodeProtocolInfo:
         case Notification::Type_NodeQueriesComplete:
         case Notification::Type_EssentialNodeQueriesComplete:
+        case Notification::Type_ControllerCommand:
         {
             break;
         }
@@ -1839,6 +1841,11 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
         else if (content["command"] == "healnetwork")
         {
             Manager::Get()->HealNetwork(g_homeId, true);
+            return responseSuccess();
+        }
+        else if (content["command"] == "transferprimaryrole")
+        {
+            Manager::Get()->TransferPrimaryRole(g_homeId);
             return responseSuccess();
         }
         else if (content["command"] == "refreshnode")
