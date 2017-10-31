@@ -1087,26 +1087,33 @@ function zwaveConfig(zwave) {
                     var assos = ko.observableArray();
                     for( j=0; j < associations.length; j++)
                     {
-                        var targetNode = self.getNode(associations[j]);
-                        if(targetNode == null) {
-                            notif.error('Association to unknown node id #'+associations[j]);
-                            continue;
-                        }
-                        assos.push({asso: targetNode.type+'('+targetNode.id+')',
+                        var a = {
                             node: node.id,
                             group: group,
-                            target: targetNode.id,
+                            target: associations[j],
                             add:false
-                        });
+                        };
+                        var name;
+                        var targetNode = self.getNode(associations[j]);
+                        if(targetNode == null) {
+                            notif.warning('Association to unknown node id #'+associations[j]);
+                            name = "UNKNOWN";
+                            a['nonexisting'] = true;
+                        } else {
+                            name = targetNode.type;
+                            skipTargets[a.target] = true;
+                        }
+                        a['asso'] = name+'('+a.target+')';
 
-                        skipTargets[targetNode.id] = true;
+                        assos.push(a);
                     }
 
                     //fill list of targets with all nodes
                     var targets = ko.observableArray([]);
-                    for( j=0; j<self.nodes().length; j++ )
+                    var nodes = self.nodes();
+                    for( j=0; j<nodes.length; j++ )
                     {
-                        var targetNode = self.nodes()[j];
+                        var targetNode = nodes[j];
                         if(skipTargets[targetNode.id])
                             continue;
 
@@ -1293,8 +1300,10 @@ function zwaveConfig(zwave) {
                         var assos = nA[i].assos;
                         assos.remove(asso);
 
-                        // Re-add to list of targets (which is on the last assos item)
-                        assos()[assos().length-1].targets.push(asso);
+                        if(asso['nonexisting'] !== true) {
+                            // Re-add to list of targets (which is on the last assos item)
+                            assos()[assos().length-1].targets.push(asso);
+                        }
                         break;
                     };
                 });
