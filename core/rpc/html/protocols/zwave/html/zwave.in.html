@@ -248,6 +248,15 @@
                                 <_span style="font-style:italic;" data-translateable="true">No name</_span>
                                 </ko>
                             </a>
+                            <div data-bind="foreach: agoDevices">
+                                <ko opts="if: $data.name">
+                                <ko opts="if: $index() > 0">, </ko>
+                                <span data-bind="text: $data.name"/>
+                                <ko opts="if: $data.room">
+                                (<span data-bind="text: $data.room"/>)
+                                </ko>
+                                </ko>
+                            </div>
                         </td>
                         <td data-bind="text: type"/>
                         <ko opts="if: status.awake==1">

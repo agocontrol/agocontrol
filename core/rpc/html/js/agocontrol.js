@@ -387,6 +387,19 @@ Agocontrol.prototype = {
         }
         return null;
     },
+    findDeviceByInternalId: function(handledby, internalId)
+    {
+        // XXX: Why do we expose "internalid" and not just use device IDs?
+        var self = this;
+        var devices = self.devices();
+        for ( var i=0; i< devices.length; i++)
+        {
+            var dev = devices[i];
+            if( dev["handled-by"] === handledby && dev['internalid'] == internalId)
+                return dev;
+        }
+        return null;
+    },
 
     //return specified process or null if not found
     findProcess: function(proc)

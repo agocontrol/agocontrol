@@ -1004,10 +1004,16 @@ function zwaveConfig(zwave) {
         var internalids = '';
         for( i=0; i<self.selectedNode.internalids.length; i++)
         {
-            internalids += self.selectedNode.internalids[i] + ', ';
+            internalids += (i>0?', ':'')+self.selectedNode.internalids[i];
         }
-        internalids = internalids.substring(0, internalids.length-2);
         self.nodeInfos.push({info:'Internalids', value:internalids});
+
+        var devices  = '';
+        for( i=0; i<self.selectedNode.agoDevices.length; i++)
+        {
+            devices += (i>0?', ':'')+self.selectedNode.agoDevices[i].name();
+        }
+        self.nodeInfos.push({info:'Ago Devices', value:devices});
 
         if( self.selectedNode.status )
         {
@@ -1136,6 +1142,15 @@ function zwaveConfig(zwave) {
             {
                 var newNode = nodelist[id];
                 newNode.id = parseInt(id, 10); // Enforce numeric sort
+                newNode.agoDevices = [];
+                for(var i=0; i < newNode.internalids.length; i++)
+                {
+                    // XXX: Assumes we only have one zwave... ?
+                    var ii = newNode.internalids[i];
+                    var agoDev = self.zwave.agocontrol.findDeviceByInternalId('zwave', ii);
+                    if(agoDev)
+                        newNode.agoDevices.push(agoDev);
+                }
                 newNodes.push(newNode);
             }
             self.nodes.replaceAll(newNodes);
