@@ -928,7 +928,8 @@ function zwaveConfig(zwave) {
             {headerText:'Device', rowText:'manufacturer'},
             {headerText:'Type', rowText:'type'},
             {headerText:'Awake', rowText:'awake'},
-            {headerText:'Failed', rowText:'failed'}
+            {headerText:'Failed', rowText:'failed'},
+            {headerText:'Neightbors', rowText:'neighbors'}
         ],
         rowTemplate: 'nodesRowTemplate',
         displayRowCount: false,
