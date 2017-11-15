@@ -159,8 +159,8 @@ static void mg_printmap(struct mg_connection *conn, Variant::Map map) {
 
 /* USELESS
 static bool mg_rpc_reply_map(struct mg_connection *conn, const Json::Value &request_or_id, const Variant::Map &responseMap) {
-    //	Json::Value r(result);
-    //	mg_rpc_reply_result(conn, request_or_id, r);
+    //Json::Value r(result);
+    //mg_rpc_reply_result(conn, request_or_id, r);
     Json::Value request_id;
     if(request_or_id.type() == Json::objectValue) {
         request_id = request_or_id.get("id", Json::Value());
@@ -187,296 +187,296 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
 
     if (event == MG_REQUEST)
     {
-	std::string uri = conn->uri;
-	AGO_TRACE() << "Trying to handle MG_REQUEST with URI: " << uri;
-	if (strcmp(conn->uri, "/") == 0) {
+        std::string uri = conn->uri;
+        AGO_TRACE() << "Trying to handle MG_REQUEST with URI: " << uri;
+        if (strcmp(conn->uri, "/") == 0) {
 
-		mg_send_header(conn, "Content-Type", "text/html");
-		mg_printf(conn, "<HTML><BODY>ImperiHome Gateway</BODY></HTML>");
-		result = MG_TRUE;
-	} else if (uri=="/devices") {
-        // build device list as specified in http://www.imperihome.com/apidoc/systemapi/#!/devices/listDevices_get_0
-		qpid::types::Variant::List devicelist;
-		qpid::types::Variant::Map inventory = agoConnection->getInventory();
-		if( inventory.size()>0 && !inventory["devices"].isVoid() ) {
-			qpid::types::Variant::Map devices = inventory["devices"].asMap();
-			for (qpid::types::Variant::Map::iterator it = devices.begin(); it != devices.end(); it++) {
-                if (it->second.isVoid()) {
-                    AGO_ERROR() << "No device map for " << it->first;
-                    continue;
-                }
-				qpid::types::Variant::Map device = it->second.asMap();
-				if (device["name"].asString() == "") continue; // skip unnamed devices
-				if (device["room"].asString() == "") continue; // skip devices without room assignment
-				qpid::types::Variant::Map deviceinfo;
-				deviceinfo["name"]=device["name"];
-				deviceinfo["room"]=device["room"];
-                qpid::types::Variant::Map values;
-                if (!device["values"].isVoid()) values = device["values"].asMap();
+            mg_send_header(conn, "Content-Type", "text/html");
+            mg_printf(conn, "<HTML><BODY>ImperiHome Gateway</BODY></HTML>");
+            result = MG_TRUE;
+        } else if (uri=="/devices") {
+            // build device list as specified in http://www.imperihome.com/apidoc/systemapi/#!/devices/listDevices_get_0
+            qpid::types::Variant::List devicelist;
+            qpid::types::Variant::Map inventory = agoConnection->getInventory();
+            if( inventory.size()>0 && !inventory["devices"].isVoid() ) {
+                qpid::types::Variant::Map devices = inventory["devices"].asMap();
+                for (qpid::types::Variant::Map::iterator it = devices.begin(); it != devices.end(); it++) {
+                    if (it->second.isVoid()) {
+                        AGO_ERROR() << "No device map for " << it->first;
+                        continue;
+                    }
+                    qpid::types::Variant::Map device = it->second.asMap();
+                    if (device["name"].asString() == "") continue; // skip unnamed devices
+                    if (device["room"].asString() == "") continue; // skip devices without room assignment
+                    qpid::types::Variant::Map deviceinfo;
+                    deviceinfo["name"]=device["name"];
+                    deviceinfo["room"]=device["room"];
+                    qpid::types::Variant::Map values;
+                    if (!device["values"].isVoid()) values = device["values"].asMap();
 
-                if (device["devicetype"] == "switch") {
-                    deviceinfo["type"]="DevSwitch";
-                    if (!values["state"].isVoid()) {
-                        qpid::types::Variant::Map param;
-                        qpid::types::Variant::List paramList;
-                        param["key"]="Status";
-                        param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
-                    }
-                } else if (device["devicetype"] == "dimmer") {
-                    AGO_DEBUG() << "Values for dimmer device: " << values;
-                    deviceinfo["type"]="DevDimmer";
-                    if (!values["state"].isVoid()) {
-                        qpid::types::Variant::Map param, param2;
-                        qpid::types::Variant::List paramList;
-                        param["key"]="Status";
-                        param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
-                        paramList.push_back(param);
-                        param2["key"]="Level";
-                        param2["value"]=values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
-                        paramList.push_back(param2);
-                        deviceinfo["params"]=paramList;
-                    }
-                } else if (device["devicetype"] == "dimmerrgb" || device["devicetype"] == "dimmerrgbw" || device["devicetype"] == "smartdimmer") {
-                    AGO_DEBUG() << "Values for dimmerrgb device: " << values;
-                    deviceinfo["type"]="DevRGBLight";
-                    qpid::types::Variant::List paramList;
-                    if (!values["state"].isVoid()) {
-                        qpid::types::Variant::Map param, param2;
-                        param["key"]="Status";
-                        param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
-                        paramList.push_back(param);
-                        param2["key"]="Level";
-                        param2["value"]=values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
-                        paramList.push_back(param2);
-
-                    }
-                    qpid::types::Variant::Map param3, param4;
-                    param3["key"]="dimmable";
-                    param3["value"]="1";
-                    paramList.push_back(param3);
-                    param4["key"]="whitechannel";
-                    if (device["devicetype"] == "dimmerrgb" || device["devicetype"] == "smartdimmer") { /* TODO: Check if this is right for smartdimmer */
-                        param4["value"]="0";
-                    } else {
-                        param4["value"]="1";
-                    }
-                    paramList.push_back(param4);
-                    deviceinfo["params"]=paramList;
-                } else if (device["devicetype"] == "drapes") {
-                    AGO_DEBUG() << "Values for drapes/shutter device: " << values;
-                    deviceinfo["type"]="DevShutter";
-                    if (!values["state"].isVoid()) {
-                        qpid::types::Variant::Map param, param2, param3;
-                        qpid::types::Variant::List paramList;
-                        param["key"]="Level";
-                        param["value"]=values["state"].asInt64() == 0 ? "100" : "0"; // TODO: should reflect real level
-                        paramList.push_back(param);
-                        param2["key"]="stopable";
-                        param2["value"]=1; // TODO: add new device type to agocontrol so that we can distinguish
-                        paramList.push_back(param2);
-                        param2["key"]="pulseable";
-                        param2["value"]=1; // TODO: add new device type to agocontrol so that we can distinguish
-                        paramList.push_back(param3);
-                        deviceinfo["params"]=paramList;
-                    }
-
-                } else if (device["devicetype"] == "scenario") {
-                    deviceinfo["type"]="DevScene";
-                } else if (device["devicetype"] == "camera") {
-                    deviceinfo["type"]="DevCamera";
-                    qpid::types::Variant::Map param;
-                    param["key"]="localjpegurl";
-                    param["value"]=device["internalid"];
-                    qpid::types::Variant::List paramList;
-                    paramList.push_back(param);
-                    deviceinfo["params"]=paramList;
-                } else if (device["devicetype"] == "co2sensor") {
-                    deviceinfo["type"]="DevCO2";
-                    qpid::types::Variant::List paramList;
-                    if (!(values["co2"]).isVoid()) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        agoValue = (values["co2"]).asMap();
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
-                        param["graphable"]="false";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
-                    }
-                } else if (device["devicetype"] == "multilevelsensor") {
-                    deviceinfo["type"]="DevGenericSensor";
-                    qpid::types::Variant::List paramList;
-                    for (qpid::types::Variant::Map::iterator paramIt= values.begin(); paramIt != values.end(); paramIt++) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        if (!(paramIt->second).isVoid()) agoValue = (paramIt->second).asMap();
-                        //param["key"]=paramIt->first;
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
-                        param["graphable"]="false";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
-                    }
-                    deviceinfo["params"]=paramList;
-                } else if (device["devicetype"] == "brightnesssensor") {
-                    deviceinfo["type"]="DevLuminosity";
-                    qpid::types::Variant::List paramList;
-                    if (!(values["brightness"]).isVoid()) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        agoValue = (values["brightness"]).asMap();
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
-                        param["graphable"]="false";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
-                    }
-                } else if (device["devicetype"] == "smokedetector") {
-                    deviceinfo["type"]="DevSmoke";
-                } else if (device["devicetype"] == "temperaturesensor") {
-                    deviceinfo["type"]="DevTemperature";
-                    qpid::types::Variant::List paramList;
-                    if (!(values["temperature"]).isVoid()) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        agoValue = (values["temperature"]).asMap();
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        if (agoValue["unit"] == "degC") {
-                            param["unit"]="˚C";
-                        } else {
-                            param["unit"]="˚F";
+                    if (device["devicetype"] == "switch") {
+                        deviceinfo["type"]="DevSwitch";
+                        if (!values["state"].isVoid()) {
+                            qpid::types::Variant::Map param;
+                            qpid::types::Variant::List paramList;
+                            param["key"]="Status";
+                            param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
+                            paramList.push_back(param);
+                            deviceinfo["params"]=paramList;
                         }
-                        param["graphable"]="false";
-                        paramList.push_back(param);
+                    } else if (device["devicetype"] == "dimmer") {
+                        AGO_DEBUG() << "Values for dimmer device: " << values;
+                        deviceinfo["type"]="DevDimmer";
+                        if (!values["state"].isVoid()) {
+                            qpid::types::Variant::Map param, param2;
+                            qpid::types::Variant::List paramList;
+                            param["key"]="Status";
+                            param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
+                            paramList.push_back(param);
+                            param2["key"]="Level";
+                            param2["value"]=values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
+                            paramList.push_back(param2);
+                            deviceinfo["params"]=paramList;
+                        }
+                    } else if (device["devicetype"] == "dimmerrgb" || device["devicetype"] == "dimmerrgbw" || device["devicetype"] == "smartdimmer") {
+                        AGO_DEBUG() << "Values for dimmerrgb device: " << values;
+                        deviceinfo["type"]="DevRGBLight";
+                        qpid::types::Variant::List paramList;
+                        if (!values["state"].isVoid()) {
+                            qpid::types::Variant::Map param, param2;
+                            param["key"]="Status";
+                            param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
+                            paramList.push_back(param);
+                            param2["key"]="Level";
+                            param2["value"]=values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
+                            paramList.push_back(param2);
+
+                        }
+                        qpid::types::Variant::Map param3, param4;
+                        param3["key"]="dimmable";
+                        param3["value"]="1";
+                        paramList.push_back(param3);
+                        param4["key"]="whitechannel";
+                        if (device["devicetype"] == "dimmerrgb" || device["devicetype"] == "smartdimmer") { /* TODO: Check if this is right for smartdimmer */
+                            param4["value"]="0";
+                        } else {
+                            param4["value"]="1";
+                        }
+                        paramList.push_back(param4);
                         deviceinfo["params"]=paramList;
-                    }
-                } else if (device["devicetype"] == "humiditysensor") {
-                    deviceinfo["type"]="DevHygrometry";
-                    qpid::types::Variant::List paramList;
-                    if (!(values["humidity"]).isVoid()) {
-                        qpid::types::Variant::Map agoValue;
+                    } else if (device["devicetype"] == "drapes") {
+                        AGO_DEBUG() << "Values for drapes/shutter device: " << values;
+                        deviceinfo["type"]="DevShutter";
+                        if (!values["state"].isVoid()) {
+                            qpid::types::Variant::Map param, param2, param3;
+                            qpid::types::Variant::List paramList;
+                            param["key"]="Level";
+                            param["value"]=values["state"].asInt64() == 0 ? "100" : "0"; // TODO: should reflect real level
+                            paramList.push_back(param);
+                            param2["key"]="stopable";
+                            param2["value"]=1; // TODO: add new device type to agocontrol so that we can distinguish
+                            paramList.push_back(param2);
+                            param2["key"]="pulseable";
+                            param2["value"]=1; // TODO: add new device type to agocontrol so that we can distinguish
+                            paramList.push_back(param3);
+                            deviceinfo["params"]=paramList;
+                        }
+
+                    } else if (device["devicetype"] == "scenario") {
+                        deviceinfo["type"]="DevScene";
+                    } else if (device["devicetype"] == "camera") {
+                        deviceinfo["type"]="DevCamera";
                         qpid::types::Variant::Map param;
-                        agoValue = (values["humidity"]).asMap();
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
-                        param["graphable"]="false";
+                        param["key"]="localjpegurl";
+                        param["value"]=device["internalid"];
+                        qpid::types::Variant::List paramList;
                         paramList.push_back(param);
                         deviceinfo["params"]=paramList;
-                    }
-                } else if (device["devicetype"] == "thermostat") {
-                    deviceinfo["type"]="DevThermostat";
-                } else continue;
-				deviceinfo["id"]=it->first;
-				devicelist.push_back(deviceinfo);
-			}
-		}	
-		mg_send_header(conn, "Content-Type", "application/json");
-		qpid::types::Variant::Map finaldevices;
-		finaldevices["devices"] = devicelist;
-		mg_printmap(conn,finaldevices);	
-		result = MG_TRUE;
+                    } else if (device["devicetype"] == "co2sensor") {
+                        deviceinfo["type"]="DevCO2";
+                        qpid::types::Variant::List paramList;
+                        if (!(values["co2"]).isVoid()) {
+                            qpid::types::Variant::Map agoValue;
+                            qpid::types::Variant::Map param;
+                            agoValue = (values["co2"]).asMap();
+                            param["key"]="Value";
+                            param["value"]=agoValue["level"].asString();
+                            param["unit"]=agoValue["unit"];
+                            param["graphable"]="false";
+                            paramList.push_back(param);
+                            deviceinfo["params"]=paramList;
+                        }
+                    } else if (device["devicetype"] == "multilevelsensor") {
+                        deviceinfo["type"]="DevGenericSensor";
+                        qpid::types::Variant::List paramList;
+                        for (qpid::types::Variant::Map::iterator paramIt= values.begin(); paramIt != values.end(); paramIt++) {
+                            qpid::types::Variant::Map agoValue;
+                            qpid::types::Variant::Map param;
+                            if (!(paramIt->second).isVoid()) agoValue = (paramIt->second).asMap();
+                            //param["key"]=paramIt->first;
+                            param["key"]="Value";
+                            param["value"]=agoValue["level"].asString();
+                            param["unit"]=agoValue["unit"];
+                            param["graphable"]="false";
+                            paramList.push_back(param);
+                            deviceinfo["params"]=paramList;
+                        }
+                        deviceinfo["params"]=paramList;
+                    } else if (device["devicetype"] == "brightnesssensor") {
+                        deviceinfo["type"]="DevLuminosity";
+                        qpid::types::Variant::List paramList;
+                        if (!(values["brightness"]).isVoid()) {
+                            qpid::types::Variant::Map agoValue;
+                            qpid::types::Variant::Map param;
+                            agoValue = (values["brightness"]).asMap();
+                            param["key"]="Value";
+                            param["value"]=agoValue["level"].asString();
+                            param["unit"]=agoValue["unit"];
+                            param["graphable"]="false";
+                            paramList.push_back(param);
+                            deviceinfo["params"]=paramList;
+                        }
+                    } else if (device["devicetype"] == "smokedetector") {
+                        deviceinfo["type"]="DevSmoke";
+                    } else if (device["devicetype"] == "temperaturesensor") {
+                        deviceinfo["type"]="DevTemperature";
+                        qpid::types::Variant::List paramList;
+                        if (!(values["temperature"]).isVoid()) {
+                            qpid::types::Variant::Map agoValue;
+                            qpid::types::Variant::Map param;
+                            agoValue = (values["temperature"]).asMap();
+                            param["key"]="Value";
+                            param["value"]=agoValue["level"].asString();
+                            if (agoValue["unit"] == "degC") {
+                                param["unit"]="˚C";
+                            } else {
+                                param["unit"]="˚F";
+                            }
+                            param["graphable"]="false";
+                            paramList.push_back(param);
+                            deviceinfo["params"]=paramList;
+                        }
+                    } else if (device["devicetype"] == "humiditysensor") {
+                        deviceinfo["type"]="DevHygrometry";
+                        qpid::types::Variant::List paramList;
+                        if (!(values["humidity"]).isVoid()) {
+                            qpid::types::Variant::Map agoValue;
+                            qpid::types::Variant::Map param;
+                            agoValue = (values["humidity"]).asMap();
+                            param["key"]="Value";
+                            param["value"]=agoValue["level"].asString();
+                            param["unit"]=agoValue["unit"];
+                            param["graphable"]="false";
+                            paramList.push_back(param);
+                            deviceinfo["params"]=paramList;
+                        }
+                    } else if (device["devicetype"] == "thermostat") {
+                        deviceinfo["type"]="DevThermostat";
+                    } else continue;
+                    deviceinfo["id"]=it->first;
+                    devicelist.push_back(deviceinfo);
+                }
+            }
+            mg_send_header(conn, "Content-Type", "application/json");
+            qpid::types::Variant::Map finaldevices;
+            finaldevices["devices"] = devicelist;
+            mg_printmap(conn,finaldevices);
+            result = MG_TRUE;
         }
         else if( strcmp(conn->uri, "/system") == 0)
         {
-		qpid::types::Variant::Map systeminfo;
-		systeminfo["apiversion"] = 1;
-		systeminfo["id"] = getConfigSectionOption("system", "uuid", "00000000-0000-0000-000000000000");
-		mg_send_header(conn, "Content-Type", "application/json");
-		mg_printmap(conn, systeminfo);	
-		result = MG_TRUE;
+            qpid::types::Variant::Map systeminfo;
+            systeminfo["apiversion"] = 1;
+            systeminfo["id"] = getConfigSectionOption("system", "uuid", "00000000-0000-0000-000000000000");
+            mg_send_header(conn, "Content-Type", "application/json");
+            mg_printmap(conn, systeminfo)
+            result = MG_TRUE;
         }
         else if( strcmp(conn->uri, "/rooms") == 0)
         {
-		qpid::types::Variant::List roomlist;
-		qpid::types::Variant::Map inventory = agoConnection->getInventory();
-		if( inventory.size()>0 && !inventory["rooms"].isVoid() ) {
-			qpid::types::Variant::Map rooms = inventory["rooms"].asMap();
-			for (qpid::types::Variant::Map::iterator it = rooms.begin(); it != rooms.end(); it++) {
-				qpid::types::Variant::Map room = it->second.asMap();
-				AGO_TRACE() << room;
-				qpid::types::Variant::Map roominfo;
-				roominfo["name"]=room["name"];
-				roominfo["id"]=it->first;
-				roomlist.push_back(roominfo);
-			}
-		}	
-		mg_send_header(conn, "Content-Type", "application/json");
-		qpid::types::Variant::Map finalrooms;
-		finalrooms["rooms"] = roomlist;
-		mg_printmap(conn,finalrooms);	
-		result = MG_TRUE;
-	
-	} else if ( uri.find ("/devices/",0) != std::string::npos && uri.find("/action/",0) != std::string::npos)  {
-        // parse the action URI as defined by http://www.imperihome.com/apidoc/systemapi/#!/devices/deviceAction_get_1
-		std::vector<std::string> items = split(uri, '/');
-		for (unsigned int i=0;i<items.size();i++) {
-			AGO_TRACE() << "Item " << i << ": " << items[i];
-		}
-		if ( items.size()>=5 && items.size()<=6 ) {
-			if (items[1] == "devices" && items[3]=="action") {
-				qpid::types::Variant::Map command;
-			    qpid::types::Variant::Map sendmessagereply, retval;
-
-				command["uuid"]=items[2];
-                if (items.size()==6) { // we got an action with paramter
-                    if (items[4] == "setStatus") {
-                        command["command"]= items[5]=="1" ? "on" : "off";
-                    } else  if (items[4] == "setLevel") {
-                        command["command"]="setlevel";
-                        command["level"]= atoi(items[5].c_str());
-                    } else  if (items[4] == "setArmed") {
-                        // TODO
-                    } else  if (items[4] == "setChoice") {
-                        // TODO
-                    } else  if (items[4] == "setMode") {
-                        command["command"]="setthermostatmode";
-                        command["mode"]=items[5];
-                    } else  if (items[4] == "setSetPoint") {
-                        command["command"]="settemperature";
-                        command["temperature"]=atof(items[5].c_str());
-                    } else  if (items[4] == "pulseShutter") {
-                        command["command"]= items[5]=="up" ? "off" : "on";
-                    } else  if (items[4] == "setColor") {
-                        stringstream colorstring(items[5]);
-                        unsigned int num = 0;
-                        colorstring >> hex >> num;
-                        command["command"] = "setcolor";
-                        command["white"] = (num / 0x1000000) % 0x100;
-                        command["red"] = (num / 0x10000) % 0x100;
-                        command["green"] = (num / 0x100) % 0x100;
-                        command["blue"] = num % 0x100;
-                    }
-                } else { // we got action without parameter
-                    if (items[4] == "stopShutter") {
-                        command["command"]="stop";
-                    } else if (items[4] == "launchScene") {
-                        command["command"]="run";
-                    } else  if (items[4] == "setAck") {
-                        // TODO
-                    }
+            qpid::types::Variant::List roomlist;
+            qpid::types::Variant::Map inventory = agoConnection->getInventory();
+            if( inventory.size()>0 && !inventory["rooms"].isVoid() ) {
+                qpid::types::Variant::Map rooms = inventory["rooms"].asMap();
+                for (qpid::types::Variant::Map::iterator it = rooms.begin(); it != rooms.end(); it++) {
+                    qpid::types::Variant::Map room = it->second.asMap();
+                    AGO_TRACE() << room;
+                    qpid::types::Variant::Map roominfo;
+                    roominfo["name"]=room["name"];
+                    roominfo["id"]=it->first;
+                    roomlist.push_back(roominfo);
                 }
+            }
+            mg_send_header(conn, "Content-Type", "application/json");
+            qpid::types::Variant::Map finalrooms;
+            finalrooms["rooms"] = roomlist;
+            mg_printmap(conn,finalrooms);
+            result = MG_TRUE;
 
-				sendmessagereply = agoConnection->sendMessageReply("", command);
-                // TODO: parse sendmessagereply and adjust retval accordingly
-                retval["success"]=true;
-                retval["errormsg"]="ok";
-                AGO_DEBUG() << "sendMessage reply: " << sendmessagereply;
-				mg_send_header(conn, "Content-Type", "application/json");
-                mg_printmap(conn, retval);
-				result = MG_TRUE;
-			}
-		}
-	} else {
+        } else if ( uri.find ("/devices/",0) != std::string::npos && uri.find("/action/",0) != std::string::npos)  {
+            // parse the action URI as defined by http://www.imperihome.com/apidoc/systemapi/#!/devices/deviceAction_get_1
+            std::vector<std::string> items = split(uri, '/');
+            for (unsigned int i=0;i<items.size();i++) {
+                AGO_TRACE() << "Item " << i << ": " << items[i];
+            }
+            if ( items.size()>=5 && items.size()<=6 ) {
+                if (items[1] == "devices" && items[3]=="action") {
+                    qpid::types::Variant::Map command;
+                    qpid::types::Variant::Map sendmessagereply, retval;
+
+                    command["uuid"]=items[2];
+                    if (items.size()==6) { // we got an action with paramter
+                        if (items[4] == "setStatus") {
+                            command["command"]= items[5]=="1" ? "on" : "off";
+                        } else  if (items[4] == "setLevel") {
+                            command["command"]="setlevel";
+                            command["level"]= atoi(items[5].c_str());
+                        } else  if (items[4] == "setArmed") {
+                            // TODO
+                        } else  if (items[4] == "setChoice") {
+                            // TODO
+                        } else  if (items[4] == "setMode") {
+                            command["command"]="setthermostatmode";
+                            command["mode"]=items[5];
+                        } else  if (items[4] == "setSetPoint") {
+                            command["command"]="settemperature";
+                            command["temperature"]=atof(items[5].c_str());
+                        } else  if (items[4] == "pulseShutter") {
+                            command["command"]= items[5]=="up" ? "off" : "on";
+                        } else  if (items[4] == "setColor") {
+                            stringstream colorstring(items[5]);
+                            unsigned int num = 0;
+                            colorstring >> hex >> num;
+                            command["command"] = "setcolor";
+                            command["white"] = (num / 0x1000000) % 0x100;
+                            command["red"] = (num / 0x10000) % 0x100;
+                            command["green"] = (num / 0x100) % 0x100;
+                            command["blue"] = num % 0x100;
+                        }
+                    } else { // we got action without parameter
+                        if (items[4] == "stopShutter") {
+                            command["command"]="stop";
+                        } else if (items[4] == "launchScene") {
+                            command["command"]="run";
+                        } else  if (items[4] == "setAck") {
+                            // TODO
+                        }
+                    }
+
+                    sendmessagereply = agoConnection->sendMessageReply("", command);
+                    // TODO: parse sendmessagereply and adjust retval accordingly
+                    retval["success"]=true;
+                    retval["errormsg"]="ok";
+                    AGO_DEBUG() << "sendMessage reply: " << sendmessagereply;
+                    mg_send_header(conn, "Content-Type", "application/json");
+                    mg_printmap(conn, retval);
+                    result = MG_TRUE;
+                }
+            }
+        } else {
             // No suitable handler found, mark as not processed. Mongoose will
             // try to serve the request.
-		AGO_ERROR() << "No handler for URI: " << conn->uri;
+            AGO_ERROR() << "No handler for URI: " << conn->uri;
             result = MG_FALSE;
         }
     }
@@ -494,7 +494,7 @@ int AgoImperiHome::mg_event_handler(struct mg_connection *conn, enum mg_event ev
     }
     else if (event == MG_AUTH)
     {
-            result = MG_TRUE;
+        result = MG_TRUE;
     }
 
     return result;
