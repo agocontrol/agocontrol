@@ -6,6 +6,7 @@ ENDIF(COMMAND cmake_policy)
 
 set (IMPERIHOME_LIBRARIES
     agoclient
+    agohttp
     pthread
 )
 
@@ -14,8 +15,14 @@ IF (NOT FREEBSD)
 ENDIF (NOT FREEBSD)
 
 # add the executable
-add_executable (agoImperiHome agoImperiHome.cpp ../../core/rpc/mongoose.c)
+add_executable (agoImperiHome agoImperiHome.cpp)
 target_link_libraries (agoImperiHome ${IMPERIHOME_LIBRARIES})
+
+set_property(
+	TARGET agoImperiHome
+	PROPERTY COMPILE_DEFINITIONS
+	DEFAULT_HTMLDIR=${HTMLDIR}
+)
 
 install (TARGETS agoImperiHome RUNTIME DESTINATION ${BINDIR})
 
