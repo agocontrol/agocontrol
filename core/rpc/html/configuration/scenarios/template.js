@@ -198,8 +198,9 @@ function ScenarioConfig(agocontrol)
         });
     };
 
-    //Adds a command selection entry
-    self.addCommand = function(containerID, defaultValues)
+    // Adds a command selection entry. If currentValues is defined, it will return false if
+    // device/command was not properly matched to existing devices.
+    self.addCommand = function(containerID, currentValues)
     {
         if (!containerID)
         {
@@ -263,6 +264,12 @@ function ScenarioConfig(agocontrol)
             }
             return r;
         });
+
+        // Track if currentValues was matched to valid values; detects if
+        // a device has been removed from a scenario.
+        var deviceMatched=false,
+            commandMatched = false;
+
         var schema = self.agocontrol.schema();
         for ( var i = 0; i < devices.length; i++)
         {
@@ -281,9 +288,10 @@ function ScenarioConfig(agocontrol)
                 }
                 deviceSelect.options[deviceSelect.options.length] = new Option(dspName, dev.uuid);
                 deviceSelect.options[deviceSelect.options.length - 1]._dev = dev;
-                if (defaultValues && defaultValues.uuid == dev.uuid)
+                if (currentValues && currentValues.uuid == dev.uuid)
                 {
                     deviceSelect.selectedIndex = deviceSelect.options.length - 1;
+                    deviceMatched = true;
                 }
             }
         }
@@ -291,9 +299,10 @@ function ScenarioConfig(agocontrol)
         // Special case for the sleep command
         deviceSelect.options[deviceSelect.options.length] = new Option("Sleep", "sleep");
         deviceSelect.options[deviceSelect.options.length - 1]._dev = "sleep";
-        if (defaultValues && !defaultValues.uuid)
+        if (currentValues && !currentValues.uuid)
         {
             deviceSelect.selectedIndex = deviceSelect.options.length - 1;
+            deviceMatched = true;
         }
 
         row.appendChild(deviceSelect);
@@ -317,9 +326,10 @@ function ScenarioConfig(agocontrol)
                     var cmd = self.agocontrol.schema().devicetypes[dev.devicetype].commands[i];
                     commands.options[i] = new Option(self.agocontrol.schema().commands[cmd].name, cmd);
                     commands.options[i]._cmd = self.agocontrol.schema().commands[cmd];
-                    if (defaultValues && defaultValues.command == cmd)
+                    if (currentValues && currentValues.command == cmd)
                     {
                         commands.selectedIndex = i;
+                        commandMatched = true;
                     }
                 }
             }
@@ -328,9 +338,10 @@ function ScenarioConfig(agocontrol)
                 // Special case for the sleep command
                 commands.options[commands.options.length] = new Option("Delay", "scenariosleep");
                 commands.options[commands.options.length - 1]._cmd = "sleep";
-                if (defaultValues && defaultValues.command == "scenariosleep")
+                if (currentValues && currentValues.command == "scenariosleep")
                 {
                     commands.selectedIndex = commands.options.length - 1;
+                    commandMatched = true;
                 }
             }
             commands.style.display = "inline";
@@ -353,6 +364,9 @@ function ScenarioConfig(agocontrol)
                     commandContainer._params = null;
                 }
 
+                // A valid command was selected; always clear any has-error from previous load.
+                $(commandContainer).removeClass('has-error');
+
                 var cmd = commands.options[commands.selectedIndex]._cmd;
                 if (cmd.parameters)
                 {
@@ -365,9 +379,9 @@ function ScenarioConfig(agocontrol)
                         field.setAttribute("class", "form-control input-sm");
                         field.setAttribute("style", "display:inline; width:150px;");
                         field.setAttribute("placeholder", cmd.parameters[key].name);
-                        if (defaultValues && defaultValues[key])
+                        if (currentValues && currentValues[key])
                         {
-                            field.setAttribute("value", defaultValues[key]);
+                            field.setAttribute("value", currentValues[key]);
                         }
                         commandContainer._params.push(field);
                         commandContainer.appendChild(field);
@@ -383,9 +397,9 @@ function ScenarioConfig(agocontrol)
                     field.setAttribute("class", "form-control input-sm");
                     field.setAttribute("style", "display:inline; width:150px;");
                     field.setAttribute("placeholder", "Delay in seconds");
-                    if (defaultValues && defaultValues["delay"])
+                    if (currentValues&& currentValues["delay"])
                     {
-                        field.setAttribute("value", defaultValues.delay);
+                        field.setAttribute("value", currentValues.delay);
                     }
                     commandContainer._params.push(field);
                     commandContainer.appendChild(field);
@@ -398,9 +412,16 @@ function ScenarioConfig(agocontrol)
             }
         };
         deviceSelect.onchange();
+
         row.appendChild(commandContainer);
 
         document.getElementById(containerID).appendChild(row);
+
+        if(currentValues && !(deviceMatched && commandMatched)) {
+            $(commandContainer).addClass('has-error');
+            return false;
+        }
+        return true;
     };
 
     self.deleteScenario = function(item, event)
@@ -444,9 +465,15 @@ function ScenarioConfig(agocontrol)
         .then(function(res) {
             // Build command list
             $('#scenarioBuilderEdit').html('');
+            var errors = false;
             for ( var idx in res.data.scenariomap)
             {
-                self.addCommand("scenarioBuilderEdit", res.data.scenariomap[idx]);
+                if(!self.addCommand("scenarioBuilderEdit", res.data.scenariomap[idx]))
+                    errors = true;
+            }
+
+            if(errors) {
+                notif.error("One or more commands in this scenario did not fully match existing devices.");
             }
 
             // Save the id (needed for the save command)
