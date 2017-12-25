@@ -2196,7 +2196,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                     if (Manager::Get()->SetValue(*tmpValueID , true)) return responseSuccess();
                     else return responseError(RESPONSE_ERR_INTERNAL, "Cannot set OpenZWave device value");
                 }
-                else
+                else if (content["command"] == "off" )
                 {
                     if (Manager::Get()->SetValue(*tmpValueID , false)) return responseSuccess();
                     else return responseError(RESPONSE_ERR_INTERNAL, "Cannot set OpenZWave device value");
@@ -2219,7 +2219,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                     if (Manager::Get()->SetValue(*tmpValueID, level)) return responseSuccess();
                     else return responseError(RESPONSE_ERR_INTERNAL, "Cannot set OpenZWave device value");
                 }
-                else
+                else if (content["command"] == "off" )
                 {
                     if (Manager::Get()->SetValue(*tmpValueID , (uint8) 0)) return responseSuccess();
                     else return responseError(RESPONSE_ERR_INTERNAL, "Cannot set OpenZWave device value");
@@ -2266,7 +2266,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                     if (Manager::Get()->SetValue(*tmpValueID, colorString.str())) return responseSuccess();
                     else return responseError(RESPONSE_ERR_INTERNAL, "Cannot set OpenZWave device color value");
                 }
-                else
+                else if (content["command"] == "off" )
                 {
                     tmpValueID = device->getValueID("Level");
                     if (tmpValueID == NULL) return responseError(RESPONSE_ERR_INTERNAL, "Cannot determine OpenZWave 'Level' label");
@@ -2305,7 +2305,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                     else return responseError(RESPONSE_ERR_INTERNAL, "Cannot set OpenZWave device value");
 
                 }
-                else
+                else if (content["command"] == "off" )
                 {
                     tmpValueID = device->getValueID("Level");
                     if (tmpValueID == NULL) return responseError(RESPONSE_ERR_INTERNAL, "Cannot determine OpenZWave 'Level' label");
