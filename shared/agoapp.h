@@ -2,10 +2,13 @@
 #define AGOAPP_H
 
 #include "agoclient.h"
+#include <memory>
 #include <boost/asio/io_service.hpp>
 #include <boost/thread.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
+
+#include "agoclient.h"
 
 /**
  * Provides boilerplate code for writing an AGO application.
@@ -51,7 +54,7 @@ namespace agocontrol {
         bool exit_signaled;
         boost::thread ioThread;
         boost::asio::io_service ioService_;
-        std::auto_ptr<boost::asio::io_service::work> ioWork;
+        std::unique_ptr<boost::asio::io_service::work> ioWork;
 
         int parseCommandLine(int argc, const char **argv);
 

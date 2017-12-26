@@ -63,11 +63,24 @@ set_property( DIRECTORY
 	COMPILE_OPTIONS
 	-Wall -DBOOST_LOG_DYN_LINK)
 
+# Enable C++11
+if (CMAKE_VERSION VERSION_LESS "3.1")
+	# Used on Debian Jessie builders
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+		# Note: must ont set for CFLAGS!
+        set (CMAKE_CXX_FLAGS "-std=gnu++11 ${CMAKE_CXX_FLAGS}")
+    endif ()
+else ()
+	set (CMAKE_CXX_STANDARD 11)
+endif ()
+
+
 set_property( DIRECTORY
 	APPEND PROPERTY
 	COMPILE_OPTIONS
 	-DBOOST_FILESYSTEM_VERSION=3
-	-DBOOST_FILESYSTEM_NO_DEPRECATED)
+	-DBOOST_FILESYSTEM_NO_DEPRECATED
+	)
 
 # Workaround for bug in Boost on Clang which tries to add pragma warning group keyward-warning
 # which does not exists in clang:
@@ -113,6 +126,18 @@ endif (CPPDB_FOUND)
 FIND_PACKAGE(Boost COMPONENTS system filesystem thread program_options date_time regex REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIRS})
+
+# Fix for Boost < 1.56 built without C++, when we build with C++11
+# https://stackoverflow.com/questions/35007134/c-boost-undefined-reference-to-boostfilesystemdetailcopy-file
+# https://chaste.cs.ox.ac.uk/trac/wiki/ChasteGuides/ModernCpp#Boostscopedenumsforboost1.56
+IF(Boost_VERSION VERSION_LESS 105600)
+	message(STATUS "Boost version < 1.56, building with BOOST_NO_CXX11_SCOPED_ENUMS")
+	set_property( DIRECTORY
+		APPEND PROPERTY
+		COMPILE_OPTIONS
+		-DBOOST_NO_CXX11_SCOPED_ENUMS
+	)
+ENDIF()
 
 FIND_PACKAGE(Boost COMPONENTS log)
 IF (Boost_LOG_FOUND)

@@ -300,7 +300,7 @@ void AgoApp::doShutdown() {
 boost::asio::io_service& AgoApp::ioService() {
     if(!ioWork.get()) {
         // Enqueue work on the IO service to indicate we want it running
-        ioWork = std::auto_ptr<boost::asio::io_service::work>(
+        ioWork = std::unique_ptr<boost::asio::io_service::work>(
                 new boost::asio::io_service::work(ioService_)
                 );
     }

@@ -56,9 +56,7 @@ set (AGODEVICES
 FIND_PACKAGE(OpenCV)
 
 IF (NOT OpenCV_FOUND)
-    list(REMOVE_ITEM AGODEVICES
-      NVR
-    )
+    list(REMOVE_ITEM AGODEVICES NVR)
     MESSAGE(STATUS "OpenCV not found, NOT building NVR device")
 ENDIF (NOT OpenCV_FOUND)
 
