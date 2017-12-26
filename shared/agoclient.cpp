@@ -353,9 +353,14 @@ agocontrol::AgoConnection::AgoConnection(const char *interfacename)
 
     loadUuidMap();
 
+    AGO_DEBUG() << "Configured for broker connection: " << broker;
     connection = Connection(broker, connectionOptions);
+    // Must call start() to actually connect
+}
+
+void agocontrol::AgoConnection::start() {
     try {
-        AGO_DEBUG() << "Opening broker connection: " << broker;
+        AGO_DEBUG() << "Opening QPid broker connection";
         connection.open();
         session = connection.createSession();
         sender = session.createSender("agocontrol; {create: always, node: {type: topic}}");
@@ -479,8 +484,17 @@ void agocontrol::AgoConnection::shutdown() {
     if(shutdownSignaled) return;
     shutdownSignaled = true;
 
-    AGO_DEBUG() << "Closing notification receiver";
-    receiver.close();
+    if(receiver.isValid()) {
+        AGO_DEBUG() << "Closing notification receiver";
+        receiver.close();
+    }
+
+    if(!session.isValid() && connection.isValid()) {
+        AGO_DEBUG() << "Closing pending broker connection";
+        // Not yet connected, break out of connection attempt
+        // TODO: This does not actually abort on old qpid
+        connection.close();
+    }
 }
 
 /**

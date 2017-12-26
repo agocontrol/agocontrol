@@ -92,6 +92,7 @@ namespace agocontrol {
     public:
         AgoConnection(const char *interfacename);
         ~AgoConnection();
+        void start();
         void run();
         void shutdown();
         bool addDevice(const char *internalId, const char *deviceType, const char*initialName = NULL);

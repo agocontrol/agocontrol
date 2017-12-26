@@ -145,9 +145,9 @@ int AgoApp::parseCommandLine(int argc, const char **argv) {
 void AgoApp::setup() {
     setupSignals();
     setupLogging();
+    setupIoThread();
     setupAgoConnection();
     setupApp();
-    setupIoThread();
 
     //Send event app is started
     //This is useful to monitor app (most of the time systemd restarts app before agosystem find it has crashed)
@@ -220,6 +220,8 @@ void AgoApp::setupLogging() {
 
 void AgoApp::setupAgoConnection() {
     agoConnection = new AgoConnection(appShortName.c_str());
+    // This allows signal handler to reach a pending connection
+    agoConnection->start();
 }
 
 void AgoApp::cleanupAgoConnection() {
