@@ -1,0 +1,20 @@
+Building is NOT supported, and will not be for as long as we rely on qpid, as there are no Darwin libraries for qpid C++ client.
+
+However, it's nice to edit code with a GUI editor on Mac, such as CLion.
+If you create a ./local-include dir and copy the qpid header directory from some other system into this,
+then you will at least be able to work with the codebase and get decent completion on OS X.
+
+Quick howto:
+
+	brew install jsoncpp boost
+	mkdir ./local-include
+	# Get /usr/include/qpid from some linux system
+	cp -r /some/source/of/qpid ./local-include
+
+If using CLion, preferably:
+
+	Preferences -> Build, Execution, Deployment -> CMake
+	Set Generation Path to "mac_build" or similar, to avoid Mac build files in local dir.
+
+To actually test your code, you could use a local docker builder container (todo), and let that
+build in another build dir to not clash.

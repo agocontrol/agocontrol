@@ -16,6 +16,10 @@ ELSE (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
 	set (LOCALDIR /usr)
 ENDIF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
 
+# See README.OSX
+IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+	include_directories("./local-include")
+ENDIF ()
 
 # some configurable values
 IF (FREEBSD)
@@ -100,10 +104,15 @@ find_package(CppDb REQUIRED)
 if (CPPDB_FOUND)
 	include_directories(${CPPDB_INCLUDE_DIRS})
 else()
-	message(FATAL_ERROR "Could not find cppdb")
+	IF (NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+		# TEMP: Disable this requirement on OS X, not in brew.
+		message(FATAL_ERROR "Could not find cppdb")
+	endif ()
 endif (CPPDB_FOUND)
 
 FIND_PACKAGE(Boost COMPONENTS system filesystem thread program_options date_time regex REQUIRED)
+
+include_directories(${Boost_INCLUDE_DIRS})
 
 FIND_PACKAGE(Boost COMPONENTS log)
 IF (Boost_LOG_FOUND)
