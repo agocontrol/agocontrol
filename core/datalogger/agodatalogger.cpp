@@ -39,7 +39,6 @@
 #define JOURNAL_WARNING "warning"
 #define JOURNAL_ERROR "error"
 
-using namespace std;
 using namespace agocontrol;
 using namespace qpid::types;
 using namespace boost::posix_time;
@@ -66,19 +65,19 @@ private:
     bool commandGetGraph(qpid::types::Variant::Map& content, qpid::types::Variant::Map& returnData);
 
     //database
-    bool createTableIfNotExist(string tablename, list<string> createqueries);
+    bool createTableIfNotExist(std::string tablename, std::list<std::string> createqueries);
     qpid::types::Variant::Map getDatabaseInfos();
     bool purgeTable(std::string table, int timestamp);
     bool isTablePurgeAllowed(std::string table);
-    void getGraphData(qpid::types::Variant::List uuids, int start, int end, string environment, qpid::types::Variant::Map& result);
-    bool getGraphDataFromSqlite(qpid::types::Variant::List uuids, int start, int end, string environment, qpid::types::Variant::Map& result);
+    void getGraphData(qpid::types::Variant::List uuids, int start, int end, std::string environment, qpid::types::Variant::Map& result);
+    bool getGraphDataFromSqlite(qpid::types::Variant::List uuids, int start, int end, std::string environment, qpid::types::Variant::Map& result);
     bool getGraphDataFromRrd(qpid::types::Variant::List uuids, int start, int end, qpid::types::Variant::Map& result);
 
     //rrd
     bool prepareGraph(std::string uuid, int multiId, qpid::types::Variant::Map& data);
     void dumpGraphParams(const char** params, const int num_params);
     bool addGraphParam(const std::string& param, char** params, int* index);
-    void addDefaultParameters(int start, int end, string vertical_unit, int width, int height, char** params, int* index);
+    void addDefaultParameters(int start, int end, std::string vertical_unit, int width, int height, char** params, int* index);
     void addDefaultThumbParameters(int duration, int width, int height, char** params, int* index);
     void addSingleGraphParameters(qpid::types::Variant::Map& data, char** params, int* index);
     void addMultiGraphParameters(qpid::types::Variant::Map& data, char** params, int* index);
@@ -160,7 +159,7 @@ bool AgoDataLogger::checkInventory()
     return true;
 }
 
-bool AgoDataLogger::createTableIfNotExist(string tablename, list<string> createqueries) {
+bool AgoDataLogger::createTableIfNotExist(std::string tablename, std::list<std::string> createqueries) {
     try {
         cppdb::result r;
         if (sql.driver() == "sqlite3") {
@@ -172,7 +171,7 @@ bool AgoDataLogger::createTableIfNotExist(string tablename, list<string> createq
         }
         if (r.empty()) {
             AGO_INFO() << "Creating missing table '" << tablename << "'";
-            for( list<string>::iterator it=createqueries.begin(); it!=createqueries.end(); it++ ) {
+            for( std::list<std::string>::iterator it=createqueries.begin(); it!=createqueries.end(); it++ ) {
                 sql << (*it) << cppdb::exec;
             }
             createqueries.clear();
@@ -261,7 +260,7 @@ bool AgoDataLogger::prepareGraph(std::string uuid, int multiId, qpid::types::Var
     }
 
     //filename
-    stringstream filename;
+    std::stringstream filename;
     filename << uuid << ".rrd";
 
     //get device infos from inventory
@@ -285,10 +284,10 @@ bool AgoDataLogger::prepareGraph(std::string uuid, int multiId, qpid::types::Var
     if( !device["devicetype"].isVoid() )
     {
         //prepare kind
-        string kind = device["devicetype"].asString();
+        std::string kind = device["devicetype"].asString();
         replaceString(kind, "sensor", "");
         replaceString(kind, "meter", "");
-        string pretty_kind = kind;
+        std::string pretty_kind = kind;
         if( multiId>=0 )
         {
             //keep first 4 chars
@@ -306,8 +305,8 @@ bool AgoDataLogger::prepareGraph(std::string uuid, int multiId, qpid::types::Var
         pretty_kind.resize(20, ' ');
 
         //prepare unit
-        string unit = "U";
-        string vertical_unit = "U";
+        std::string unit = "U";
+        std::string vertical_unit = "U";
         if( !device["values"].isVoid() )
         {
             qpid::types::Variant::Map values = device["values"].asMap();
@@ -338,11 +337,11 @@ bool AgoDataLogger::prepareGraph(std::string uuid, int multiId, qpid::types::Var
         }
 
         //prepare colors
-        string colorL = "#000000";
-        string colorA = "#A0A0A0";
-        string colorMax = "#FF0000";
-        string colorMin = "#00FF00";
-        string colorAvg = "#0000FF";
+        std::string colorL = "#000000";
+        std::string colorA = "#A0A0A0";
+        std::string colorMax = "#FF0000";
+        std::string colorMin = "#00FF00";
+        std::string colorAvg = "#0000FF";
         if( multiId<0 )
         {
             if( device["devicetype"].asString()=="humiditysensor" )
@@ -406,7 +405,7 @@ void AgoDataLogger::dumpGraphParams(const char** params, const int num_params)
     AGO_TRACE() << "Dump graph parameters (" << num_params << " params) :";
     for( int i=0; i<num_params; i++ )
     {
-        AGO_TRACE() << " - " << string(params[i]);
+        AGO_TRACE() << " - " << std::string(params[i]);
     }
 }
 
@@ -428,7 +427,7 @@ bool AgoDataLogger::addGraphParam(const std::string& param, char** params, int* 
 /**
  * Add default and mandatory graph params
  */
-void AgoDataLogger::addDefaultParameters(int start, int end, string vertical_unit, int width, int height, char** params, int* index)
+void AgoDataLogger::addDefaultParameters(int start, int end, std::string vertical_unit, int width, int height, char** params, int* index)
 {
     //first params
     addGraphParam("dummy", params, index);
@@ -494,7 +493,7 @@ void AgoDataLogger::addDefaultThumbParameters(int duration, int width, int heigh
  */
 void AgoDataLogger::addSingleGraphParameters(qpid::types::Variant::Map& data, char** params, int* index)
 {
-    string param = "";
+    std::string param = "";
 
     //DEF
     fs::path rrdfile = getLocalStatePath(data["filename"].asString());
@@ -632,8 +631,8 @@ bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, i
 
         //adjust some stuff
         int defaultNumParam = 13;
-        string vertical_unit = "";
-        string lastUnit = "";
+        std::string vertical_unit = "";
+        std::string lastUnit = "";
         size_t maxUnitLength = 0;
         for( qpid::types::Variant::List::iterator it=datas.begin(); it!=datas.end(); it++ )
         {
@@ -662,7 +661,7 @@ bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, i
         //format unit (add spaces for better display)
         for( qpid::types::Variant::List::iterator it=datas.begin(); it!=datas.end(); it++ )
         {
-            string unit = (*it).asMap()["unit"].asString();
+            std::string unit = (*it).asMap()["unit"].asString();
             //special case for %%
             if( unit=="%%" )
             {
@@ -789,7 +788,7 @@ void AgoDataLogger::eventHandlerRRDtool(std::string subject, std::string uuid, q
     if( (subject=="event.device.batterylevelchanged" || boost::algorithm::starts_with(subject, "event.environment.")) && !content["level"].isVoid() && !content["uuid"].isVoid() )
     {
         //generate rrd filename and path
-        stringstream filename;
+        std::stringstream filename;
         filename << content["uuid"].asString() << ".rrd";
         fs::path rrdfile = getLocalStatePath(filename.str());
 
@@ -829,13 +828,13 @@ void AgoDataLogger::eventHandlerRRDtool(std::string subject, std::string uuid, q
  */
 void AgoDataLogger::eventHandlerSQL(std::string subject, std::string uuid, qpid::types::Variant::Map content)
 {
-    string result;
+    std::string result;
 
     if( gpsLogging && subject=="event.environment.positionchanged" && content["latitude"].asString()!="" && content["longitude"].asString()!="" )
     {
         AGO_DEBUG() << "specific environment case: position";
-        string lat = content["latitude"].asString();
-        string lon = content["longitude"].asString();
+        std::string lat = content["latitude"].asString();
+        std::string lon = content["longitude"].asString();
         try {
             sql <<  "INSERT INTO position VALUES(null, ?, ?, ?, ?)" << uuid << lat << lon << (int)time(NULL) << cppdb::exec;
         } catch(std::exception const &e) {
@@ -854,7 +853,7 @@ void AgoDataLogger::eventHandlerSQL(std::string subject, std::string uuid, qpid:
         try {
             cppdb::statement stat = sql << "INSERT INTO data VALUES(null, ?, ?, ?, ?)";
 
-            string level = content["level"].asString();
+            std::string level = content["level"].asString();
             stat.bind(uuid);
             stat.bind(subject);
 
@@ -940,11 +939,11 @@ bool AgoDataLogger::getGraphDataFromRrd(qpid::types::Variant::List uuids, int st
 
     qpid::types::Variant::List values;
     bool error = false;
-    string uuid = uuids.front().asString();
-    stringstream filename;
+    std::string uuid = uuids.front().asString();
+    std::stringstream filename;
     filename << uuid << ".rrd";
     fs::path rrdfile = getLocalStatePath(filename.str());
-    string filenamestr = rrdfile.string();
+    std::string filenamestr = rrdfile.string();
     time_t startTimet = (time_t)start;;
     time_t endTimet = (time_t)end;
     AGO_TRACE() << "file=" << filenamestr << " start=" << start << " end=" << end;
@@ -967,7 +966,7 @@ bool AgoDataLogger::getGraphDataFromRrd(qpid::types::Variant::List uuids, int st
             for( int i=0; i<size; i++ )
             {
                 level = (double)data[ds+i*ds_cnt];
-                if( !isnan(level) )
+                if( !std::isnan(level) )
                 {
                     count++;
                     qpid::types::Variant::Map value;
@@ -1002,11 +1001,11 @@ bool AgoDataLogger::getGraphDataFromRrd(qpid::types::Variant::List uuids, int st
 /**
  * Return graph data from sqlite
  */
-bool AgoDataLogger::getGraphDataFromSqlite(qpid::types::Variant::List uuids, int start, int end, string environment, qpid::types::Variant::Map& result)
+bool AgoDataLogger::getGraphDataFromSqlite(qpid::types::Variant::List uuids, int start, int end, std::string environment, qpid::types::Variant::Map& result)
 {
     AGO_TRACE() << "getGraphDataFromSqlite: " << environment;
     qpid::types::Variant::List values;
-    string uuid = uuids.front().asString();
+    std::string uuid = uuids.front().asString();
     try {
         if( environment=="position" )
         {
@@ -1044,7 +1043,7 @@ bool AgoDataLogger::getGraphDataFromSqlite(qpid::types::Variant::List uuids, int
 /**
  * Return data for graph generation
  */
-void AgoDataLogger::getGraphData(qpid::types::Variant::List uuids, int start, int end, string environment, qpid::types::Variant::Map& result)
+void AgoDataLogger::getGraphData(qpid::types::Variant::List uuids, int start, int end, std::string environment, qpid::types::Variant::Map& result)
 {
     if( dataLogging )
     {
@@ -1099,8 +1098,8 @@ bool AgoDataLogger::getMessagesFromJournal(qpid::types::Variant::Map& content, q
 
 
     //parse the timestrings
-    string startDate = content["start"].asString();
-    string endDate = content["end"].asString();
+    std::string startDate = content["start"].asString();
+    std::string endDate = content["end"].asString();
     replaceString(startDate, "-", "");
     replaceString(startDate, ":", "");
     replaceString(startDate, "Z", "");
@@ -1222,7 +1221,7 @@ qpid::types::Variant::Map AgoDataLogger::getDatabaseInfos()
  */
 bool AgoDataLogger::purgeTable(std::string table, int timestamp=0)
 {
-    stringstream query;
+    std::stringstream query;
     query << "DELETE FROM " << table;
 
     if( timestamp!=0 )
@@ -1356,7 +1355,7 @@ void AgoDataLogger::commandGetData(qpid::types::Variant::Map& content, qpid::typ
     //variables
     qpid::types::Variant::List uuids;
     uuids = content["devices"].asList();
-    string environment = "";
+    std::string environment = "";
     if( !content["env"].isVoid() )
     {
         environment = content["env"].asString();
@@ -1387,7 +1386,7 @@ bool AgoDataLogger::commandGetGraph(qpid::types::Variant::Map& content, qpid::ty
     //is a multigraph?
     if( uuids.size()==1 )
     {
-        string internalid = agoConnection->uuidToInternalId((*uuids.begin()).asString());
+        std::string internalid = agoConnection->uuidToInternalId((*uuids.begin()).asString());
         if( internalid.length()>0 && !devicemap["multigraphs"].asMap()[internalid].isVoid() )
         {
             uuids = devicemap["multigraphs"].asMap()[internalid].asMap()["uuids"].asList();
@@ -1432,7 +1431,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
             qpid::types::Variant::List uuids = content["devices"].asList();
             if( uuids.size()==1 )
             {
-                string internalid = agoConnection->uuidToInternalId((*uuids.begin()).asString());
+                std::string internalid = agoConnection->uuidToInternalId((*uuids.begin()).asString());
                 if( internalid.length()>0 && !devicemap["multigraphs"].asMap()[internalid].isVoid() )
                 {
                     isMultigraph = true;
@@ -1537,7 +1536,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
             checkMsgParameter(content, "uuids", VAR_LIST);
             checkMsgParameter(content, "period", VAR_INT32);
 
-            string internalid = "multigraph" + string(devicemap["nextid"]);
+            std::string internalid = "multigraph" + std::string(devicemap["nextid"]);
             if( agoConnection->addDevice(internalid.c_str(), "multigraph") )
             {
                 devicemap["nextid"] = devicemap["nextid"].asInt32() + 1;
@@ -1558,7 +1557,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         {
             checkMsgParameter(content, "multigraph", VAR_STRING);
 
-            string internalid = content["multigraph"].asString();
+            std::string internalid = content["multigraph"].asString();
             if( agoConnection->removeDevice(internalid.c_str()) )
             {
                 devicemap["multigraphs"].asMap().erase(internalid);
@@ -1582,7 +1581,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
                 updateInventory();
             }
 
-            string internalid = content["multigraph"].asString();
+            std::string internalid = content["multigraph"].asString();
             if( !devicemap["multigraphs"].isVoid() && !devicemap["multigraphs"].asMap()[internalid].isVoid() && !devicemap["multigraphs"].asMap()[internalid].asMap()["uuids"].isVoid() )
             {
                 unsigned char* img = NULL;
@@ -1817,7 +1816,7 @@ void AgoDataLogger::setupApp()
     //init database
     fs::path dbpath = ensureParentDirExists(getLocalStatePath(DBFILE));
     try {
-        std::string dbconnection = getConfigOption("dbconnection", string("sqlite3:db=" + dbpath.string()).c_str());
+        std::string dbconnection = getConfigOption("dbconnection", std::string("sqlite3:db=" + dbpath.string()).c_str());
         AGO_TRACE() << "CppDB connection string: " << dbconnection;
         sql = cppdb::session(dbconnection);
         AGO_INFO() << "Using " << sql.driver() << " database via CppDB";
@@ -1841,7 +1840,7 @@ void AgoDataLogger::setupApp()
     }
 
     //create missing tables
-    list<string> queries;
+    std::list<std::string> queries;
     //db
     if (sql.driver() == "sqlite3") {
         queries.push_back("CREATE TABLE data(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, environment TEXT, level REAL, timestamp LONG);");
