@@ -48,6 +48,20 @@
 // Helper method to cap an int to 0x00-0xFF
 #define CAP_8BIT_INT(value) (max(min(value, 0xFF), 0x00))
 
+/* Use with #if when we want to exclude certain parts to minimum OpenZWave versions.
+ * This relies on OPENZWAVE_VERSION_ defines from CMake, they are not official.
+ * Note that gitrev is 0 when not built from git.
+ * To get a minimium gitrev, you can use 'git describe --long --tags <somecommit>'.
+ */
+#define HAVE_ZWAVE_VERSION(major,minor,gitrev) \
+    (OPENZWAVE_VERSION_MAJOR > (major) || \
+        (OPENZWAVE_VERSION_MAJOR == (major) && \
+            (OPENZWAVE_VERSION_MINOR > (minor) || \
+                (OPENZWAVE_VERSION_MINOR == (minor) && OPENZWAVE_VERSION_REVISION >= (gitrev) ) \
+            ) \
+        ) \
+    )
+
 using namespace std;
 using namespace qpid::types;
 using namespace agocontrol;
@@ -1791,7 +1805,9 @@ void AgoZwave::_OnNotification (Notification const* _notification)
         case Notification::Type_NodeProtocolInfo:
         case Notification::Type_NodeQueriesComplete:
         case Notification::Type_EssentialNodeQueriesComplete:
+#if HAVE_ZWAVE_VERSION(1,3,397)
         case Notification::Type_ControllerCommand:
+#endif
         {
             break;
         }
@@ -1843,11 +1859,13 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
             Manager::Get()->HealNetwork(g_homeId, true);
             return responseSuccess();
         }
+#if HAVE_ZWAVE_VERSION(1,3,201)
         else if (content["command"] == "transferprimaryrole")
         {
             Manager::Get()->TransferPrimaryRole(g_homeId);
             return responseSuccess();
         }
+#endif
         else if (content["command"] == "refreshnode")
         {
             checkMsgParameter(content, "node", VAR_INT32);

@@ -62,6 +62,11 @@ IF (NOT OpenCV_FOUND)
     MESSAGE(STATUS "OpenCV not found, NOT building NVR device")
 ENDIF (NOT OpenCV_FOUND)
 
+FIND_PACKAGE(OpenZWave)
+IF (NOT OpenZWave_FOUND)
+	list(REMOVE_ITEM AGODEVICES zwave)
+	MESSAGE(STATUS "OpenZWave not found, NOT building zwave device")
+ENDIF ()
 IF (FREEBSD)
 	# These does not build on FreeBSD currently
 	list(REMOVE_ITEM AGODEVICES
