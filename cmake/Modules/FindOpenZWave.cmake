@@ -27,6 +27,7 @@ IF(OpenZWave_INCLUDE_BASE_DIR)
         set(CMAKE_REQUIRED_LIBRARIES "${OpenZWave_LIBRARIES}")
 
         set(SOURCE "#include <iostream>
+#include <stdint.h>
 extern uint16_t ozw_vers_major;
 extern uint16_t ozw_vers_minor;
 extern uint16_t ozw_vers_revision;
