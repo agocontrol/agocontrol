@@ -5,12 +5,14 @@ file (GLOB_RECURSE DEVICE_SOURCE_FILES *.cpp)
 set (DEVICE_EXTRA_LIBRARIES
      pthread
      tinyxml2
-     olaslpclient
+     ${OpenLighting_LIBRARIES} # olaslpclient + any path
      olaslpcore
      ola
      olacommon
      agoclient
 )
+
+include_directories(${OpenLighting_INCLUDE_DIRS})
 
 set (DEVICE "agodmx")
 

@@ -67,20 +67,29 @@ IF (NOT OpenZWave_FOUND)
 	list(REMOVE_ITEM AGODEVICES zwave)
 	MESSAGE(STATUS "OpenZWave not found, NOT building zwave device")
 ENDIF ()
+
+FIND_PACKAGE(EibClient)
+IF (NOT EibClient_FOUND)
+	list(REMOVE_ITEM AGODEVICES knx)
+	MESSAGE(STATUS "eibclient not found, NOT building knx device")
+ENDIF ()
+
+FIND_PACKAGE(OpenLighting)
+IF (NOT OpenLighting_FOUND)
+	list(REMOVE_ITEM AGODEVICES agodmx)
+	MESSAGE(STATUS "OpenLighting (ola) not found, NOT building agodmx device")
+ENDIF ()
+
 IF (FREEBSD)
 	# These does not build on FreeBSD currently
 	list(REMOVE_ITEM AGODEVICES
-	  blinkm
-	  firmata
-	  i2c
-	  irtrans_ethernet
-	  knx
-	  agodmx
-	  PLCBUS
-	  zmcam
-      onvif
-      MySensors
-  )
+		blinkm # linux/i2c-dev.h
+		firmata # S_IRUSR
+		i2c # linux/i2c-dev.h
+		PLCBUS # TCIFLUSH / TCIOFLUSH
+		MySensors # TCIFLUSH / TCIOFLUSH
+		zmcam # error: member access into incomplete type 'struct sockaddr_in'
+	)
 ENDIF (FREEBSD)
 
 foreach (device ${AGODEVICES})
