@@ -62,7 +62,6 @@
         ) \
     )
 
-using namespace std;
 using namespace qpid::types;
 using namespace agocontrol;
 using namespace OpenZWave;
@@ -92,12 +91,12 @@ private:
     const char *controllerErrorStr(Driver::ControllerError err);
     NodeInfo* getNodeInfo(Notification const* _notification);
     NodeInfo* getNodeInfo(uint32 homeId, uint8 nodeId);
-    ValueID* getValueID(int nodeid, int instance, string label);
+    ValueID* getValueID(int nodeid, int instance, std::string label);
     qpid::types::Variant::Map getCommandClassConfigurationParameter(OpenZWave::ValueID* valueID);
     qpid::types::Variant::Map getCommandClassWakeUpParameter(OpenZWave::ValueID* valueID);
-    bool setCommandClassParameter(uint32 homeId, uint8 nodeId, uint8 commandClassId, uint8 index, string newValue);
+    bool setCommandClassParameter(uint32 homeId, uint8 nodeId, uint8 commandClassId, uint8 index, std::string newValue);
     void requestAllNodeConfigParameters();
-    bool filterEvent(const char *internalId, const char *eventType, string level);
+    bool filterEvent(const char *internalId, const char *eventType, std::string level);
     bool emitFilteredEvent(const char *internalId, const char *eventType, const char *level, const char *unit);
     bool emitFilteredEvent(const char *internalId, const char *eventType, double level, const char *unit);
     bool emitFilteredEvent(const char *internalId, const char *eventType, int level, const char *unit);
@@ -105,8 +104,8 @@ private:
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
     void setupApp();
     void cleanupApp();
-    string getHRCommandClassId(uint8_t commandClassId);
-    string getHRNotification(Notification::NotificationType notificationType);
+    std::string getHRCommandClassId(uint8_t commandClassId);
+    std::string getHRNotification(Notification::NotificationType notificationType);
 
 public:
     AGOAPP_CONSTRUCTOR_HEAD(AgoZwave)
@@ -138,7 +137,7 @@ class MyLog : public i_LogImpl {
     void QueueDump();
     void QueueClear();
     void SetLoggingState(OpenZWave::LogLevel, OpenZWave::LogLevel, OpenZWave::LogLevel);
-    void SetLogFileName(const string&);
+    void SetLogFileName(const std::string&);
     std::string GetNodeString(uint8 const _nodeId);
 };
 
@@ -148,7 +147,7 @@ void MyLog::QueueClear() {
 }
 void MyLog::SetLoggingState(OpenZWave::LogLevel, OpenZWave::LogLevel, OpenZWave::LogLevel) {
 }
-void MyLog::SetLogFileName(const string&) {
+void MyLog::SetLogFileName(const std::string&) {
 }
 void MyLog::Write( LogLevel _level, uint8 const _nodeId, char const* _format, va_list _args ) {
     char lineBuf[1024] = {};
@@ -161,16 +160,16 @@ void MyLog::Write( LogLevel _level, uint8 const _nodeId, char const* _format, va
     }
     std::string nodeString = GetNodeString(_nodeId);
 
-    if (_level == LogLevel_StreamDetail) AGO_TRACE() << "OZW " << nodeString << string(lineBuf);
-    else if (_level == LogLevel_Debug) AGO_DEBUG() << "OZW " << nodeString << string(lineBuf);
-    else if (_level == LogLevel_Detail) AGO_DEBUG() << "OZW " << nodeString << string(lineBuf);
-    else if (_level == LogLevel_Info) AGO_INFO() << "OZW " << nodeString << string(lineBuf);
-    else if (_level == LogLevel_Alert) AGO_WARNING() << "OZW " << nodeString << string(lineBuf);
-    else if (_level == LogLevel_Warning) AGO_WARNING() << "OZW " << nodeString << string(lineBuf);
-    else if (_level == LogLevel_Error) AGO_ERROR() << "OZW " << nodeString << string(lineBuf);
-    else if (_level == LogLevel_Fatal) AGO_FATAL() << "OZW " << nodeString << string(lineBuf);
-    else if (_level == LogLevel_Always) AGO_FATAL() << "OZW " << nodeString << string(lineBuf);
-    else AGO_FATAL() << "OZW (Unknown level) << " << nodeString << string(lineBuf);
+    if (_level == LogLevel_StreamDetail) AGO_TRACE() << "OZW " << nodeString << std::string(lineBuf);
+    else if (_level == LogLevel_Debug) AGO_DEBUG() << "OZW " << nodeString << std::string(lineBuf);
+    else if (_level == LogLevel_Detail) AGO_DEBUG() << "OZW " << nodeString << std::string(lineBuf);
+    else if (_level == LogLevel_Info) AGO_INFO() << "OZW " << nodeString << std::string(lineBuf);
+    else if (_level == LogLevel_Alert) AGO_WARNING() << "OZW " << nodeString << std::string(lineBuf);
+    else if (_level == LogLevel_Warning) AGO_WARNING() << "OZW " << nodeString << std::string(lineBuf);
+    else if (_level == LogLevel_Error) AGO_ERROR() << "OZW " << nodeString << std::string(lineBuf);
+    else if (_level == LogLevel_Fatal) AGO_FATAL() << "OZW " << nodeString << std::string(lineBuf);
+    else if (_level == LogLevel_Always) AGO_FATAL() << "OZW " << nodeString << std::string(lineBuf);
+    else AGO_FATAL() << "OZW (Unknown level) << " << nodeString << std::string(lineBuf);
 }
 
 // Copied directly from open-zwave LogImpl
@@ -314,7 +313,7 @@ void AgoZwave::_controller_update(Driver::ControllerState state,  Driver::Contro
  */
 string AgoZwave::getHRCommandClassId(uint8_t commandClassId)
 {
-    string output;
+    std::string output;
     switch(commandClassId)
     {
         case COMMAND_CLASS_MARK:
@@ -558,7 +557,7 @@ string AgoZwave::getHRCommandClassId(uint8_t commandClassId)
             output="COMMAND_CLASS_COLOR";
             break;
         default:
-            stringstream temp;
+            std::stringstream temp;
             temp << "COMMAND_UNKNOWN[" << commandClassId << "]";
             output = temp.str();
     }
@@ -570,7 +569,7 @@ string AgoZwave::getHRCommandClassId(uint8_t commandClassId)
  */
 string AgoZwave::getHRNotification(Notification::NotificationType notificationType)
 {
-    string output;
+    std::string output;
     switch( notificationType )
     {
         case Notification::Type_ValueAdded:
@@ -666,11 +665,11 @@ string AgoZwave::getHRNotification(Notification::NotificationType notificationTy
 /**
  * Emit event like in agoconnection but filtered duplicated event within the same second
  */
-bool AgoZwave::filterEvent(const char *internalId, const char *eventType, string level)
+bool AgoZwave::filterEvent(const char *internalId, const char *eventType, std::string level)
 {
     bool filtered = false;
-    string sInternalId = string(internalId);
-    string sEventType = string(eventType);
+    std::string sInternalId = std::string(internalId);
+    std::string sEventType = std::string(eventType);
 
     qpid::types::Variant::Map infos;
     uint64_t now = (uint64_t)(time(NULL));
@@ -692,7 +691,7 @@ bool AgoZwave::filterEvent(const char *internalId, const char *eventType, string
         //check level
         if( !infos["level"].isVoid() )
         {
-            string oldLevel = infos["level"].asString();
+            std::string oldLevel = infos["level"].asString();
             if( oldLevel==level )
             {
                 if( !infos["timestamp"].isVoid() )
@@ -750,7 +749,7 @@ bool AgoZwave::filterEvent(const char *internalId, const char *eventType, string
 
 bool AgoZwave::emitFilteredEvent(const char *internalId, const char *eventType, const char *level, const char *unit)
 {
-    string sLevel = string(level);
+    std::string sLevel = std::string(level);
     if( !filterEvent(internalId, eventType, sLevel) )
     {
         return agoConnection->emitEvent(internalId, eventType, level, unit);
@@ -764,7 +763,7 @@ bool AgoZwave::emitFilteredEvent(const char *internalId, const char *eventType, 
 
 bool AgoZwave::emitFilteredEvent(const char *internalId, const char *eventType, double level, const char *unit)
 {
-    stringstream sLevel;
+    std::stringstream sLevel;
     sLevel << level;
     if( !filterEvent(internalId, eventType, sLevel.str()) )
     {
@@ -779,7 +778,7 @@ bool AgoZwave::emitFilteredEvent(const char *internalId, const char *eventType, 
 
 bool AgoZwave::emitFilteredEvent(const char *internalId, const char *eventType, int level, const char *unit)
 {
-    stringstream sLevel;
+    std::stringstream sLevel;
     sLevel << level;
     if( !filterEvent(internalId, eventType, sLevel.str()) )
     {
@@ -830,7 +829,7 @@ AgoZwave::NodeInfo* AgoZwave::getNodeInfo(uint32 homeId, uint8 nodeId)
 }
 
 
-ValueID* AgoZwave::getValueID(int nodeid, int instance, string label)
+ValueID* AgoZwave::getValueID(int nodeid, int instance, std::string label)
 {
     for( list<NodeInfo*>::iterator it = g_nodes.begin(); it != g_nodes.end(); ++it )
     {
@@ -838,7 +837,7 @@ ValueID* AgoZwave::getValueID(int nodeid, int instance, string label)
         {
             if ( ((*it)->m_nodeId == nodeid) && ((*it2).GetInstance() == instance) )
             {
-                string valuelabel = OpenZWave::Manager::Get()->GetValueLabel((*it2));
+                std::string valuelabel = OpenZWave::Manager::Get()->GetValueLabel((*it2));
                 if (label == valuelabel)
                 {
                     // AGO_TRACE() << "Found ValueID: " << (*it2).GetId();
@@ -929,7 +928,7 @@ qpid::types::Variant::Map AgoZwave::getCommandClassConfigurationParameter(OpenZW
     }
 
     //get parameter value
-    string currentValue = "";
+    std::string currentValue = "";
     if( Manager::Get()->GetValueAsString(*valueID, &currentValue) )
     {
         param["currentvalue"] = currentValue;
@@ -963,7 +962,7 @@ qpid::types::Variant::Map AgoZwave::getCommandClassConfigurationParameter(OpenZW
 qpid::types::Variant::Map AgoZwave::getCommandClassWakeUpParameter(OpenZWave::ValueID* valueID)
 {
     qpid::types::Variant::Map param;
-    string currentValue = "";
+    std::string currentValue = "";
 
     if( Manager::Get()->GetValueAsString(*valueID, &currentValue) )
     {
@@ -989,7 +988,7 @@ qpid::types::Variant::Map AgoZwave::getCommandClassWakeUpParameter(OpenZWave::Va
  * Set device parameter
  * @return true if parameter found and set successfully
  */
-bool AgoZwave::setCommandClassParameter(uint32 homeId, uint8 nodeId, uint8 commandClassId, uint8 index, string newValue)
+bool AgoZwave::setCommandClassParameter(uint32 homeId, uint8 nodeId, uint8 commandClassId, uint8 index, std::string newValue)
 {
     bool result = false;
 
@@ -1006,7 +1005,7 @@ bool AgoZwave::setCommandClassParameter(uint32 homeId, uint8 nodeId, uint8 comma
                 //parameter found
 
                 //check if value has been modified
-                string oldValue;
+                std::string oldValue;
                 Manager::Get()->GetValueAsString(*it, &oldValue);
 
                 if( oldValue!=newValue )
@@ -1098,15 +1097,15 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                 uint8 generic = Manager::Get()->GetNodeGeneric(_notification->GetHomeId(),_notification->GetNodeId());
                 /*uint8 specific =*/ Manager::Get()->GetNodeSpecific(_notification->GetHomeId(),_notification->GetNodeId());
                 ValueID id = _notification->GetValueID();
-                string label = Manager::Get()->GetValueLabel(id);
-                stringstream tempstream;
+                std::string label = Manager::Get()->GetValueLabel(id);
+                std::stringstream tempstream;
                 tempstream << (int) _notification->GetNodeId();
                 tempstream << "/";
                 tempstream << (int) id.GetInstance();
-                string nodeinstance = tempstream.str();
+                std::string nodeinstance = tempstream.str();
                 tempstream << "-";
                 tempstream << label;
-                string tempstring = tempstream.str();
+                std::string tempstring = tempstream.str();
                 ZWaveNode *device;
 
                 if (id.GetGenre() == ValueID::ValueGenre_Config)
@@ -1464,7 +1463,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                 // TBD...
                 // nodeInfo = nodeInfo;
                 ValueID id = _notification->GetValueID();
-                string str;
+                std::string str;
                 AGO_INFO() << "Notification='Value Changed' Home=" << std::hex << _notification->GetHomeId() << " Node=" << std::dec << (int)_notification->GetNodeId() << " Genre=" << std::dec << (int)id.GetGenre() << " Class=" << getHRCommandClassId(id.GetCommandClassId()) << std::dec << " Type=" << id.GetType() << " Genre=" << id.GetGenre();
 
                 if (Manager::Get()->GetValueAsString(id, &str))
@@ -1473,12 +1472,12 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                     qpid::types::Variant cachedValue;
                     cachedValue.parse(str);
                     valueCache[id] = cachedValue;
-                    string label = Manager::Get()->GetValueLabel(id);
-                    string units = Manager::Get()->GetValueUnits(id);
+                    std::string label = Manager::Get()->GetValueLabel(id);
+                    std::string units = Manager::Get()->GetValueUnits(id);
 
                     // TODO: send proper types and don't convert everything to string
-                    string level = str;
-                    string eventtype = "";
+                    std::string level = str;
+                    std::string eventtype = "";
                     if (str == "True")
                     {
                         level="255";
@@ -1515,12 +1514,12 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                         //convert value according to configured metrics
                         if (units=="F" && unitsystem==0)
                         {
-                            str = float2str((atof(str.c_str())-32)*5/9);
+                            str = float2str((std::stof(str)-32)*5/9);
                             level = str;
                         }
                         else if (units =="C" && unitsystem==1)
                         {
-                            str = float2str(atof(str.c_str())*9/5 + 32);
+                            str = float2str(std::stof(str)*9/5 + 32);
                             level = str;
                         }
                     }
@@ -1667,10 +1666,10 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                 // basic_set or hail message.
                 ValueID id = _notification->GetValueID();
                 AGO_DEBUG() << "NodeEvent: HomeId=" << id.GetHomeId() << " NodeId=" << id.GetNodeId() << " Genre=" << id.GetGenre() << " CommandClassId=" << getHRCommandClassId(id.GetCommandClassId()) << " Instance=" << id.GetInstance() << " Index="<< id.GetIndex() << " Type="<< id.GetType() << " Id="<< id.GetId();
-                string label = Manager::Get()->GetValueLabel(id);
-                stringstream level;
+                std::string label = Manager::Get()->GetValueLabel(id);
+                std::stringstream level;
                 level << (int) _notification->GetByte();
-                string eventtype = "event.device.statechanged";
+                std::string eventtype = "event.device.statechanged";
                 ZWaveNode *device = devices.findValue(id);
                 if (device != NULL)
                 {
@@ -1691,12 +1690,12 @@ void AgoZwave::_OnNotification (Notification const* _notification)
             {
                 int scene = _notification->GetSceneId();
                 ValueID id = _notification->GetValueID();
-                string label = Manager::Get()->GetValueLabel(id);
-                stringstream tempstream;
+                std::string label = Manager::Get()->GetValueLabel(id);
+                std::stringstream tempstream;
                 tempstream << (int) _notification->GetNodeId();
                 tempstream << "/1";
-                string nodeinstance = tempstream.str();
-                string eventtype = "event.device.scenechanged";
+                std::string nodeinstance = tempstream.str();
+                std::string eventtype = "event.device.scenechanged";
                 ZWaveNode *device;
                 if ((device = devices.findId(nodeinstance)) != NULL)
                 {
@@ -1760,7 +1759,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
             ValueID id = _notification->GetValueID();
             ZWaveNode *device = devices.findValue(id);
             qpid::types::Variant::Map eventmap;
-            stringstream message;
+            std::stringstream message;
             switch (_notificationCode) {
                 case Notification::Code_MsgComplete:
                     //completed message
@@ -2084,7 +2083,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
         {
             checkMsgParameter(content, "node", VAR_INT32);
             checkMsgParameter(content, "index", VAR_INT32);
-            int nodeId = atoi(content["node"].asString().c_str());
+            int nodeId = std::stoi(content["node"].asString());
             int index = content["index"];
             if (content["commandclassid"].isVoid())
             {
@@ -2102,7 +2101,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
             {
                 // new style used by the GUI
                 checkMsgParameter(content, "value", VAR_STRING);
-                string value = string(content["value"]);
+                std::string value = std::string(content["value"]);
                 int commandClassId = content["commandclassid"];
                 AGO_DEBUG() << "setting config param: nodeId=" << nodeId << " commandClassId=" << commandClassId << " index=" << index << " value=" << value;
                 if (setCommandClassParameter(g_homeId, nodeId, commandClassId, index, value)) return responseSuccess();
@@ -2163,7 +2162,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                 tmpValueID = device->getValueID(content["value"]);
                 if (tmpValueID == NULL) return responseError(RESPONSE_ERR_INTERNAL, "Value label not found for device " + content["internalid"]);
                 AGO_DEBUG() << "Enable polling for " << content["nodeid"] << " Value " << content["value"] << " with intensity " << content["intensity"];
-                Manager::Get()->EnablePoll(*tmpValueID,atoi(content["intensity"].asString().c_str()));
+                Manager::Get()->EnablePoll(*tmpValueID, std::stoi(content["intensity"].asString()));
                 Manager::Get()->WriteConfig( g_homeId );
                 return responseSuccess();
             } else 
@@ -2201,7 +2200,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
         ZWaveNode *device = devices.findId(internalid);
         if (device != NULL)
         {
-            string devicetype = device->getDevicetype();
+            std::string devicetype = device->getDevicetype();
             AGO_TRACE() << "command received for " << internalid << "(" << devicetype << ")"; 
             ValueID *tmpValueID = NULL;
 
@@ -2270,10 +2269,10 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                     checkMsgParameter(content, "green");
                     checkMsgParameter(content, "blue");
                     int red, green, blue = 0;
-                    red = CAP_8BIT_INT(atoi(content["red"].asString().c_str()));
-                    green = CAP_8BIT_INT(atoi(content["green"].asString().c_str()));
-                    blue = CAP_8BIT_INT(atoi(content["blue"].asString().c_str()));
-                    stringstream colorString;
+                    red = CAP_8BIT_INT(std::stoi(content["red"].asString()));
+                    green = CAP_8BIT_INT(std::stoi(content["green"].asString()));
+                    blue = CAP_8BIT_INT(std::stoi(content["blue"].asString()));
+                    std::stringstream colorString;
                     colorString << "#";
                     colorString << std::uppercase << std::hex << std::setw(2) << std::setfill('0') << red;
                     colorString << std::uppercase << std::hex << std::setw(2) << std::setfill('0') << green;
@@ -2335,7 +2334,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
             {
                 if (content["command"] == "settemperature")
                 {
-                    string mode = content["mode"].asString();
+                    std::string mode = content["mode"].asString();
                     if  (mode == "") mode = "auto";
                     if (mode == "cool") tmpValueID = device->getValueID("Cooling 1");
                     else if ((mode == "auto") || (mode == "heat")) tmpValueID = device->getValueID("Heating 1");
@@ -2347,7 +2346,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                         try
                         {
                             AGO_TRACE() << "rel temp -1:" << valueCache[*tmpValueID];
-                            temp = atof(valueCache[*tmpValueID].asString().c_str());
+                            temp = std::stof(valueCache[*tmpValueID].asString());
                             temp = temp - 1.0;
                         }
                         catch (...)
@@ -2361,7 +2360,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                         try
                         {
                             AGO_TRACE() << "rel temp +1: " << valueCache[*tmpValueID];
-                            temp = atof(valueCache[*tmpValueID].asString().c_str());
+                            temp = std::stof(valueCache[*tmpValueID].asString());
                             temp = temp + 1.0;
                         }
                         catch (...)
@@ -2380,7 +2379,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                 }
                 else if (content["command"] == "setthermostatmode")
                 {
-                    string mode = content["mode"].asString();
+                    std::string mode = content["mode"].asString();
                     tmpValueID = device->getValueID("Mode");
                     if (tmpValueID == NULL) return responseError(RESPONSE_ERR_INTERNAL, "Cannot determine OpenZWave 'Mode' label");
                     if (mode=="heat")
@@ -2411,7 +2410,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                 }
                 else if (content["command"] == "setthermostatfanmode")
                 {
-                    string mode = content["mode"].asString();
+                    std::string mode = content["mode"].asString();
                     tmpValueID = device->getValueID("Fan Mode");
                     if (tmpValueID == NULL) return responseError(RESPONSE_ERR_INTERNAL, "Cannot determine OpenZWave 'Mode' label");
                     if (mode=="circulate")
@@ -2490,7 +2489,7 @@ void AgoZwave::setupApp()
     // pLog->SetLogFileName("/var/log/zwave.log"); // Make sure, in case Log::Create already was called before we got here
     // pLog->SetLoggingState(OpenZWave::LogLevel_Info, OpenZWave::LogLevel_Debug, OpenZWave::LogLevel_Error);
 
-    if(Options::Create( "/etc/openzwave/", getConfigPath("/ozw/").c_str(), "" ) == NULL)
+    if(Options::Create( "/etc/openzwave/", getConfigPath("/ozw/").string(), "" ) == NULL)
     {
         AGO_ERROR() << "Failed to configure OpenZWave";
         throw StartupError();
@@ -2517,14 +2516,14 @@ void AgoZwave::setupApp()
     Options::Get()->AddOptionInt( "QueueLogLevel", LogLevel_Debug );
     Options::Get()->AddOptionInt( "DumpTrigger", LogLevel_Error );
 
-    int retryTimeout = atoi(getConfigOption("retrytimeout","2000").c_str());
+    int retryTimeout = std::stoi(getConfigOption("retrytimeout","2000"));
     OpenZWave::Options::Get()->AddOptionInt("RetryTimeout", retryTimeout);
 
     Options::Get()->Lock();
 
     Manager::Create();
     Manager::Get()->AddWatcher( on_notification, this );
-    Manager::Get()->SetPollInterval(atoi(getConfigOption("pollinterval", "300000").c_str()),true);
+    Manager::Get()->SetPollInterval(std::stoi(getConfigOption("pollinterval", "300000")),true);
     Manager::Get()->AddDriver(device);
 
     // Now we just wait for the driver to become ready
