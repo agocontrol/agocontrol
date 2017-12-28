@@ -1922,7 +1922,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
             for( list<NodeInfo*>::iterator it = g_nodes.begin(); it != g_nodes.end(); ++it )
             {
                 NodeInfo* nodeInfo = *it;
-                string index;
+                std::string index;
                 qpid::types::Variant::Map node;
                 qpid::types::Variant::List neighborsList;
                 qpid::types::Variant::List internalIds;
@@ -2001,7 +2001,7 @@ qpid::types::Variant::Map AgoZwave::commandHandler(qpid::types::Variant::Map con
                 node["params"] = params;
 
                 uint8 nodeid = nodeInfo->m_nodeId;
-                index = static_cast<ostringstream*>( &(ostringstream() << nodeid) )->str();
+                index = std::to_string(nodeid);
                 nodelist[index.c_str()] = node;
             }
             qpid::types::Variant::Map returnval;
