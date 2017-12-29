@@ -22,7 +22,7 @@ fs::path localstate_dir;
 
 static std::string augeasGetError() ;
 
-fs::path prepareDirectory(const char *name, const fs::path &dir) {
+static fs::path prepareDirectory(const fs::path &dir) {
     if(!fs::exists(dir)) {
         // Try to create it
         // ensureDirExists will canonical() it
@@ -34,7 +34,7 @@ fs::path prepareDirectory(const char *name, const fs::path &dir) {
     }
 }
 
-fs::path initDirectory(const char *name, const char *def){
+static fs::path initDirectory(const char *name, const char *def){
     const char *tmp;
     std::string env ("AGO_");
     env+= name;
@@ -47,7 +47,7 @@ fs::path initDirectory(const char *name, const char *def){
     }
 
     try {
-        dir = prepareDirectory(name, dir);
+        dir = prepareDirectory(dir);
     } catch(const fs::filesystem_error& error) {
         // Canonical failed; does it not exist after all?
         AGO_WARNING() << "Failed to resolve " << name << " " << dir.string()
@@ -76,13 +76,13 @@ void AgoClientInternal::setConfigDir(const boost::filesystem::path &dir) {
     if(!config_dir.empty()) {
         throw std::runtime_error("setConfigDir after initDirectorys was called!");
     }
-    config_dir = prepareDirectory("confdir", dir);
+    config_dir = prepareDirectory(dir);
 }
 void AgoClientInternal::setLocalStateDir(const boost::filesystem::path &dir) {
     if(!localstate_dir.empty()) {
         throw std::runtime_error("setLocalStateDir change after initDirectorys was called!");
     }
-    localstate_dir= prepareDirectory("localstatedir", dir);
+    localstate_dir= prepareDirectory(dir);
 }
 
 void AgoClientInternal::_reset() {
