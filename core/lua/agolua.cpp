@@ -64,8 +64,8 @@ private:
     int64_t lastInventoryUpdate;
 
     fs::path construct_script_name(fs::path input) ;
-    void pushTableFromMap(lua_State *L, qpid::types::Variant::Map content) ;
-    void pushTableFromList(lua_State *L, qpid::types::Variant::List list);
+    void pushTableFromMap(lua_State *L, const qpid::types::Variant::Map& content) ;
+    void pushTableFromList(lua_State *L, const qpid::types::Variant::List& list);
     void pullTableToMap(lua_State *L, qpid::types::Variant::Map& table);
     void pullTableToList(lua_State *L, qpid::types::Variant::List& list);
 
@@ -156,7 +156,7 @@ static std::string get_file_contents(const fs::path &filename)
 /**
  * Push lua table from qpid map
  */
-void AgoLua::pushTableFromMap(lua_State *L, qpid::types::Variant::Map content)
+void AgoLua::pushTableFromMap(lua_State *L, const qpid::types::Variant::Map& content)
 {
     lua_createtable(L, 0, 0);
     for (qpid::types::Variant::Map::const_iterator it=content.begin(); it!=content.end(); it++)
@@ -269,7 +269,7 @@ void AgoLua::pushTableFromMap(lua_State *L, qpid::types::Variant::Map content)
 /**
  * Push lua table from qpid list
  */
-void AgoLua::pushTableFromList(lua_State *L, qpid::types::Variant::List list)
+void AgoLua::pushTableFromList(lua_State *L, const qpid::types::Variant::List& list)
 {
     int index = 1; //lua table index starts at 1
     lua_createtable(L, 0, 0);

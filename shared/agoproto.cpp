@@ -172,6 +172,18 @@ void agocontrol::checkMsgParameter(/*const */qpid::types::Variant::Map& content,
     }
 }
 
+agocontrol::AgoResponse::AgoResponse(agocontrol::AgoResponse&& rhs) noexcept {
+    root = std::move(rhs.root);
+    response = std::move(rhs.response);
+}
+
+agocontrol::AgoResponse& agocontrol::AgoResponse::operator=(agocontrol::AgoResponse&& rhs) noexcept {
+    root = std::move(rhs.root);
+    response = std::move(rhs.response);
+    return *this;
+}
+
+
 void agocontrol::AgoResponse::init(const qpid::messaging::Message& message) {
     if (message.getContentSize() > 3) {
         decode(message, response);
@@ -230,11 +242,11 @@ bool agocontrol::AgoResponse::isOk() const {
     return response.count("result") == 1;
 }
 
-std::string agocontrol::AgoResponse::getIdentifier() {
+std::string agocontrol::AgoResponse::getIdentifier() /*const*/ {
     return root["identifier"].asString();
 }
 
-std::string agocontrol::AgoResponse::getMessage() {
+std::string agocontrol::AgoResponse::getMessage() /*const*/ {
     if(root.count("message"))
         return root["message"].asString();
     else
@@ -242,10 +254,10 @@ std::string agocontrol::AgoResponse::getMessage() {
 }
 
 
-qpid::types::Variant::Map agocontrol::AgoResponse::getData() {
+const qpid::types::Variant::Map& agocontrol::AgoResponse::getData() /*const*/ {
     if(root.count("data"))
         return root["data"].asMap();
     else
-        return qpid::types::Variant::Map();
+        return EMPTY_DATA;
 }
 

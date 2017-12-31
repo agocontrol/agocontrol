@@ -88,11 +88,13 @@ namespace agocontrol {
     protected:
         qpid::types::Variant::Map response;
         qpid::types::Variant::Map root;
-        AgoResponse(){};
         void init(const qpid::messaging::Message& message);
         void init(const qpid::types::Variant::Map& response);
         void validate();
     public:
+        AgoResponse(){};
+        AgoResponse(AgoResponse&& rhs) noexcept;
+        AgoResponse& operator=(AgoResponse&& rhs) noexcept;
 
         // Return true if we have an "error" element
         bool isError() const;
@@ -104,15 +106,13 @@ namespace agocontrol {
         std::string getIdentifier() /*const*/;
 
         // Get the "message" field from either type of response
-        std::string getMessage();
+        std::string getMessage() /*const*/;
 
         // Get either "result.data" or "error.data"
-        // Note that this creates a copy; Variant::map does not allow get without copy
-        // before C++-11
-        /*const*/ qpid::types::Variant::Map/*&*/ getData() /*const*/;
+        const qpid::types::Variant::Map& getData() /*const*/;
 
         // Get a copy of the raw message; only use in agorpc!
-        /*const*/ qpid::types::Variant::Map/*&*/ getResponse() /*const*/ { return response; };
+        const qpid::types::Variant::Map getResponse() const { return response; };
     };
 
 }/* namespace agocontrol */

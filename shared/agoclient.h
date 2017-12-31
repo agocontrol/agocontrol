@@ -120,6 +120,7 @@ namespace agocontrol {
         // TEMP NOTE: Only use towards apps using new style command handlers!
         AgoResponse sendRequest(const qpid::types::Variant::Map& content);
         AgoResponse sendRequest(const std::string& subject, const qpid::types::Variant::Map& content);
+        AgoResponse sendRequest(const std::string& subject, const qpid::types::Variant::Map& content, qpid::messaging::Duration timeout);
 
         // Deprecated
         qpid::types::Variant::Map sendMessageReply(const char *subject, const qpid::types::Variant::Map& content, qpid::messaging::Duration timeout);

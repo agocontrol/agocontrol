@@ -750,10 +750,14 @@ bool agocontrol::AgoConnection::sendMessage(const char *subject, qpid::types::Va
 }
 
 agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const qpid::types::Variant::Map& content) {
-    return sendRequest("", content);
+    return sendRequest("", content, Duration::SECOND * 3);
 }
 
 agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string& subject, const qpid::types::Variant::Map& content) {
+    return sendRequest("", content, Duration::SECOND * 3);
+}
+
+agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string& subject, const qpid::types::Variant::Map& content, qpid::messaging::Duration timeout) {
     AgoResponse r;
     Message message;
     Receiver responseReceiver;
@@ -771,7 +775,7 @@ agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string
         AGO_TRACE() << "Sending request [sub=" << subject << ", replyTo=" << responseQueue <<"]" << content;
         sender.send(message);
 
-        Message response = responseReceiver.fetch(Duration::SECOND * 3);
+        Message response = responseReceiver.fetch(timeout);
 
         try {
             r.init(response);
