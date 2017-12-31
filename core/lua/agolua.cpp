@@ -489,8 +489,8 @@ int AgoLua::luaSendMessage(lua_State *L)
 
     //execute sendMessage
     AGO_DEBUG() << "Sending message: " << subject << " " << content;
-    qpid::types::Variant::Map replyMap = agoConnection->sendMessageReply(subject.c_str(), content);
-    pushTableFromMap(L, replyMap);
+    AgoResponse response = agoConnection->sendRequest(subject.c_str(), content);
+    pushTableFromMap(L, response.getResponse());
 
     return 1;
 }

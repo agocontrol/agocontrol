@@ -503,7 +503,7 @@ void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string mess
 
     if( send )
     {
-        agoConnection->sendMessageReply("", *content);
+        agoConnection->sendMessage(*content);
     }
     AGO_TRACE() << "sendAlarm() END";
 }

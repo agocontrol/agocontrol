@@ -803,44 +803,6 @@ agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string
     return r;
 }
 
-// DEPRECATED, USE sendRequest
-qpid::types::Variant::Map agocontrol::AgoConnection::sendMessageReply(const char *subject, const qpid::types::Variant::Map& content) {
-    return sendMessageReply(subject, content, Duration::SECOND * 3);
-}
-
-qpid::types::Variant::Map agocontrol::AgoConnection::sendMessageReply(const char *subject, const qpid::types::Variant::Map& content, qpid::messaging::Duration timeout) {
-    Message message;
-    qpid::types::Variant::Map responseMap;
-    Receiver responseReceiver;
-    Session recvsession = connection.createSession();
-    try {
-        encode(content, message);
-        if(*subject != 0)
-            message.setSubject(subject);
-        Address responseQueue("#response-queue; {create:always, delete:always}");
-        responseReceiver = recvsession.createReceiver(responseQueue);
-        message.setReplyTo(responseQueue);
-
-        AGO_TRACE() << "Sending message [sub=" << subject << ", reply=" << responseQueue <<"]" << content;
-        sender.send(message);
-        Message response = responseReceiver.fetch(timeout);
-        recvsession.acknowledge();
-        if (response.getContentSize() > 3) {
-            decode(response,responseMap);
-        } else {
-            responseMap["response"] = response.getContent();
-        }
-        AGO_TRACE() << "Reply received: " << responseMap;
-    } catch (qpid::messaging::NoMessageAvailable) {
-        AGO_WARNING() << "No reply for message sent to subject " << subject;
-    } catch(const std::exception& error) {
-        AGO_ERROR() << "Exception in sendMessageReply: " << error.what();
-    }
-    recvsession.close();
-    return responseMap;
-}
-
-
 bool agocontrol::AgoConnection::sendMessage(qpid::types::Variant::Map content) {
     return sendMessage("",content);
 }

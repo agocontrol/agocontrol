@@ -214,79 +214,17 @@ void AgoRpc::jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mu
     //send message and handle response
     AGO_TRACE() << "Request on " << reqRep << ": " << command << "(timeout=" << timeout.getMilliseconds() << " : << "<<replytimeout<< ")";
 
-    qpid::types::Variant::Map responseMap;
+    agocontrol::AgoResponse response;
     try {
         lock.unlock();
-        // TODO: change this to sendRequest when all backends have been updated
-        responseMap = agoConnection->sendMessageReply(subject.asString().c_str(), command, timeout);
+        response = agoConnection->sendRequest(subject.asString(), command, timeout);
     } catch(...) {
         lock.lock();
         throw;
     }
 
-//    AGO_TRACE() << "Response: " << responseMap;
-    if(responseMap.size() == 0 || !responseRoot.isMember("id") ) // only send reply when id is not null
-    {
-        // TODO: revisit id / notifications
-        // no response
-        if(responseMap.size() == 0)
-            AGO_ERROR() << "No reply message to fetch. Failed message: " << "subject=" <<subject<<": " << command;
-
-        jsonrpcErrorResponse(responseRoot, AGO_JSONRPC_MESSAGE_ERROR, "error.no.reply");
-        return;
-    }
-
-    // allow on the fly behavior during migration
-    if (responseMap.count("_newresponse"))
-    {
-        AGO_TRACE() << "New style response on " << reqRep << ": " << responseMap;
-        if (responseMap["error"].isVoid())
-        {
-            // no error
-            if (responseMap["result"].isVoid() || responseMap["result"].getType() != qpid::types::VAR_MAP)
-            {
-                AGO_ERROR() << "New style response does not contain result nor error";
-                jsonrpcErrorResponse(responseRoot, AGO_JSONRPC_MESSAGE_ERROR, "message returned neither error or result");
-                return;
-            }
-            else
-            {
-                responseRoot["result"] = Json::Value(Json::objectValue);
-                variantMapToJson(responseMap["result"].asMap(), responseRoot["result"]);
-                return;
-            }
-        }
-        else
-        {
-            // error
-            if (responseMap["error"].getType() != qpid::types::VAR_MAP)
-            {
-                AGO_ERROR() << "Error response is not a map";
-                jsonrpcErrorResponse(responseRoot, AGO_JSONRPC_MESSAGE_ERROR, "message returned error and error map is malformed");
-                return;
-            }
-            else
-            {
-                qpid::types::Variant::Map errorMap = responseMap["error"].asMap();
-
-                responseRoot["error"] = Json::Value(Json::objectValue);
-                responseRoot["error"]["code"] = AGO_JSONRPC_COMMAND_ERROR;
-                responseRoot["error"]["message"] = "Command returned error";
-                responseRoot["error"]["data"] = Json::Value(Json::objectValue);
-                variantMapToJson(responseMap["error"].asMap(), responseRoot["error"]["data"]);
-                return;
-            }
-        }
-    }
-    else
-    {
-#if 0
-        // old style responses
-        mg_rpc_reply_map(conn, request, responseMap);
-#endif
-        AGO_ERROR() << "Old-style response not supported anymore: " << responseMap;
-        jsonrpcErrorResponse(responseRoot, AGO_JSONRPC_MESSAGE_ERROR, "message returned old-style response, not supported");
-    }
+    AGO_TRACE() << "Response: " << response.getResponse();
+    variantMapToJson(response.getResponse(), responseRoot);
 }
 
 

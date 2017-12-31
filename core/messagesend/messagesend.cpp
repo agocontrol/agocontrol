@@ -14,7 +14,6 @@
 
 #include "agoclient.h"
 
-using namespace std;
 using namespace agocontrol;
 
 using std::stringstream;
@@ -22,7 +21,7 @@ using std::string;
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        cout << "Usage example: " << argv[0] << " uuid=ca9424e6-406d-4144-8931-584046eaaa34 command=setlevel level=50" << endl;
+        std::cout << "Usage example: " << argv[0] << " uuid=ca9424e6-406d-4144-8931-584046eaaa34 command=setlevel level=50" << std::endl;
         return -1;
     }
     AgoConnection agoConnection = AgoConnection("messagesend");		
@@ -40,9 +39,14 @@ int main(int argc, char **argv) {
             }
         }
     }
-    cout << "Sending message: " << content << endl;
-    qpid::types::Variant::Map replyMap = agoConnection.sendMessageReply(subject.c_str(), content);
-    cout << "Reply: " << replyMap << endl;
+
+    std::cout << "Sending message: " << content << std::endl;
+    AgoResponse response = agoConnection.sendRequest(subject.c_str(), content);
+    if(response.isOk()) {
+        std::cout << "Success: " << response.getResponse() << std::endl;
+    }else{
+        std::cout << "Error: " << response.getResponse() << std::endl;
+    }
 }
 
 
