@@ -110,8 +110,8 @@ public:
     // Launch the server. May throw exception if bind fails etc
     void start();
 
-    // Trigger a wakeup of the poll loop
-    // valid from any thread.
+    // Trigger a wakeup of the poll loo, valid from any thread. Must NOT hold any ReqRep mutex
+    // when calling this, or deadlock may occur!
     void wakeup();
 
     void shutdown();

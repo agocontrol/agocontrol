@@ -27,6 +27,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/locks.hpp>
+#include <boost/thread/reverse_lock.hpp>
 #include <boost/tokenizer.hpp>
 
 #include "agoapp.h"
@@ -212,18 +213,16 @@ void AgoRpc::jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mu
         timeout = qpid::messaging::Duration(replytimeout.asDouble() * 1000);
     }
     //send message and handle response
-    AGO_TRACE() << "Request on " << reqRep << ": " << command << "(timeout=" << timeout.getMilliseconds() << " : << "<<replytimeout<< ")";
+    AGO_TRACE() << "JsonRPC Request on " << reqRep << ": " << command << "(timeout=" << timeout.getMilliseconds() << " : << "<<replytimeout<< ")";
 
     agocontrol::AgoResponse response;
-    try {
-        lock.unlock();
+    {
+        // ReqRep must not be locked when blocking in another thread
+        boost::reverse_lock<boost::unique_lock<boost::mutex>> unlock(lock);
         response = agoConnection->sendRequest(subject.asString(), command, timeout);
-    } catch(...) {
-        lock.lock();
-        throw;
     }
 
-    AGO_TRACE() << "Response: " << response.getResponse();
+    AGO_TRACE() << "JsonRPC Response: " << response.getResponse();
     variantMapToJson(response.getResponse(), responseRoot);
 }
 
@@ -262,6 +261,7 @@ void AgoRpc::jsonrpc_thread(boost::shared_ptr<JsonRpcReqRep> reqRep) {
 
     // Wakeup mongoose main poll loop, it will POLL our client
     // and write the response.
+    lock.unlock(); // Must NOT hold lock when calling wakup
     AGO_TRACE() << "Response stored, Exiting jsonrpc thread for " << reqRep.get();
     agoHttp.wakeup();
 }
@@ -619,6 +619,7 @@ void AgoRpc::uploadFile_thread(boost::shared_ptr<FileUploadReqRep> reqRep) {
     reqRep->responseReady = true;
 
     AGO_TRACE() << "Leaving upload thread " << reqRep.get();
+    lock.unlock(); // Must NOT hold lock when calling wakup
     agoHttp.wakeup();
 }
 
@@ -705,6 +706,7 @@ void AgoRpc::downloadFile_thread(boost::shared_ptr<FileDownloadReqRep> reqRep) {
 
     AGO_TRACE() << "Leaving downloadFile_thread for " << reqRep.get();
     // will trigger writeResponseData from mongoose thread.
+    lock.unlock(); // Must NOT hold lock when calling wakup
     agoHttp.wakeup();
 }
 

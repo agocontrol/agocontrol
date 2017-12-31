@@ -779,7 +779,7 @@ agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string
 
         try {
             r.init(response);
-            AGO_TRACE() << "Response received: " << r.response;
+            AGO_TRACE() << "Remote response received: " << r.response;
         }catch(const std::invalid_argument& ex) {
             AGO_ERROR() << "Failed to initate response, wrong response format? Error: "
                 << ex.what()
