@@ -64,15 +64,6 @@ using namespace qpid::messaging;
 using namespace qpid::types;
 using namespace agocontrol;
 
-// helper to determine last element
-#ifndef _LIBCPP_ITERATOR
-template <typename Iter>
-Iter next(Iter iter)
-{
-    return ++iter;
-}
-#endif
-
 
 class AgoImperiHome: public AgoApp {
 private:
