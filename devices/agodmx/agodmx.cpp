@@ -25,13 +25,12 @@
 
 using namespace qpid::types;
 using namespace tinyxml2;
-using namespace std;
 using namespace agocontrol;
 namespace fs = ::boost::filesystem;
 
 class AgoLogDestination: public ola::LogDestination {
     public:
-        void Write(ola::log_level level, const string &log_line);
+        void Write(ola::log_level level, const std::string &log_line);
 };
 
 class AgoDmx: public AgoApp {
@@ -52,14 +51,14 @@ private:
     bool setDevice_level(Variant::Map device, int level);
     bool ola_send();
     void reportDevices(Variant::Map channelmap);
-    bool loadChannels(string filename, Variant::Map& _channelMap);
+    bool loadChannels(std::string filename, Variant::Map& _channelMap);
 
 public:
     AGOAPP_CONSTRUCTOR(AgoDmx);
 };
 
-void AgoLogDestination::Write(ola::log_level level, const string &log_line) {
-    string line = log_line;
+void AgoLogDestination::Write(ola::log_level level, const std::string &log_line) {
+    std::string line = log_line;
     replaceString(line, "\n"," ");
 
     if (level == OLA_FATAL) AGO_FATAL() << "[OLA] " << line;
@@ -72,7 +71,7 @@ void AgoLogDestination::Write(ola::log_level level, const string &log_line) {
 /**
  * parses the device XML file and creates a qpid::types::Variant::Map with the data
  */
-bool AgoDmx::loadChannels(string filename, Variant::Map& _channelMap) {
+bool AgoDmx::loadChannels(std::string filename, Variant::Map& _channelMap) {
     XMLDocument channelsFile;
     int returncode;
 
@@ -135,9 +134,9 @@ bool AgoDmx::ola_send() {
  * set a device to a color
  */
 bool AgoDmx::setDevice_color(Variant::Map device, int red=0, int green=0, int blue=0) {
-    string channel_red = device["red"];
-    string channel_green = device["green"];
-    string channel_blue = device["blue"];
+    std::string channel_red = device["red"];
+    std::string channel_green = device["green"];
+    std::string channel_blue = device["blue"];
     ola_setChannel(atoi(channel_red.c_str()), red);
     ola_setChannel(atoi(channel_green.c_str()), green);
     ola_setChannel(atoi(channel_blue.c_str()), blue);
@@ -149,13 +148,13 @@ bool AgoDmx::setDevice_color(Variant::Map device, int red=0, int green=0, int bl
  */
 bool AgoDmx::setDevice_level(Variant::Map device, int level=0) {
     if (device["level"]) {
-        string channel = device["level"];
+        std::string channel = device["level"];
         ola_setChannel(atoi(channel.c_str()), (int) ( 255.0 * level / 100 ));
         return ola_send();
     } else {
-        string channel_red = device["red"];
-        string channel_green = device["green"];
-        string channel_blue = device["blue"];
+        std::string channel_red = device["red"];
+        std::string channel_green = device["green"];
+        std::string channel_blue = device["blue"];
         int red = (int) ( buffer.Get(atoi(channel_red.c_str())) * level / 100);
         int green = (int) ( buffer.Get(atoi(channel_green.c_str())) * level / 100);
         int blue = (int) ( buffer.Get(atoi(channel_blue.c_str())) * level / 100);
@@ -168,7 +167,7 @@ bool AgoDmx::setDevice_level(Variant::Map device, int level=0) {
  */
 bool AgoDmx::setDevice_strobe(Variant::Map device, int strobe=0) {
     if (device["strobe"]) {
-        string channel = device["strobe"];
+        std::string channel = device["strobe"];
         ola_setChannel(atoi(channel.c_str()), (int) ( 255.0 * strobe / 100 ));
         return ola_send();
     } else {

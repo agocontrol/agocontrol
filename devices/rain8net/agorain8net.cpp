@@ -27,7 +27,6 @@
 
 #include "rain8.h"
 
-using namespace std;
 using namespace agocontrol;
 
 class AgoRain8net: public AgoApp {

@@ -11,7 +11,6 @@
 #include <fstream>
 #include <string>
 
-using namespace std;
 using namespace qpid::messaging;
 using namespace qpid::types;
 
@@ -99,14 +98,14 @@ Variant::Map mapToVariantMap(const YAML::Node &node) {
     if (node.Type() == YAML::NodeType::Map) {
         for(YAML::Iterator it=node.begin(); it!=node.end(); ++it) {
             if (it.first().Type() == YAML::NodeType::Scalar) {
-                string key;
+                std::string key;
                 it.first() >> key;
                 if (it.second().Type() == YAML::NodeType::Map) {
                     output[key] = mapToVariantMap(it.second());
                 } else if (it.second().Type() == YAML::NodeType::Sequence) {
                     output[key] = sequenceToVariantList(it.second());
                 } else if (it.second().Type() == YAML::NodeType::Scalar) {
-                    string value;
+                    std::string value;
                     it.second() >> value;
                     output[key] = value;
                 }
@@ -128,7 +127,7 @@ Variant::List sequenceToVariantList(const YAML::Node &node) {
             } else if (node[i].Type() == YAML::NodeType::Map) {
                 output.push_back(mapToVariantMap(node[i]));
             } else if (node[i].Type() == YAML::NodeType::Scalar) {
-                string value;
+                std::string value;
                 node[i] >> value;
                 output.push_back(Variant(value));
             }

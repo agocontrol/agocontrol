@@ -14,11 +14,11 @@
 namespace fs = boost::filesystem;
 namespace agocontrol {
 
-augeas *augeas = NULL;
+static augeas *augeas = NULL;
 
-bool directories_inited = false;
-fs::path config_dir;
-fs::path localstate_dir;
+static bool directories_inited = false;
+static fs::path config_dir;
+static fs::path localstate_dir;
 
 static std::string augeasGetError() ;
 

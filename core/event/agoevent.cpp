@@ -16,7 +16,6 @@
 #define EVENTMAPFILE "maps/eventmap.json"
 #endif
 
-using namespace std;
 using namespace agocontrol;
 using namespace qpid::types;
 namespace fs = ::boost::filesystem;
@@ -241,20 +240,20 @@ void AgoEvent::eventHandler(std::string subject, qpid::types::Variant::Map conte
                     }
                     catch ( const std::exception& error)
                     {
-                        stringstream errorstring;
+                        std::stringstream errorstring;
                         errorstring << error.what();
                         AGO_ERROR() << "Exception occured: " << errorstring.str();
                         criteria[crit->first] = false;
                     }
 
                     // this is for converted legacy scenario maps
-                    stringstream token; token << "criteria[\"" << crit->first << "\"]";
-                    stringstream boolval; boolval << criteria[crit->first];
+                    std::stringstream token; token << "criteria[\"" << crit->first << "\"]";
+                    std::stringstream boolval; boolval << criteria[crit->first];
                     replaceString(nesting, token.str(), boolval.str()); 
 
                     // new javascript editor sends criteria[x] not criteria["x"]
-                    stringstream token2; token2 << "criteria[" << crit->first << "]";
-                    stringstream boolval2; boolval2 << criteria[crit->first];
+                    std::stringstream token2; token2 << "criteria[" << crit->first << "]";
+                    std::stringstream boolval2; boolval2 << criteria[crit->first];
                     replaceString(nesting, token2.str(), boolval2.str()); 
                 }
                 replaceString(nesting, "and", "&");
@@ -346,7 +345,7 @@ qpid::types::Variant::Map AgoEvent::commandHandler(qpid::types::Variant::Map con
 
 void AgoEvent::setupApp()
 {
-    AGO_DEBUG() << "parsing eventmap file" << endl;
+    AGO_DEBUG() << "parsing eventmap file";
     fs::path file = getConfigPath(EVENTMAPFILE);
     eventmap = jsonFileToVariantMap(file);
 
@@ -357,7 +356,7 @@ void AgoEvent::setupApp()
 
     for (qpid::types::Variant::Map::const_iterator it = eventmap.begin(); it!=eventmap.end(); it++)
     {
-        AGO_DEBUG() << "adding event:" << it->first << ":" << it->second << endl;	
+        AGO_DEBUG() << "adding event:" << it->first << ":" << it->second;
         agoConnection->addDevice(it->first.c_str(), "event", true);
     }
 }

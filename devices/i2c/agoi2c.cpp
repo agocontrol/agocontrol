@@ -14,14 +14,13 @@ extern "C"{
 #include "BMP085.c"
 }
 
-using namespace std;
 using namespace agocontrol;
 
 typedef struct {const char *file; int interval;} config_struct;
 
 class AgoI2c: public AgoApp {
 private:
-    string devicefile;
+    std::string devicefile;
     config_struct conf;
     int interval;
 
@@ -46,9 +45,10 @@ void AgoI2c::readBMP085(){
         temperature = bmp085_GetTemperature(bmp085_ReadUT(devicefile.c_str()));
         pressure = bmp085_GetPressure(bmp085_ReadUP(devicefile.c_str()));
 
-        stringstream value;
+        std::stringstream value;
         value << ((double)pressure)/100;
-        stringstream value2;
+
+        std::stringstream value2;
         value2 << ((double)temperature)/10,0x00B0;
         agoConnection->emitEvent("BMP085-baro", "event.environment.pressurechanged", value.str().c_str(), "hPa");
         agoConnection->emitEvent("BMP085-temp", "event.environment.temperaturechanged", value2.str().c_str(), "degC");
@@ -161,10 +161,10 @@ bool AgoI2c::get_pcf8574_state(const char *device, int i2caddr, uint8_t &state) 
 }
 
 qpid::types::Variant::Map AgoI2c::commandHandler(qpid::types::Variant::Map content) {
-    string internalid = content["internalid"].asString();
+    std::string internalid = content["internalid"].asString();
     if (internalid.find("pcf8574:") != std::string::npos) {
         unsigned found = internalid.find(":");
-        string tmpid = internalid.substr(found+1);
+        std::string tmpid = internalid.substr(found+1);
         bool state;
         if (content["command"] == "on") state = true; else state=false;
         unsigned sep = tmpid.find("/");
@@ -188,16 +188,16 @@ qpid::types::Variant::Map AgoI2c::commandHandler(qpid::types::Variant::Map conte
 
 void AgoI2c::setupApp() {
     devicefile=getConfigOption("bus", "/dev/i2c-0");
-    stringstream devices(getConfigOption("devices", "pcf8574:32")); 
+    std::stringstream devices(getConfigOption("devices", "pcf8574:32"));
 
-    string device;
+    std::string device;
     while (getline(devices, device, ',')) {
-        stringstream tmpdevice(device);
-        string type;
+        std::stringstream tmpdevice(device);
+        std::string type;
         getline(tmpdevice, type, ':');
         if (type == "BMP085") {
-            string addrBMP085;
-            getline(tmpdevice, addrBMP085, ':');
+            std::string addrBMP085;
+            std::getline(tmpdevice, addrBMP085, ':');
 
             agoConnection->addDevice("BMP085-baro", "barometersensor");
             agoConnection->addDevice("BMP085-temp", "temperaturesensor");
@@ -208,14 +208,14 @@ void AgoI2c::setupApp() {
             t.detach();
         }
         if (type == "pcf8574") {
-            string addr;
-            getline(tmpdevice, addr, ':');
+            std::string addr;
+            std::getline(tmpdevice, addr, ':');
             uint8_t state;
             if (get_pcf8574_state(devicefile.c_str(), atoi(addr.c_str()), state)!= true) {
                 AGO_ERROR() << "can't read pcf8574 state on startup";
             }
             for (int i=0;i<8;i++) {
-                stringstream id;
+                std::stringstream id;
                 id << device << "/" << i;
                 agoConnection->addDevice(id.str().c_str(), "switch");
                 if (state & (1 << i)) {	

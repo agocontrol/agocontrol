@@ -28,15 +28,13 @@
 #define ARDUINO_LOW            0x00 // digital output pin 0V command
 #define ARDUINO_MAX_DATA_BYTES 32
 
-using namespace std;
-
 class Arduino {
 	public:
 		Arduino();
 		~Arduino();
 		int destroy();
 		int sendUchar(const unsigned char);
-		int sendString(const string);
+		int sendString(const std::string&);
 		char* getData(double);
 		int openPort(const char* _serialPort);
 		int openPort(const char* _serialPort, int _baud);

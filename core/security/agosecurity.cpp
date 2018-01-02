@@ -22,7 +22,6 @@
 using namespace qpid::messaging;
 using namespace qpid::types;
 using namespace agocontrol;
-using namespace std;
 namespace pt = boost::posix_time;
 
 enum TriggerStatus {
@@ -92,8 +91,8 @@ public:
  */
 bool AgoSecurity::checkPin(std::string _pin)
 {
-    stringstream pins(getConfigOption("pin", "0815"));
-    string pin;
+    std::stringstream pins(getConfigOption("pin", "0815"));
+    std::string pin;
     while (getline(pins, pin, ','))
     {
         if (_pin == pin) return true;
@@ -622,7 +621,7 @@ void AgoSecurity::eventHandler(std::string subject, qpid::types::Variant::Map co
         //get device uuid
         if( !content["uuid"].isVoid() && !content["level"].isVoid() )
         {
-            string uuid = content["uuid"].asString();
+            std::string uuid = content["uuid"].asString();
             int64_t level = content["level"].asInt64();
 
             if( level==0 )

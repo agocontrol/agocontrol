@@ -43,7 +43,6 @@
 #define MAXTELEGRAMDATALENGTH 14
 #define MAXTELEGRAMLENGTH 16
 
-using namespace std;
 
 	enum FRAME_TYPE
 	{
@@ -70,7 +69,7 @@ using namespace std;
 			virtual ~Telegram(){};
 			
 			//set the group add of the telegram. must one of the types: "a/b/c" or "a/b" or "a", a,b,c being numbers.
-			inline void setGroupAddress(string s){_addrdest= stringtogaddr(s);};
+			inline void setGroupAddress(std::string s){_addrdest= stringtogaddr(s);};
 			inline void setGroupAddress(eibaddr_t addr){_addrdest=addr;};
 			
 			//set the shortuserdata(and thus sets the length to 0)
@@ -105,18 +104,18 @@ using namespace std;
 
 			inline int getType() const{return _type;};
 
-			string decodeType();
+			std::string decodeType();
 
 			//utilities
 
 			//translates a string to its knx group address
-			static eibaddr_t stringtogaddr(const string s);
+			static eibaddr_t stringtogaddr(const std::string s);
 
 			//and the reverse
-			static string gaddrtostring(eibaddr_t addr);
+			static std::string gaddrtostring(eibaddr_t addr);
 
 			//translate "physical" adress to string
-			static string paddrtostring(eibaddr_t addr);
+			static std::string paddrtostring(eibaddr_t addr);
 
 			//translates  a short (2bytes) received from the knx bus to it's meaning in 'float'
 			static float getFloatFromUShort(const unsigned short data);

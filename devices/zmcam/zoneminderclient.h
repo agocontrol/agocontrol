@@ -17,8 +17,6 @@
 #include <string>
 #include <sstream>
 
-using namespace std;
-
 enum ZM_AUTH_TYPE
 {
     ZM_AUTH_NONE = 0,
@@ -32,48 +30,48 @@ public:
     ZoneminderClient();
     ~ZoneminderClient();
     
-    bool create(string webProtocol,
-               string hostName,
+    bool create(std::string webProtocol,
+               std::string hostName,
                unsigned int webPort,
                ZM_AUTH_TYPE webAuthType,
                bool webAuthUseLocalAddress,
-               string webAuthUserName,
-               string webAuthPasword,
-               string webAuthHashSecret,
+               std::string webAuthUserName,
+               std::string webAuthPasword,
+               std::string webAuthHashSecret,
                unsigned int triggerPort);
     void destroy(void);
     
-    bool getVideoFrame(int monitorId, ostringstream& outputStream);
+    bool getVideoFrame(int monitorId, std::ostringstream& outputStream);
     bool setMonitorAlert(int monitorId,
                          unsigned int durationSeconds,
                          int score,
-                         string causeText,
-                         string eventText,
-                         string showText);
+                         std::string causeText,
+                         std::string eventText,
+                         std::string showText);
     bool clearMonitorAlert(int monitorId);
     
 private:
     bool m_initialized;
-    
-    string m_hostName;
+
+    std::string m_hostName;
     
     unsigned int m_webPort;
-    string m_webUrlBase;
+    std::string m_webUrlBase;
     ZM_AUTH_TYPE m_webAuthType;
-    string m_webAuthBase;
-    string m_webAuthLocalAddress;
+    std::string m_webAuthBase;
+    std::string m_webAuthLocalAddress;
     bool m_webAuthUseLocalAddress;
     
     unsigned int m_triggerPort;
     
-    void buildWebUrlBaseString(string webProtocol,
-                               string hostName,
+    void buildWebUrlBaseString(std::string webProtocol,
+                               std::string hostName,
                                unsigned int webPort);
-    string generateMySqlPassword(string password);
+    std::string generateMySqlPassword(std::string password);
     bool getLocalWebSocketAddress(void);
-    string buildWebAuthString(void);
+    std::string buildWebAuthString(void);
     
-    bool sendTriggerCommand(string command);
+    bool sendTriggerCommand(std::string command);
 };
 
 

@@ -35,7 +35,7 @@ int Arduino::sendUchar(const unsigned char data) {
 	}
 	return(0);
 }
-int Arduino::sendString(const string datastr) {
+int Arduino::sendString(const std::string& datastr) {
 	int rv=0;
 	for (unsigned int i=0; i<datastr.size(); i++) {
 		unsigned char data = (unsigned char)datastr[i];

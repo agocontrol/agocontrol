@@ -5,7 +5,7 @@
 #include "agoapp.h"
 #include "firmata.h"
 
-using namespace std;
+
 using namespace agocontrol;
 
 class AgoFirmata: public AgoApp {
@@ -38,8 +38,8 @@ qpid::types::Variant::Map AgoFirmata::commandHandler(qpid::types::Variant::Map c
 
 
 void AgoFirmata::setupApp() {
-    string devicefile=getConfigOption("device", "/dev/ttyUSB2");
-    stringstream outputs(getConfigOption("outputs", "2")); // read digital out pins from config, default to pin 2 only
+    std::string devicefile=getConfigOption("device", "/dev/ttyUSB2");
+    std::stringstream outputs(getConfigOption("outputs", "2")); // read digital out pins from config, default to pin 2 only
 
     f = new Firmata();
     if (f->openPort(devicefile.c_str()) != 0) {
@@ -50,7 +50,7 @@ void AgoFirmata::setupApp() {
 
     AGO_INFO() << "Firmata version: " <<  f->getFirmwareVersion();
 
-    string output;
+    std::string output;
     while (getline(outputs, output, ',')) {
         f->setPinMode(atoi(output.c_str()), FIRMATA_OUTPUT);
         agoConnection->addDevice(output.c_str(), "switch");

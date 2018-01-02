@@ -24,7 +24,6 @@
 #endif
 #define DEFAULT_PROTOCOL "0.0"
 
-using namespace std;
 using namespace agocontrol;
 using namespace boost::system; 
 using namespace qpid::types;
@@ -64,11 +63,11 @@ class AgoMySensors: public AgoApp
         //members
         boost::thread* readThread;
         boost::thread* checkStaleThread;
-        string units;
+        std::string units;
         qpid::types::Variant::Map devicemap;
         std::string gateway_protocol_version;
         serialib serialPort;
-        string serialDevice;
+        std::string serialDevice;
         int staleThreshold;
         int bNetworkRelay;
         int bStale;
@@ -85,7 +84,7 @@ class AgoMySensors: public AgoApp
         std::string prettyPrint(std::string message, std::string protocol);
         bool deleteDevice(std::string internalid);
         void addDevice(std::string internalid, std::string devicetype, qpid::types::Variant::Map devices, qpid::types::Variant::Map infos, std::string protocol);
-        bool openSerialPort(string device);
+        bool openSerialPort(std::string device);
         void closeSerialPort();
         bool checkInternalid(std::string internalid);
         void sendcommand(std::string command);
@@ -102,7 +101,7 @@ class AgoMySensors: public AgoApp
         void processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos);
         void receiveFunction();
         void checkStaleFunction();
-        bool splitInternalLogMessage(string payload, qpid::types::Variant::Map& items);
+        bool splitInternalLogMessage(std::string payload, qpid::types::Variant::Map& items);
 
     public:
         AGOAPP_CONSTRUCTOR_HEAD(AgoMySensors),
@@ -140,21 +139,21 @@ std::string AgoMySensors::timestampToStr(const time_t* timestamp)
 void AgoMySensors::printDeviceInfos(std::string internalid, qpid::types::Variant::Map infos)
 {
     std::stringstream result;
-    result << "Infos of device internalid '" << internalid << "'" << endl;
+    result << "Infos of device internalid '" << internalid << "'";
     if( !infos["protocol"].isVoid() )
-        result << " - protocol=" << infos["protocol"] << endl;
+        result << " - protocol=" << infos["protocol"];
     if( !infos["type"].isVoid() )
-        result << " - type=" << infos["type"] << endl;
+        result << " - type=" << infos["type"];
     if( !infos["value"].isVoid() )
-        result << " - value=" << infos["value"] << endl;
+        result << " - value=" << infos["value"];
     if( !infos["counter_sent"].isVoid() )
-        result << " - counter_sent=" << infos["counter_sent"] << endl;
+        result << " - counter_sent=" << infos["counter_sent"];
     if( !infos["counter_received"].isVoid() )
-        result << " - counter_received=" << infos["counter_received"] << endl;
+        result << " - counter_received=" << infos["counter_received"];
     if( !infos["counter_failed"].isVoid() )
-        result << " - counter_failed=" << infos["counter_failed"] << endl;
+        result << " - counter_failed=" << infos["counter_failed"];
     if( !infos["last_timestamp"].isVoid() )
-        result << " - last_timestamp=" << infos["last_timestamp"] << endl;
+        result << " - last_timestamp=" << infos["last_timestamp"];
     AGO_TRACE() << result.str();
 }
 
@@ -176,7 +175,7 @@ int AgoMySensors::getFreeId()
         {
             std::string internalid = it->first;
             //format <int>/<int>
-            vector<string> splits;
+            std::vector<std::string> splits;
             boost::split(splits, internalid, boost::is_any_of("/"));
             if( splits.size()==2 && splits[0].length()>0 && splits[1].length()>0 )
             {
@@ -533,7 +532,7 @@ bool AgoMySensors::deleteDevice(std::string internalid)
 void AgoMySensors::addDevice(std::string internalid, std::string devicetype, qpid::types::Variant::Map devices, qpid::types::Variant::Map infos, std::string protocol)
 {
     pthread_mutex_lock(&devicemapMutex);
-    string addStatus = "added";
+    std::string addStatus = "added";
     if( infos.size()>0 )
     {
         addStatus = "updated";
@@ -557,7 +556,7 @@ void AgoMySensors::addDevice(std::string internalid, std::string devicetype, qpi
 /**
  * Split I_LOG_MESSAGE payload
  */
-bool AgoMySensors::splitInternalLogMessage(string payload, qpid::types::Variant::Map& items)
+bool AgoMySensors::splitInternalLogMessage(std::string payload, qpid::types::Variant::Map& items)
 {
     bool result = true;
 
@@ -569,7 +568,7 @@ bool AgoMySensors::splitInternalLogMessage(string payload, qpid::types::Variant:
         std::vector<std::string> allItems = split(payload, ':');
         if( allItems.size()>=3 )
         {
-            string temp = allItems[1];
+            std::string temp = allItems[1];
             boost::algorithm::trim(temp);
             std::vector<std::string> routeItems = split(temp, '-');
             if( routeItems.size()==4 )
@@ -589,7 +588,7 @@ bool AgoMySensors::splitInternalLogMessage(string payload, qpid::types::Variant:
             if( infosItems.size()==7 )
             {
                 //destination child is item #0 (s=<sensor>)
-                string temp = infosItems[0];
+                std::string temp = infosItems[0];
                 boost::replace_all(temp, "s=", "");
                 items["sensor"] = temp;
                 temp = infosItems[1];
@@ -645,7 +644,7 @@ bool AgoMySensors::splitInternalLogMessage(string payload, qpid::types::Variant:
         if( allItems.size()>=3 )
         {
             //prepare data
-            string temp = allItems[1];
+            std::string temp = allItems[1];
             //remove first space character before route info
             boost::algorithm::trim(temp);
             std::vector<std::string> subItems = split(temp, ' ');
@@ -671,7 +670,7 @@ bool AgoMySensors::splitInternalLogMessage(string payload, qpid::types::Variant:
             if( infosItems.size()==6 )
             {
                 //s=<sensor>
-                string temp = infosItems[0];
+                std::string temp = infosItems[0];
                 boost::replace_all(temp, "s=", "");
                 items["sensor"] = temp;
 
@@ -730,7 +729,7 @@ bool AgoMySensors::splitInternalLogMessage(string payload, qpid::types::Variant:
 /**
  * Open serial port
  */
-bool AgoMySensors::openSerialPort(string device)
+bool AgoMySensors::openSerialPort(std::string device)
 {
     bool result = true;
     try
@@ -783,7 +782,7 @@ bool AgoMySensors::checkInternalid(std::string internalid)
     if( internalid.length()>0 )
     {
         //format <int>/<int>
-        vector<string> splits;
+        std::vector<std::string> splits;
         boost::split(splits, internalid, boost::is_any_of("/"));
         if( splits.size()==2 && splits[0].length()>0 && splits[1].length()>0 )
         {
@@ -819,7 +818,7 @@ bool AgoMySensors::checkInternalid(std::string internalid)
  */
 void AgoMySensors::sendcommand(std::string command)
 {
-    string logCommand(command);
+    std::string logCommand(command);
     boost::replace_all(logCommand, "\n", "<NL>");
     boost::replace_all(logCommand, "\r", "<CR>");
     AGO_DEBUG() << " => RE-SENDING: " << logCommand;
@@ -829,7 +828,7 @@ void AgoMySensors::sendcommand(std::string command)
 void AgoMySensors::sendcommandV20(std::string internalid, int messageType, int ack, int subType, std::string payload)
 {
     std::vector<std::string> items = split(internalid, '/');
-    stringstream command;
+    std::stringstream command;
     qpid::types::Variant::Map infos = getDeviceInfos(internalid);
 
     //prepare command
@@ -838,7 +837,7 @@ void AgoMySensors::sendcommandV20(std::string internalid, int messageType, int a
     command << nodeId << ";" << childId << ";" << messageType << ";" << ack << ";" << subType << ";" << payload << "\n";
 
     //send command
-    string logCommand(command.str());
+    std::string logCommand(command.str());
     boost::replace_all(logCommand, "\n", "<NL>");
     boost::replace_all(logCommand, "\r", "<CR>");
     AGO_DEBUG() << " => SENDINGv20: " << logCommand;
@@ -848,7 +847,7 @@ void AgoMySensors::sendcommandV20(std::string internalid, int messageType, int a
 void AgoMySensors::sendcommandV15(std::string internalid, int messageType, int ack, int subType, std::string payload)
 {
     std::vector<std::string> items = split(internalid, '/');
-    stringstream command;
+    std::stringstream command;
     qpid::types::Variant::Map infos = getDeviceInfos(internalid);
 
     //prepare command
@@ -857,7 +856,7 @@ void AgoMySensors::sendcommandV15(std::string internalid, int messageType, int a
     command << nodeId << ";" << childId << ";" << messageType << ";" << ack << ";" << subType << ";" << payload << "\n";
 
     //send command
-    string logCommand(command.str());
+    std::string logCommand(command.str());
     boost::replace_all(logCommand, "\n", "<NL>");
     boost::replace_all(logCommand, "\r", "<CR>");
     AGO_DEBUG() << " => SENDINGv15: " << logCommand;
@@ -867,7 +866,7 @@ void AgoMySensors::sendcommandV15(std::string internalid, int messageType, int a
 void AgoMySensors::sendcommandV14(std::string internalid, int messageType, int ack, int subType, std::string payload)
 {
     std::vector<std::string> items = split(internalid, '/');
-    stringstream command;
+    std::stringstream command;
     qpid::types::Variant::Map infos = getDeviceInfos(internalid);
 
     //prepare command
@@ -876,7 +875,7 @@ void AgoMySensors::sendcommandV14(std::string internalid, int messageType, int a
     command << nodeId << ";" << childId << ";" << messageType << ";" << ack << ";" << subType << ";" << payload << "\n";
 
     //send command
-    string logCommand(command.str());
+    std::string logCommand(command.str());
     boost::replace_all(logCommand, "\n", "<NL>");
     boost::replace_all(logCommand, "\r", "<CR>");
     AGO_DEBUG() << " => SENDINGv14: " << logCommand;
@@ -886,7 +885,7 @@ void AgoMySensors::sendcommandV14(std::string internalid, int messageType, int a
 void AgoMySensors::sendcommandV13(std::string internalid, int messageType, int subType, std::string payload)
 {
     std::vector<std::string> items = split(internalid, '/');
-    stringstream command;
+    std::stringstream command;
     qpid::types::Variant::Map infos = getDeviceInfos(internalid);
 
     //prepare command
@@ -895,7 +894,7 @@ void AgoMySensors::sendcommandV13(std::string internalid, int messageType, int s
     command << nodeId << ";" << childId << ";" << messageType << ";" << subType << ";" << payload << "\n";
 
     //send command
-    string logCommand(command.str());
+    std::string logCommand(command.str());
     boost::replace_all(logCommand, "\n", "<NL>");
     boost::replace_all(logCommand, "\r", "<CR>");
     AGO_DEBUG() << " => SENDINGv13: " << logCommand;
@@ -1414,8 +1413,8 @@ void AgoMySensors::newDevice(std::string internalid, std::string devicetype, std
 void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
 {
     int valid = 0;
-    stringstream id;
-    stringstream timestamp;
+    std::stringstream id;
+    std::stringstream timestamp;
     int freeid;
 
     switch (messageType)
@@ -1747,8 +1746,8 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
 void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
 {
     int valid = INVALID;
-    stringstream timestamp;
-    stringstream id;
+    std::stringstream timestamp;
+    std::stringstream id;
     int freeid;
     std::map<std::string, T_COMMAND>::iterator cmd;
 
@@ -1813,7 +1812,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                             if( items["type"].asString()=="send" )
                             {
                                 //build destinationid
-                                string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
+                                std::string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
                                 qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
@@ -1847,13 +1846,13 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                             else if( items["type"]=="read" )
                             {
                                 //handle read message
-                                string destinationid = items["sender"].asString() + "/" + items["sensor"].asString();
+                                std::string destinationid = items["sender"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
                                 //build route
                                 if( items["sender"].asString()!="255" && items["last"].asString()!="255" && items["destination"].asString()!="255" )
                                 {
-                                    string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
+                                    std::string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
 
                                     qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
                                     if( infos.size()>0 )
@@ -2294,11 +2293,11 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
 void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
 {
     int valid = INVALID;
-    stringstream timestamp;
-    stringstream id;
+    std::stringstream timestamp;
+    std::stringstream id;
     int freeid;
     std::map<std::string, T_COMMAND>::iterator cmd;
-    string strNodeId = boost::lexical_cast<std::string>(nodeId);
+    std::string strNodeId = boost::lexical_cast<std::string>(nodeId);
 
     switch (messageType)
     {
@@ -2361,7 +2360,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                             if( items["type"].asString()=="send" )
                             {
                                 //build destinationid
-                                string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
+                                std::string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
                                 qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
@@ -2395,13 +2394,13 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                             else if( items["type"]=="read" )
                             {
                                 //handle read message
-                                string destinationid = items["sender"].asString() + "/" + items["sensor"].asString();
+                                std::string destinationid = items["sender"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
                                 //build route
                                 if( items["sender"].asString()!="255" && items["last"].asString()!="255" && items["destination"].asString()!="255" )
                                 {
-                                    string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
+                                    std::string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
     
                                     qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
                                     if( infos.size()>0 )
@@ -2906,11 +2905,11 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
 void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
 {
     int valid = INVALID;
-    stringstream timestamp;
-    stringstream id;
+    std::stringstream timestamp;
+    std::stringstream id;
     int freeid;
     std::map<std::string, T_COMMAND>::iterator cmd;
-    string strNodeId = boost::lexical_cast<std::string>(nodeId);
+    std::string strNodeId = boost::lexical_cast<std::string>(nodeId);
 
     switch (messageType)
     {
@@ -2973,7 +2972,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                             if( items["type"].asString()=="send" )
                             {
                                 //build destinationid
-                                string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
+                                std::string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
                                 qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
@@ -3007,13 +3006,13 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                             else if( items["type"]=="read" )
                             {
                                 //handle read message
-                                string destinationid = items["sender"].asString() + "/" + items["sensor"].asString();
+                                std::string destinationid = items["sender"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
                                 //build route
                                 if( items["sender"].asString()!="255" && items["last"].asString()!="255" && items["destination"].asString()!="255" )
                                 {
-                                    string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
+                                    std::string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
     
                                     qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
                                     if( infos.size()>0 )
@@ -3548,9 +3547,9 @@ void AgoMySensors::receiveFunction()
         {
             AGO_TRACE() << "------------ NEW LINE RECEIVED ------------";
             int nodeId = atoi(items[0].c_str());
-            string strNodeId = items[0];
+            std::string strNodeId = items[0];
             int childId = atoi(items[1].c_str());
-            string internalid = items[0] + "/" + items[1];
+            std::string internalid = items[0] + "/" + items[1];
             int messageType = atoi(items[2].c_str());
             int subType;
             qpid::types::Variant::Map infos;
@@ -3833,14 +3832,14 @@ void AgoMySensors::setupApp()
             AGO_DEBUG() << "Read: " << line;
 
             //check connectivity
-            if( line.find("check wires")!=string::npos )
+            if( line.find("check wires")!=std::string::npos )
             {
                 AGO_ERROR() << "The serial gateway arduino sketch can't talk to the NRF24 module! Check wires and power supply!";
                 exit(1);
             }
 
             //check gateway startup string
-            if( line.find(" startup complete")!=string::npos )
+            if( line.find(" startup complete")!=std::string::npos )
             {
                 //gateway is started
                 AGO_DEBUG() << "Startup string found, continue";
@@ -3950,7 +3949,7 @@ void AgoMySensors::setupApp()
         qpid::types::Variant::Map devices = devicemap["devices"].asMap();
         for (qpid::types::Variant::Map::const_iterator it = devices.begin(); it != devices.end(); it++)
         {
-            stringstream log;
+            std::stringstream log;
             if( ( !it->second.isVoid() ) && (it->second.getType() == VAR_MAP ) )
             {
                 qpid::types::Variant::Map infos = it->second.asMap();

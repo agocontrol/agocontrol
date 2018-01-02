@@ -11,12 +11,11 @@
 #include "agoapp.h"
 
 using namespace qpid::types;
-using namespace std;
 using namespace agocontrol;
 
 class AgoBlinkm: public AgoApp {
 private:
-    string devicefile;
+    std::string devicefile;
 
     bool i2ccommand(const char *device, int i2caddr, int command, size_t size, __u8  *buf);
     qpid::types::Variant::Map  commandHandler(qpid::types::Variant::Map content);
@@ -101,9 +100,9 @@ qpid::types::Variant::Map  AgoBlinkm::commandHandler(qpid::types::Variant::Map c
 
 void AgoBlinkm::setupApp() {
     devicefile=getConfigOption("bus", "/dev/i2c-0");
-    stringstream devices(getConfigOption("devices", "9")); // read blinkm addr from config, default to addr 9
+    std::stringstream devices(getConfigOption("devices", "9")); // read blinkm addr from config, default to addr 9
 
-    string device;
+    std::string device;
     while (getline(devices, device, ',')) {
         agoConnection->addDevice(device.c_str(), "dimmerrgb");
         i2ccommand(devicefile.c_str(),atoi(device.c_str()),0x6f,0,NULL); // stop script on blinkm

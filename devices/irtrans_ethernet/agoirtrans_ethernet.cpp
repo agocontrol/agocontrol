@@ -28,7 +28,6 @@
 
 #include "agoapp.h"
 
-using namespace std;
 using namespace agocontrol;
 using namespace qpid::types;
 
@@ -50,7 +49,7 @@ qpid::types::Variant::Map AgoIrtrans_Ethernet::commandHandler(qpid::types::Varia
     if (content["command"] == "sendir" ) {
         checkMsgParameter(content, "ircode", VAR_STRING);
         AGO_DEBUG() << "sending IR code";
-        string udpcommand;
+        std::string udpcommand;
         udpcommand.assign("sndccf ");
         udpcommand.append(content["ircode"].asString());
         sendto(irtrans_socket, udpcommand.c_str(), udpcommand.length(), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr));

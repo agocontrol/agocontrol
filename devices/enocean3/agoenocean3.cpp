@@ -25,7 +25,6 @@
 #define DEVICEMAPFILE "/maps/enocean3.json"
 #endif
 
-using namespace std;
 using namespace qpid::types;
 using namespace agocontrol;
 
@@ -51,7 +50,7 @@ void handler(esp3::Notification const* _message, void *context) {
 
 void AgoEnocean3::_handler(esp3::Notification const* message) {
     AGO_DEBUG() << "Received Enocean Notification type: " << message->getType() << " ID: " << std::hex << message->getId();
-    stringstream id;
+    std::stringstream id;
     id << std::hex << message->getId();
     if (message->getType() == "Switch") {
         const esp3::SwitchNotification *switchNotif = (const esp3::SwitchNotification *)message;
@@ -65,7 +64,7 @@ void AgoEnocean3::_handler(esp3::Notification const* message) {
             } else max = 2;
                 
             for (int i=1; i<= max; i++) {
-                stringstream internalid;
+                std::stringstream internalid;
                 internalid << id.str() << "-" << i;
                 devicemap[internalid.str()]="remoteswitch";
                 agoConnection->addDevice(internalid.str().c_str(), "remoteswitch");
@@ -73,7 +72,7 @@ void AgoEnocean3::_handler(esp3::Notification const* message) {
             variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
         } else {
             if (switchNotif->getIsPressed()) {
-                stringstream internalid;
+                std::stringstream internalid;
                 internalid << id.str() << "-" << switchNotif->getRockerId();
                 agoConnection->emitEvent(internalid.str().c_str(), "event.device.statechanged", 255, "");
             } else {
@@ -153,14 +152,15 @@ void AgoEnocean3::setupApp() {
     addCommandHandler();
     agoConnection->addDevice("enoceancontroller", "enoceancontroller");
 
-    stringstream dimmers(getConfigOption("dimmers", "1"));
-    string dimmer;
+    std::stringstream dimmers(getConfigOption("dimmers", "1"));
+    std::string dimmer;
     while (getline(dimmers, dimmer, ',')) {
         agoConnection->addDevice(dimmer.c_str(), "dimmer");
         AGO_DEBUG() << "adding rid " << dimmer << " as dimmer";
-    } 
-    stringstream switches(getConfigOption("switches", "20"));
-    string switchdevice;
+    }
+
+    std::stringstream switches(getConfigOption("switches", "20"));
+    std::string switchdevice;
     while (getline(switches, switchdevice, ',')) {
         agoConnection->addDevice(switchdevice.c_str(), "switch");
         AGO_DEBUG() << "adding rid " << switchdevice << " as switch";

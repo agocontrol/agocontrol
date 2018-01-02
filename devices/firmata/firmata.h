@@ -42,8 +42,6 @@
 #define FIRMATA_PWM                     0x03 // digital pin in PWM output mode
 #define FIRMATA_SERVO                   0x04 // digital pin in Servo output mode
 
-using namespace std;
-
 class Firmata {
 	public:
 		Firmata();
@@ -61,7 +59,7 @@ class Firmata {
 		int closePort();
 		int flushPort();
 		int getSysExData();
-		int sendSysExData(const unsigned char command, vector<unsigned char> data);
+		int sendSysExData(const unsigned char command, std::vector<unsigned char> data);
 
 	protected:
 
@@ -73,7 +71,7 @@ class Firmata {
 		unsigned char serialInBuf[FIRMATA_MAX_DATA_BYTES];
 		unsigned char serialOutBuf[FIRMATA_MAX_DATA_BYTES];
 
-		vector<unsigned char> sysExBuf;
+		std::vector<unsigned char> sysExBuf;
 		char firmwareVersion[FIRMATA_FIRMWARE_VERSION_SIZE];
 		int digitalPortValue[ARDUINO_DIG_PORTS]; /// bitpacked digital pin state
 		int init();

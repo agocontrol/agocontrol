@@ -11,7 +11,6 @@
 #include "yaml-cpp/yaml.h"
 #endif
 
-using namespace std;
 using namespace qpid::messaging;
 using namespace qpid::types;
 namespace fs = ::boost::filesystem;

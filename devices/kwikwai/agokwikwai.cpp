@@ -21,8 +21,6 @@
 
 #include "kwikwai.h"
 
-
-using namespace std;
 using namespace agocontrol;
 
 class AgoKwikwai: public AgoApp {

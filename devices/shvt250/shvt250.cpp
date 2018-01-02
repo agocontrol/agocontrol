@@ -21,7 +21,6 @@
 #include "agoapp.h"
 
 using namespace qpid::types;
-using namespace std;
 using namespace agocontrol;
 
 class AgoShvt250: public AgoApp {
@@ -88,13 +87,13 @@ void AgoShvt250::receiveFunction() {
                 for (int i=0;i<21;i++) checksum += bufr[i];
                 if ((int) checksum == (int) bufr[21]) {
                     // valid checksum
-                    stringstream tmp_co2;
+                    std::stringstream tmp_co2;
                     tmp_co2 << bufr[3] << bufr[4] << bufr[5] << bufr[6];
                     int co2 = atoi(tmp_co2.str().c_str());
-                    stringstream tmp_temp;
+                    std::stringstream tmp_temp;
                     tmp_temp << bufr[8] << bufr[9] << bufr[10] << bufr[11] << bufr[12];
                     float temp = atof(tmp_temp.str().c_str());
-                    stringstream tmp_hum;
+                    std::stringstream tmp_hum;
                     tmp_hum << bufr[14] << bufr[15] << bufr[16] << bufr[17];
                     float hum = atof(tmp_hum.str().c_str());
                     AGO_DEBUG() << "co2: " << co2 << " hum: " << hum << " temp: " << temp ;

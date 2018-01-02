@@ -4,8 +4,6 @@
 #include <uuid/uuid.h>
 #include "agolog.h"
 
-using namespace std;
-
 /********************************
  * FRAME CLASS
  *******************************/
@@ -48,7 +46,7 @@ AgoFrameConsumer::AgoFrameConsumer()
     char name[50];
     uuid_generate(tmpuuid);
     uuid_unparse(tmpuuid, name);
-    _id = string(name);
+    _id = std::string(name);
 }
 
 AgoFrameConsumer::~AgoFrameConsumer()
@@ -59,7 +57,7 @@ AgoFrameConsumer::~AgoFrameConsumer()
 /**
  * Return consumer id
  */
-string AgoFrameConsumer::getId()
+std::string AgoFrameConsumer::getId()
 {
     return _id;
 }

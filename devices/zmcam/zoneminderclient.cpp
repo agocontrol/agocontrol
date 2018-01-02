@@ -35,8 +35,8 @@
 
 static std::string uintToString(unsigned int v)
 {
-    stringstream ss;
-    string s;
+    std::stringstream ss;
+    std::string s;
     ss << v;
     s = ss.str();
 
@@ -73,7 +73,7 @@ CURLcode curl_read(const std::string& url, std::ostream& os, long timeout = 30) 
 		curl_easy_cleanup(curl);
 	}
     else
-        cout << "curl_read - curl_easy_init failure." << endl;
+        std::cout << "curl_read - curl_easy_init failure." << std::endl;
 	return code;
 }
 
@@ -91,21 +91,21 @@ ZoneminderClient::~ZoneminderClient()
     destroy();
 }
     
-bool ZoneminderClient::create(string webProtocol,
-                              string hostName,
+bool ZoneminderClient::create(std::string webProtocol,
+                              std::string hostName,
                               unsigned int webPort,
                               ZM_AUTH_TYPE webAuthType,
                               bool webAuthUseLocalAddress,
-                              string webAuthUserName,
-                              string webAuthPasword,
-                              string webAuthHashSecret,
+                              std::string webAuthUserName,
+                              std::string webAuthPasword,
+                              std::string webAuthHashSecret,
                               unsigned int triggerPort)
 {
     m_initialized = false;
     
     if (hostName.empty())
     {
-        cout << "initialize - No hostname provided." << endl;
+        std::cout << "initialize - No hostname provided." << std::endl;
         return false;
     }
     
@@ -115,7 +115,7 @@ bool ZoneminderClient::create(string webProtocol,
     
     if (webAuthUserName.empty())
     {
-        cout << "initialize - No web username provided." << endl;
+        std::cout << "initialize - No web username provided." << std::endl;
         return false;
     }
     
@@ -123,7 +123,7 @@ bool ZoneminderClient::create(string webProtocol,
     {
         if (!getLocalWebSocketAddress())
         {
-            cout << "initialize - Could not connect to server and get local network address." << endl;
+            std::cout << "initialize - Could not connect to server and get local network address." << std::endl;
             return false;
         }
         
@@ -163,11 +163,11 @@ void ZoneminderClient::destroy(void)
     m_initialized = false;
 }
 
-bool ZoneminderClient::getVideoFrame(int monitorId, ostringstream& outputStream)
+bool ZoneminderClient::getVideoFrame(int monitorId, std::ostringstream& outputStream)
 {
     if (!m_initialized)
     {
-        cout << "getVideoFrame - Not initialized." << endl;
+        std::cout << "getVideoFrame - Not initialized." << std::endl;
         return false;
     }
     
@@ -175,7 +175,7 @@ bool ZoneminderClient::getVideoFrame(int monitorId, ostringstream& outputStream)
     outputStream.clear();
     
     CURLcode curlResult;
-    string url;
+    std::string url;
     
     url = m_webUrlBase + uintToString(monitorId) + "&" + buildWebAuthString();
     
@@ -184,7 +184,7 @@ bool ZoneminderClient::getVideoFrame(int monitorId, ostringstream& outputStream)
     if (curlResult == CURLE_OK) 
         result = true;
     else
-        cout << "getVideoFrame - Curl error = " << curlResult << endl;
+        std::cout << "getVideoFrame - Curl error = " << curlResult << std::endl;
     
     return result;
 }
@@ -192,17 +192,17 @@ bool ZoneminderClient::getVideoFrame(int monitorId, ostringstream& outputStream)
 bool ZoneminderClient::setMonitorAlert(int monitorId,
                                         unsigned int durationSeconds,
                                         int score,
-                                        string causeText,
-                                        string eventText,
-                                        string showText)
+                                        std::string causeText,
+                                        std::string eventText,
+                                        std::string showText)
 {
     if (!m_initialized)
     {
-        cout << "setMonitorAlert - Not initialized." << endl;
+        std::cout << "setMonitorAlert - Not initialized." << std::endl;
         return false;
     }
     
-    stringstream ss;
+    std::stringstream ss;
     
     ss << monitorId << "|on";
     
@@ -225,7 +225,7 @@ bool ZoneminderClient::setMonitorAlert(int monitorId,
         return true;
     else
     {
-        cout << "setMonitorAlert - Could not send trigger command to monitor " << monitorId << endl;
+        std::cout << "setMonitorAlert - Could not send trigger command to monitor " << monitorId << std::endl;
         return false;
     }
 }
@@ -234,10 +234,10 @@ bool ZoneminderClient::clearMonitorAlert(int monitorId)
 {
     if (!m_initialized)
     {
-        cout << "clearMonitorAlert - Not initialized." << endl;
+        std::cout << "clearMonitorAlert - Not initialized." << std::endl;
         return false;
     }
-    stringstream ss;
+    std::stringstream ss;
     
     ss << monitorId << "|off";
     
@@ -245,13 +245,13 @@ bool ZoneminderClient::clearMonitorAlert(int monitorId)
         return true;
     else
     {
-        cout << "clearMonitorAlert - Could not send trigger command to monitor " << monitorId << endl;
+        std::cout << "clearMonitorAlert - Could not send trigger command to monitor " << monitorId << std::endl;
         return false;
     }
 }
 
-void ZoneminderClient::buildWebUrlBaseString(string webProtocol,
-                                              string hostName,
+void ZoneminderClient::buildWebUrlBaseString(std::string webProtocol,
+                                              std::string hostName,
                                               unsigned int webPort)
 {
     m_webUrlBase.clear();
@@ -273,9 +273,9 @@ void ZoneminderClient::buildWebUrlBaseString(string webProtocol,
     m_webUrlBase += "/cgi-bin/nph-zms?mode=single&monitor=";
 }
 
-string ZoneminderClient::generateMySqlPassword(string password)
+std::string ZoneminderClient::generateMySqlPassword(std::string password)
 {
-    string result;
+    std::string result;
     unsigned char hash[21];
     char hex[43];
     int i;
@@ -320,8 +320,8 @@ bool ZoneminderClient::getLocalWebSocketAddress(void)
 	int status = getaddrinfo(m_hostName.c_str(), uintToString(m_webPort).c_str(), &host_info, &host_info_list);
 	if (status != 0) 
     {
-		cout << "getLocalWebSocketAddress - getaddrinfo error: " << gai_strerror(status) << std::endl;
-		cout << "getLocalWebSocketAddress - can't get address for " << m_hostName << std::endl;
+        std::cout << "getLocalWebSocketAddress - getaddrinfo error: " << gai_strerror(status) << std::endl;
+        std::cout << "getLocalWebSocketAddress - can't get address for " << m_hostName << std::endl;
         return false;
 	}
 
@@ -374,15 +374,15 @@ bool ZoneminderClient::getLocalWebSocketAddress(void)
     return true;
 }
 
-string ZoneminderClient::buildWebAuthString(void)
+std::string ZoneminderClient::buildWebAuthString(void)
 {
-    string result;
+    std::string result;
     
     if (m_webAuthType == ZM_AUTH_HASH)
     {
         time_t rawtime;
         struct tm* timeinfo;
-        string webAuthCurrent;
+        std::string webAuthCurrent;
 
         time(&rawtime);
         timeinfo = localtime(&rawtime);
@@ -400,7 +400,7 @@ string ZoneminderClient::buildWebAuthString(void)
     return result;
 }
 
-bool ZoneminderClient::sendTriggerCommand(string command)
+bool ZoneminderClient::sendTriggerCommand(std::string command)
 {
     bool result = false;
     struct addrinfo host_info;
@@ -416,8 +416,8 @@ bool ZoneminderClient::sendTriggerCommand(string command)
 	int status = getaddrinfo(m_hostName.c_str(), uintToString(m_triggerPort).c_str(), &host_info, &host_info_list);
 	if (status != 0) 
     {
-		cout << "sendTriggerCommand - getaddrinfo error: " << gai_strerror(status) << std::endl;
-		cout << "sendTriggerCommand - can't get address for " << m_hostName << std::endl;
+        std::cout << "sendTriggerCommand - getaddrinfo error: " << gai_strerror(status) << std::endl;
+        std::cout << "sendTriggerCommand - can't get address for " << m_hostName << std::endl;
         return false;
 	}
 

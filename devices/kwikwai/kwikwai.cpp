@@ -29,8 +29,6 @@
 #include "kwikwai.h"
 #include "agolog.h"
 
-using namespace std;
-
 kwikwai::Kwikwai::Kwikwai(const char *hostname, const char *port) {
     struct addrinfo host_info;
     struct addrinfo *host_info_list;
@@ -83,7 +81,7 @@ std::string kwikwai::Kwikwai::read() {
         AGO_ERROR() << "receive error!";
         return "";
     }
-    result = string(incoming_data_buffer);
+    result = std::string(incoming_data_buffer);
     result.erase(result.begin() + result.find("\r"),result.end());
     return result;
 }

@@ -26,7 +26,6 @@
 #include "agoapp.h"
 #include "base64.h"
 
-using namespace std;
 using namespace agocontrol;
 
 class AgoWebcam: public AgoApp {
@@ -74,7 +73,7 @@ CURLcode AgoWebcam::curl_read(const std::string& url, std::ostream& os, long tim
 qpid::types::Variant::Map AgoWebcam::commandHandler(qpid::types::Variant::Map content) {
     std::string internalid = content["internalid"].asString();
     if (content["command"] == "getvideoframe") {
-        ostringstream tmpostr;
+        std::ostringstream tmpostr;
         if(CURLE_OK == curl_read(internalid, tmpostr, 2)) {
             std::string s;
             s = tmpostr.str();  
@@ -93,10 +92,10 @@ void AgoWebcam::setupApp() {
 
     addCommandHandler();
 
-    stringstream devices(getConfigOption("devices", "http://192.168.80.65/axis-cgi/jpg/image.cgi"));
-    string device;
-    while (getline(devices, device, ',')) {
-        if (device.find("rtsp://") != string::npos) {
+    std::stringstream devices(getConfigOption("devices", "http://192.168.80.65/axis-cgi/jpg/image.cgi"));
+    std::string device;
+    while (std::getline(devices, device, ',')) {
+        if (device.find("rtsp://") != std::string::npos) {
             agoConnection->addDevice(device.c_str(), "onvifnvt"); // this is a helper for agoonvif for situations where the device can't be discovered (e.g. multicast issues)
         } else {
             agoConnection->addDevice(device.c_str(), "camera");

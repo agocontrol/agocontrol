@@ -10,7 +10,6 @@
 #include <boost/chrono/chrono.hpp>
 #include <boost/chrono/duration.hpp>
 
-using namespace std;
 using namespace cv;
 using namespace boost;
 
@@ -34,14 +33,14 @@ typedef void (*CallbackBoostThreadSleep)(const boost::chrono::duration<int, boos
 class AgoFrameConsumer
 {
     private:
-        string _id;
+        std::string _id;
         queue<Mat> _frames;
 
     public:
         AgoFrameConsumer();
         ~AgoFrameConsumer();
-        
-        string getId();
+
+        std::string getId();
         //void pushFrame(AgoFrame* frame);
         void pushFrame(Mat frame);
         //AgoFrame* popFrame(CallbackBoostThreadSleep sleepCallback);
@@ -51,7 +50,7 @@ class AgoFrameConsumer
 class AgoFrameProvider
 {
     private:
-        string _uri;
+        std::string _uri;
         //queue<AgoFrame*> _frames;
         queue<Mat> _frames;
         list<AgoFrameConsumer*> _consumers;
@@ -64,7 +63,7 @@ class AgoFrameProvider
         void threadFunction();
 
     public:
-        AgoFrameProvider(string uri);
+        AgoFrameProvider(std::string uri);
         ~AgoFrameProvider();
     
         bool start();

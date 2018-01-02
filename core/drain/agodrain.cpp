@@ -9,7 +9,6 @@
 #include <qpid/messaging/Session.h>
 #include <qpid/messaging/Address.h>
 
-using namespace std;
 using namespace qpid::types;
 using namespace qpid::messaging;
 

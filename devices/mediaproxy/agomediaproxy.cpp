@@ -8,7 +8,6 @@
 #include "BasicUsageEnvironment.hh"
 #include "agoclient.h"
 
-using namespace std;
 using namespace agocontrol;
 
 char const* progName;
@@ -33,7 +32,7 @@ static RTSPServer* createRTSPServer(Port port) {
 }
 
 qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
-    string internalid = content["internalid"].asString();
+    std::string internalid = content["internalid"].asString();
     if (internalid == "controller" && content["command"].asString() == "restart") {
         AGO_INFO() << "restarting proxy";
         stopLoop = 1;

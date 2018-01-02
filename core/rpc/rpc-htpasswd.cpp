@@ -11,8 +11,6 @@
 #define PATH_MAX MAX_PATH
 #endif
 
-using namespace std;
-
 /* Copy of cs_md5 from mongoose.c which is not exposed */
 void ago_cs_md5(char buf[33], ...) {
     unsigned char hash[16];
@@ -101,7 +99,7 @@ int modify_passwords_file(const char *fname, const char *domain,
 
 int main(int argc, char **argv) {
     if (argc != 5) {
-        cout << "Usage: " << argv[0] << " <filename> <domainname> <username> <password>" << endl;
+        std::cout << "Usage: " << argv[0] << " <filename> <domainname> <username> <password>" << std::endl;
         exit(-1);
     }
 

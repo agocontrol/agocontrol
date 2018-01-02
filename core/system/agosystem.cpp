@@ -1,7 +1,6 @@
 #include <exception>
 #include <boost/algorithm/string/predicate.hpp>
 #include "agosystem.h"
-using namespace std;
 using namespace qpid::types;
 namespace fs = ::boost::filesystem;
 
@@ -177,7 +176,7 @@ void AgoSystem::checkProcessesStates(qpid::types::Variant::Map& processes)
 /**
  * Create list with specified process name. Used to debug.
  */
-qpid::types::Variant::Map AgoSystem::getAgoProcessListDebug(string procName)
+qpid::types::Variant::Map AgoSystem::getAgoProcessListDebug(std::string procName)
 {
     qpid::types::Variant::Map output;
     qpid::types::Variant::Map stats;

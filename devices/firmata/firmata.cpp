@@ -154,11 +154,12 @@ int Firmata::flushPort() {
 	return(0);
 }
 
-int Firmata::sendSysExData(const unsigned char command, vector<unsigned char> data) {
+int Firmata::sendSysExData(const unsigned char command, std::vector<unsigned char> data) {
 	int rv=0;
 	rv |= arduino->sendUchar(FIRMATA_START_SYSEX);
 	rv |= arduino->sendUchar(command);
-	vector<unsigned char>::iterator it = data.begin();
+
+	std::vector<unsigned char>::iterator it = data.begin();
 	while (it != data.end()) {
 		rv |= arduino->sendUchar(*it);
 		it++;

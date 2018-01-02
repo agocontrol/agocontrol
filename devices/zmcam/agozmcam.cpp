@@ -30,7 +30,6 @@ NOTE: This is based on the agocontrol webcam device.
 #include "../webcam/base64.h"
 #include "zoneminderclient.h"
 
-using namespace std;
 using namespace agocontrol;
 
 class AgoZmcam: public AgoApp {
@@ -48,7 +47,7 @@ qpid::types::Variant::Map AgoZmcam::commandHandler(qpid::types::Variant::Map con
     int monitorId = content["internalid"].asInt32();
     if (content["command"] == "getvideoframe") 
     {
-        ostringstream tmpostr;
+        std::ostringstream tmpostr;
         if (zoneminderClient.getVideoFrame(monitorId, tmpostr))
         {
             std::string s;
@@ -59,7 +58,7 @@ qpid::types::Variant::Map AgoZmcam::commandHandler(qpid::types::Variant::Map con
         } 
         else
         {
-            AGO_ERROR() << "commandHandler [getvideoframe] - Could not get video frame for monitor " << monitorId << endl;
+            AGO_ERROR() << "commandHandler [getvideoframe] - Could not get video frame for monitor " << monitorId;
             return responseError(RESPONSE_ERR_INTERNAL, "Cannot fetch video frame from monitor");
         }
     }
@@ -74,7 +73,7 @@ qpid::types::Variant::Map AgoZmcam::commandHandler(qpid::types::Variant::Map con
             return responseSuccess();
         else
         {
-            AGO_ERROR() << "commandHandler [triggeralarm] - Could not trigger camera alarm for monitor " << monitorId << endl;
+            AGO_ERROR() << "commandHandler [triggeralarm] - Could not trigger camera alarm for monitor " << monitorId;
             return responseError(RESPONSE_ERR_INTERNAL, "Cannot camera alarm for monitor");
         }
     }
@@ -84,7 +83,7 @@ qpid::types::Variant::Map AgoZmcam::commandHandler(qpid::types::Variant::Map con
             return responseSuccess();
         else
         {
-            AGO_ERROR() << "commandHandler [clearalarm] - Could not clear alarm for monitor " << monitorId << endl;
+            AGO_ERROR() << "commandHandler [clearalarm] - Could not clear alarm for monitor " << monitorId;
             return responseError(RESPONSE_ERR_INTERNAL, "Cannot clear alarm for monitor");
         }
     }
@@ -92,7 +91,7 @@ qpid::types::Variant::Map AgoZmcam::commandHandler(qpid::types::Variant::Map con
 }
 
 void AgoZmcam::setupApp() {
-    string temp;
+    std::string temp;
 
     temp = getConfigOption("authtype", "");
 
@@ -102,7 +101,7 @@ void AgoZmcam::setupApp() {
 
     if (temp != "hash" && temp != "plain"  && temp != "none")
     {
-        AGO_FATAL() << "doInitialize - Invalid zmcam auth type of " << temp << " specified.  Only hash, plain and none are supported." << endl;
+        AGO_FATAL() << "doInitialize - Invalid zmcam auth type of " << temp << " specified.  Only hash, plain and none are supported.";
         throw StartupError();
     }
 
@@ -127,8 +126,8 @@ void AgoZmcam::setupApp() {
         hashAuthUseLocalAddress = false;
 
     if (!zoneminderClient.create(getConfigOption("webprotocal", "http"), 
-                getConfigOption("server", ""), 
-                stringToUint(getConfigOption("webport", "80")), 
+                getConfigOption("server", ""),
+                stringToUint(getConfigOption("webport", "80")),
                 authType,
                 hashAuthUseLocalAddress,
                 getConfigOption("username", ""),
@@ -140,10 +139,10 @@ void AgoZmcam::setupApp() {
         throw StartupError();
     }
 
-    stringstream devices(getConfigOption("monitors", ""));
+    std::stringstream devices(getConfigOption("monitors", ""));
 
-    string device;
-    while (getline(devices, device, ','))
+    std::string device;
+    while (std::getline(devices, device, ','))
         agoConnection->addDevice(device.c_str(), "camera");
 
     addCommandHandler();

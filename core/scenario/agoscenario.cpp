@@ -13,7 +13,6 @@
 #define SCENARIOMAPFILE "maps/scenariomap.json"
 #endif
 
-using namespace std;
 using namespace agocontrol;
 using namespace qpid::types;
 
@@ -47,7 +46,7 @@ void AgoScenario::runscenario(qpid::types::Variant::Map &scenario)
     {
         // AGO_TRACE() << *it;
         int seq = *it;
-        stringstream sseq;
+        std::stringstream sseq;
         sseq << seq;
         qpid::types::Variant::Map element = scenario[sseq.str()].asMap();
         AGO_TRACE() << sseq.str() << ": " << scenario[sseq.str()];

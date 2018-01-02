@@ -47,7 +47,7 @@ void Telegram::setDataFromFloat(float f)
 
 void Telegram::setType(long int type)
 {
-	if(type!=EIBREAD && type!=EIBWRITE) throw string("error: unavailable command to EIB telegramm");
+	if(type!=EIBREAD && type!=EIBWRITE) throw std::string("error: unavailable command to EIB telegramm");
 	if(_type==type) return;
 	_type=type;
 	generate_head();
@@ -145,7 +145,7 @@ float Telegram::getFloatData() const
 	
 }
 
-eibaddr_t  Telegram::stringtogaddr(const string s)
+eibaddr_t  Telegram::stringtogaddr(const std::string s)
 {
 	unsigned int a[3]={0};
 	int nbslash=0;
@@ -163,45 +163,45 @@ eibaddr_t  Telegram::stringtogaddr(const string s)
 		case(0): return (a[0] & 0xffff);break;
 		case(1): return ((a[0] & 0x01f) << 11) | ((a[1] & 0x7FF)); ;break;
 		case(2): return ((a[0] & 0x01f) << 11) | ((a[1] & 0x007) << 8 ) | (a[2] & 0x0ff) ;break;
-		default: throw string("error parsing the groupaddr");
+		default: throw std::string("error parsing the groupaddr");
 	}
 }
 
-string Telegram::gaddrtostring(eibaddr_t addr)
+std::string Telegram::gaddrtostring(eibaddr_t addr)
 {
 	int a = addr>>11;
 	int b = (addr>>8) & 0x7;
 	int c = addr & 0xff;
-	ostringstream oa; oa << a;
-	ostringstream ob; ob << b;
-	ostringstream oc; oc << c;
-	string sa=oa.str(), sb=ob.str(), sc=oc.str();
-	string s("/");
+	std::ostringstream oa; oa << a;
+	std::ostringstream ob; ob << b;
+	std::ostringstream oc; oc << c;
+	std::string sa=oa.str(), sb=ob.str(), sc=oc.str();
+	std::string s("/");
 	return sa+s+sb+s+sc;
 }
 
-string Telegram::paddrtostring(eibaddr_t addr)
+std::string Telegram::paddrtostring(eibaddr_t addr)
 {
 	int a = addr>>12;
 	int b = (addr>>8) & 0xf;
 	int c = addr & 0xff;
-	ostringstream oa; oa << a;
-	ostringstream ob; ob << b;
-	ostringstream oc; oc << c;
-	string sa=oa.str(), sb=ob.str(), sc=oc.str();
-	string s("/");
+	std::ostringstream oa; oa << a;
+	std::ostringstream ob; ob << b;
+	std::ostringstream oc; oc << c;
+	std::string sa=oa.str(), sb=ob.str(), sc=oc.str();
+	std::string s("/");
 	return sa+s+sb+s+sc;
 }
 
-string Telegram::decodeType()
+std::string Telegram::decodeType()
 {
 	switch(_type)
 	{
-		case(EIBREAD)		: return string("read");break;
-		case(EIBWRITE)		: return string("write");break;
-		case(EIBRESPONSE)	: return string("response");break;
-		case(EIBMEMWRITE)	: return string("memwrite");break;
-		default:return string("undefined");
+		case(EIBREAD)		: return std::string("read");break;
+		case(EIBWRITE)		: return std::string("write");break;
+		case(EIBRESPONSE)	: return std::string("response");break;
+		case(EIBMEMWRITE)	: return std::string("memwrite");break;
+		default:return std::string("undefined");
 	}
 }
 

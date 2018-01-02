@@ -30,7 +30,6 @@
 using namespace qpid::messaging;
 using namespace qpid::types;
 using namespace agocontrol;
-using namespace std;
 using namespace cv;
 namespace pt = boost::posix_time;
 namespace fs = boost::filesystem;
@@ -56,12 +55,12 @@ private:
     void cleanupApp();
 
     //video
-    void getRecordings(std::string type, qpid::types::Variant::List& list, string process);
+    void getRecordings(std::string type, qpid::types::Variant::List& list, std::string process);
     std::string getDateTimeString(bool date, bool time, bool withSeparator=true, std::string fieldSeparator="_");
-    map<string, AgoFrameProvider*> frameProviders;
-    AgoFrameProvider* getFrameProvider(string uri);
+    std::map<std::string, AgoFrameProvider*> frameProviders;
+    AgoFrameProvider* getFrameProvider(std::string uri);
     pthread_mutex_t frameProvidersMutex;
-    bool frameToString(Mat& frame, string& image);
+    bool frameToString(Mat& frame, std::string& image);
 
     //stream
     void fillStream(qpid::types::Variant::Map* stream, qpid::types::Variant::Map* content);
@@ -69,19 +68,19 @@ private:
     //timelapse
     std::map<std::string, boost::thread*> timelapseThreads;
     void fillTimelapse(qpid::types::Variant::Map* timelapse, qpid::types::Variant::Map* content);
-    void timelapseFunction(string internalid, qpid::types::Variant::Map timelapse);
+    void timelapseFunction(std::string internalid, qpid::types::Variant::Map timelapse);
     void restartTimelapses();
     void launchTimelapses();
-    void launchTimelapse(string internalid, qpid::types::Variant::Map& timelapse);
-    void stopTimelapse(string internalid);
+    void launchTimelapse(std::string internalid, qpid::types::Variant::Map& timelapse);
+    void stopTimelapse(std::string internalid);
 
     //motion
     std::map<std::string, boost::thread*> motionThreads;
     void fillMotion(qpid::types::Variant::Map* timelapse, qpid::types::Variant::Map* content);
-    void motionFunction(string internalid, qpid::types::Variant::Map timelapse);
+    void motionFunction(std::string internalid, qpid::types::Variant::Map timelapse);
     void launchMotions();
-    void launchMotion(string internalid, qpid::types::Variant::Map& motion);
-    void stopMotion(string internalid);
+    void launchMotion(std::string internalid, qpid::types::Variant::Map& motion);
+    void stopMotion(std::string internalid);
 
 public:
 
@@ -96,14 +95,14 @@ public:
  * Return frame provider. If provider doesn't exist for specified uri, new one is created
  * and returned
  */
-AgoFrameProvider* AgoSurveillance::getFrameProvider(string uri)
+AgoFrameProvider* AgoSurveillance::getFrameProvider(std::string uri)
 {
     AgoFrameProvider* out = NULL;
 
     pthread_mutex_lock(&frameProvidersMutex);
 
     //search existing frame provider
-    map<string, AgoFrameProvider*>::iterator item = frameProviders.find(uri);
+    std::map<std::string, AgoFrameProvider*>::iterator item = frameProviders.find(uri);
     if( item==frameProviders.end() )
     {
         AGO_DEBUG() << "Create new frame provider '" << uri << "'";
@@ -132,19 +131,19 @@ AgoFrameProvider* AgoSurveillance::getFrameProvider(string uri)
  * Convert opencv frame to string
  * @info encode to jpeg format (quality 90)
  */
-bool AgoSurveillance::frameToString(Mat& frame, string& image)
+bool AgoSurveillance::frameToString(Mat& frame, std::string& image)
 {
-    vector<unsigned char> buffer;
+    std::vector<unsigned char> buffer;
 
     //prepare encoder parameters
-    vector<int> params;
+    std::vector<int> params;
     params.push_back(CV_IMWRITE_JPEG_QUALITY);
     params.push_back(90);
 
     //encode image
     if( imencode(".jpg", frame, buffer, params) )
     {
-        image = string(buffer.begin(), buffer.end());
+        image = std::string(buffer.begin(), buffer.end());
         return true;
     }
 
@@ -185,7 +184,7 @@ void AgoSurveillance::fillStream(qpid::types::Variant::Map* stream, qpid::types:
 void AgoSurveillance::timelapseFunction(string internalid, qpid::types::Variant::Map timelapse)
 {
     //init video reader (provider and consumer)
-    string timelapseUri = timelapse["uri"].asString();
+    std::string timelapseUri = timelapse["uri"].asString();
     AgoFrameProvider* provider = getFrameProvider(timelapseUri);
     if( provider==NULL )
     {
@@ -205,7 +204,7 @@ void AgoSurveillance::timelapseFunction(string internalid, qpid::types::Variant:
     while( !fileOk )
     {
         std::string name = timelapse["name"].asString();
-        stringstream filename;
+        std::stringstream filename;
         filename << RECORDINGSDIR;
         filename << "timelapse_";
         filename << internalid << "_";
@@ -227,7 +226,7 @@ void AgoSurveillance::timelapseFunction(string internalid, qpid::types::Variant:
         }
     }
     AGO_DEBUG() << "Record into '" << filepath.c_str() << "'";
-    string codec = timelapse["codec"].asString();
+    std::string codec = timelapse["codec"].asString();
     int fourcc = CV_FOURCC('F', 'M', 'P', '4');
     if( codec.length()==4 )
     {
@@ -263,10 +262,10 @@ void AgoSurveillance::timelapseFunction(string internalid, qpid::types::Variant:
                     Mat copiedFrame = frame.clone();
 
                     //add text
-                    stringstream stream;
+                    std::stringstream stream;
                     stream << getDateTimeString(true, true, true, " ");
                     stream << " - " << timelapse["name"].asString();
-                    string text = stream.str();
+                    std::string text = stream.str();
 
                     try
                     {
@@ -387,7 +386,7 @@ void AgoSurveillance::launchTimelapses()
     qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
     for( qpid::types::Variant::Map::iterator it=timelapses.begin(); it!=timelapses.end(); it++ )
     {
-        string internalid = it->first;
+        std::string internalid = it->first;
         qpid::types::Variant::Map timelapse = it->second.asMap();
         launchTimelapse(internalid, timelapse);
     }
@@ -396,7 +395,7 @@ void AgoSurveillance::launchTimelapses()
 /**
  * Launch specified timelapse
  */
-void AgoSurveillance::launchTimelapse(string internalid, qpid::types::Variant::Map& timelapse)
+void AgoSurveillance::launchTimelapse(std::string internalid, qpid::types::Variant::Map& timelapse)
 {
     //create timelapse device
     agoConnection->addDevice(internalid.c_str(), "timelapse");
@@ -416,7 +415,7 @@ void AgoSurveillance::launchTimelapse(string internalid, qpid::types::Variant::M
 /**
  * Stop timelapse thread
  */
-void AgoSurveillance::stopTimelapse(string internalid)
+void AgoSurveillance::stopTimelapse(std::string internalid)
 {
     //stop thread
     timelapseThreads[internalid]->interrupt();
@@ -489,12 +488,12 @@ inline int detectMotion(const Mat& __motion, Mat& result, Box& area, int maxDevi
  * Motion function (threaded)
  * Based on Cédric Verstraeten source code: https://github.com/cedricve/motion-detection/blob/master/motion_src/src/motion_detection.cpp
  */
-void AgoSurveillance::motionFunction(string internalid, qpid::types::Variant::Map motion)
+void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Variant::Map motion)
 {
     AGO_DEBUG() << "Motion '" << internalid << "': started";
 
     //init video reader (provider and consumer)
-    string motionUri = motion["uri"].asString();
+    std::string motionUri = motion["uri"].asString();
     AgoFrameProvider* provider = getFrameProvider(motionUri);
     if( provider==NULL )
     {
@@ -589,7 +588,7 @@ void AgoSurveillance::motionFunction(string internalid, qpid::types::Variant::Ma
                 {
                     stream << " - " << name;
                 }
-                string text = stream.str();
+                std::string text = stream.str();
                 try
                 {
                     putText(result, text.c_str(), Point(20,20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0), 4, CV_AA);
@@ -662,7 +661,7 @@ void AgoSurveillance::motionFunction(string internalid, qpid::types::Variant::Ma
                     if( numberOfChanges>=thereIsMotion )
                     {
                         //save picture and send pictureavailable event
-                        stringstream filename;
+                        std::stringstream filename;
                         filename << "/tmp/" << internalid << ".jpg";
                         std::string picture = filename.str();
                         try
@@ -863,7 +862,7 @@ void AgoSurveillance::launchMotions()
     qpid::types::Variant::Map motions = videomap["motions"].asMap();
     for( qpid::types::Variant::Map::iterator it=motions.begin(); it!=motions.end(); it++ )
     {
-        string internalid = it->first;
+        std::string internalid = it->first;
         qpid::types::Variant::Map motion = it->second.asMap();
         launchMotion(internalid, motion);
     }
@@ -872,7 +871,7 @@ void AgoSurveillance::launchMotions()
 /**
  * Launch specified motion
  */
-void AgoSurveillance::launchMotion(string internalid, qpid::types::Variant::Map& motion)
+void AgoSurveillance::launchMotion(std::string internalid, qpid::types::Variant::Map& motion)
 {
     //create motion device
     agoConnection->addDevice(internalid.c_str(), "motionsensor");
@@ -892,7 +891,7 @@ void AgoSurveillance::launchMotion(string internalid, qpid::types::Variant::Map&
 /**
  * Stop motion thread
  */
-void AgoSurveillance::stopMotion(string internalid)
+void AgoSurveillance::stopMotion(std::string internalid)
 {
     //stop thread
     motionThreads[internalid]->interrupt();
@@ -905,7 +904,7 @@ void AgoSurveillance::stopMotion(string internalid)
 /**
  * Get recordings of specified type
  */
-void AgoSurveillance::getRecordings(std::string type, qpid::types::Variant::List& list, string process)
+void AgoSurveillance::getRecordings(std::string type, qpid::types::Variant::List& list, std::string process)
 {
     qpid::types::Variant::Map motions = videomap["motions"].asMap();
     qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
@@ -923,9 +922,9 @@ void AgoSurveillance::getRecordings(std::string type, qpid::types::Variant::List
                 props["path"] = it->path().string();
                 props["size"] = fs::file_size(it->path());
                 props["date"] =(uint64_t) fs::last_write_time(it->path());
-                vector<string> splits;
+                std::vector<string> splits;
                 split(splits, it->path().filename().string(), boost::is_any_of("_"));
-                string internalid = string(splits[1]);
+                std::string internalid = std::string(splits[1]);
                 props["internalid"] = internalid;
 
                 //check if file is for specified process
@@ -934,7 +933,7 @@ void AgoSurveillance::getRecordings(std::string type, qpid::types::Variant::List
                     if( !motions[internalid].isVoid() )
                     {
                         qpid::types::Variant::Map motion = motions[internalid].asMap();
-                        string p = motion["process"].asString();
+                        std::string p = motion["process"].asString();
                         if( p==process )
                         {
                             list.push_back( props );
@@ -943,7 +942,7 @@ void AgoSurveillance::getRecordings(std::string type, qpid::types::Variant::List
                     else if( !timelapses[internalid].isVoid() )
                     {
                         qpid::types::Variant::Map timelapse = timelapses[internalid].asMap();
-                        string p = timelapse["process"].asString();
+                        std::string p = timelapse["process"].asString();
                         if( p==process )
                         {
                             list.push_back( props );
@@ -965,7 +964,7 @@ void AgoSurveillance::getRecordings(std::string type, qpid::types::Variant::List
  */
 std::string AgoSurveillance::getDateTimeString(bool date, bool time, bool withSeparator/*=true*/, std::string fieldSeparator/*="_"*/)
 {
-    stringstream out;
+    std::stringstream out;
     if( date )
     {
         out << pt::second_clock::local_time().date().year();
@@ -1049,7 +1048,7 @@ void AgoSurveillance::eventHandler(std::string subject, qpid::types::Variant::Ma
     else if( subject=="event.device.remove" )
     {
         //handle device deletion
-        string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
+        std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
         AGO_DEBUG() << "event.device.remove: " << internalid << " - " << content;
         bool found = false;
 
@@ -1097,8 +1096,8 @@ void AgoSurveillance::eventHandler(std::string subject, qpid::types::Variant::Ma
     {
         //handle device name changed
         bool found = false;
-        string name = content["name"].asString();
-        string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
+        std::string name = content["name"].asString();
+        std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
 
         pthread_mutex_lock(&videomapMutex);
 
@@ -1166,7 +1165,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
 {
     AGO_DEBUG() << "handling command: " << content;
     qpid::types::Variant::Map returnData;
-    string command = content["command"].asString();
+    std::string command = content["command"].asString();
 
     std::string internalid = content["internalid"].asString();
     if (internalid == "surveillancecontroller")
@@ -1178,14 +1177,14 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
            
             //check if stream already exists or not
             pthread_mutex_lock(&videomapMutex);
-            string uri = content["uri"].asString();
+            std::string uri = content["uri"].asString();
             qpid::types::Variant::Map streams = videomap["streams"].asMap();
             for( qpid::types::Variant::Map::iterator it=streams.begin(); it!=streams.end(); it++ )
             {
                 qpid::types::Variant::Map stream = it->second.asMap();
                 if( !stream["uri"].isVoid() )
                 {
-                    string streamUri = stream["uri"].asString();
+                    std::string streamUri = stream["uri"].asString();
                     if( streamUri==uri )
                     {
                         //uri already exists, stop here
@@ -1200,7 +1199,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
             fillStream(&stream, &content);
 
             //and save it
-            string internalid = generateUuid();
+            std::string internalid = generateUuid();
             streams[internalid] = stream;
             videomap["streams"] = streams;
             pthread_mutex_unlock(&videomapMutex);
@@ -1228,14 +1227,14 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
 
             //check if timelapse already exists or not
             pthread_mutex_lock(&videomapMutex);
-            string uri = content["uri"].asString();
+            std::string uri = content["uri"].asString();
             qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
             for( qpid::types::Variant::Map::iterator it=timelapses.begin(); it!=timelapses.end(); it++ )
             {
                 qpid::types::Variant::Map timelapse = it->second.asMap();
                 if( !timelapse["uri"].isVoid() )
                 {
-                    string timelapseUri = timelapse["uri"].asString();
+                    std::string timelapseUri = timelapse["uri"].asString();
                     if( timelapseUri==uri )
                     {
                         //uri already exists, stop here
@@ -1250,7 +1249,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
             fillTimelapse(&timelapse, &content);
 
             //and save it
-            string internalid = generateUuid();
+            std::string internalid = generateUuid();
             timelapses[internalid] = timelapse;
             videomap["timelapses"] = timelapses;
             pthread_mutex_unlock(&videomapMutex);
@@ -1274,7 +1273,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
         else if( command=="gettimelapses" )
         {
             checkMsgParameter(content, "process", VAR_STRING);
-            string process = content["process"].asString();
+            std::string process = content["process"].asString();
 
             qpid::types::Variant::List timelapses;
             getRecordings("timelapse_", timelapses, process);
@@ -1306,14 +1305,14 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
 
             //check if motion already exists or not
             pthread_mutex_lock(&videomapMutex);
-            string uri = content["uri"].asString();
+            std::string uri = content["uri"].asString();
             qpid::types::Variant::Map motions = videomap["motions"].asMap();
             for( qpid::types::Variant::Map::iterator it=motions.begin(); it!=motions.end(); it++ )
             {
                 qpid::types::Variant::Map motion = it->second.asMap();
                 if( !motion["uri"].isVoid() )
                 {
-                    string motionUri = motion["uri"].asString();
+                    std::string motionUri = motion["uri"].asString();
                     if( motionUri==uri )
                     {
                         //uri already exists, stop here
@@ -1328,7 +1327,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
             fillMotion(&motion, &content);
 
             //and save it
-            string internalid = generateUuid();
+            std::string internalid = generateUuid();
             motions[internalid] = motion;
             videomap["motions"] = motions;
             pthread_mutex_unlock(&videomapMutex);
@@ -1352,7 +1351,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
         else if( command=="getmotions" )
         {
             checkMsgParameter(content, "process", VAR_STRING);
-            string process = content["process"].asString();
+            std::string process = content["process"].asString();
 
             qpid::types::Variant::List motions;
             getRecordings("motion_", motions, process);
@@ -1397,13 +1396,13 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
         if( command=="getvideoframe")
         {
             //handle get video frame of camera device (internal stream object)
-            string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
+            std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
 
             //get stream infos
             pthread_mutex_lock(&videomapMutex);
             qpid::types::Variant::Map streams = videomap["streams"].asMap();
             qpid::types::Variant::Map stream;
-            string uri = "";
+            std::string uri = "";
             if( !streams[internalid].isVoid() )
             {
                 stream = streams[internalid].asMap();
@@ -1443,7 +1442,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                 provider->unsubscribe(&consumer);
 
                 //return image under base64 format
-                string img;
+                std::string img;
                 if( frameToString(frame, img) )
                 {
                     qpid::types::Variant::Map result;
@@ -1465,7 +1464,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
         {
             //handle on/off command on timelapse/motion devices
             bool found = false;
-            string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
+            std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
 
             pthread_mutex_lock(&videomapMutex);
 
@@ -1548,7 +1547,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
         {
             //handle record on/off command on motion devices
             bool found = false;
-            string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
+            std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
 
             pthread_mutex_lock(&videomapMutex);
 
@@ -1605,7 +1604,7 @@ void AgoSurveillance::setupApp()
     pthread_mutex_init(&frameProvidersMutex, NULL);
 
     //config
-    string optString = getConfigOption("restartDelay", "12");
+    std::string optString = getConfigOption("restartDelay", "12");
     sscanf(optString.c_str(), "%d", &restartDelay);
 
     //load config

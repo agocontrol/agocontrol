@@ -23,7 +23,6 @@
 #include "agoapp.h"
 
 using namespace qpid::types;
-using namespace std;
 using namespace agocontrol;
 
 class AgoPlcbus: public AgoApp {
@@ -88,7 +87,7 @@ int AgoPlcbus::serial_read (int dev,uint8_t pnt[],int len,long timeout) {
 
 // commandhandler
 qpid::types::Variant::Map AgoPlcbus::commandHandler(qpid::types::Variant::Map content) {
-    string addr = content["internalid"].asString();
+    std::string addr = content["internalid"].asString();
     int house = addr.substr(0,1).c_str()[0]-65;
     int unit = atoi(addr.substr(1,2).c_str())-1;
 
@@ -258,15 +257,15 @@ void AgoPlcbus::setupApp() {
 
     addCommandHandler();
 
-    stringstream dimmers(getConfigOption("dimmers", "A1"));
-    string dimmer;
-    while (getline(dimmers, dimmer, ',')) {
+    std::stringstream dimmers(getConfigOption("dimmers", "A1"));
+    std::string dimmer;
+    while (std::getline(dimmers, dimmer, ',')) {
         agoConnection->addDevice(dimmer.c_str(), "dimmer");
         AGO_INFO() << "adding code " << dimmer << " as dimmer";
-    } 
-    stringstream switches(getConfigOption("switches", "A2"));
-    string switchdevice;
-    while (getline(switches, switchdevice, ',')) {
+    }
+    std::stringstream switches(getConfigOption("switches", "A2"));
+    std::string switchdevice;
+    while (std::getline(switches, switchdevice, ',')) {
         agoConnection->addDevice(switchdevice.c_str(), "switch");
         AGO_INFO() << "adding code " << switchdevice << " as switch";
     } 

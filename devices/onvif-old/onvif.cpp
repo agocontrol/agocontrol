@@ -18,7 +18,6 @@
 
 #include "agoclient.h"
 
-using namespace std;
 using namespace agocontrol;
 
 std::string getRTSPUri(std::string mediaXaddr, std::string username, std::string password, std::string profile) {

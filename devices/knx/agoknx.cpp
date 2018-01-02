@@ -39,8 +39,8 @@
 using namespace qpid::messaging;
 using namespace qpid::types;
 using namespace tinyxml2;
-using namespace std;
 using namespace agocontrol;
+
 namespace fs = ::boost::filesystem;
 namespace pt = boost::posix_time;
 
@@ -71,8 +71,8 @@ private:
 
     bool loadDevicesXML(fs::path &filename, Variant::Map& _deviceMap);
     void reportDevices(Variant::Map devicemap);
-    string uuidFromGA(Variant::Map devicemap, string ga);
-    string typeFromGA(Variant::Map device, string ga);
+    std::string uuidFromGA(Variant::Map devicemap, std::string ga);
+    std::string typeFromGA(Variant::Map device, std::string ga);
 
     void *listener();
 public:
@@ -111,7 +111,7 @@ bool AgoKnx::loadDevicesXML(fs::path &filename, Variant::Map& _deviceMap) {
                 XMLElement *nextga = ga;
                 while (nextga != NULL) {
                     AGO_DEBUG() << "GA: " << nextga->GetText() << " type: " << nextga->Attribute("type");
-                    string type = nextga->Attribute("type");
+                    std::string type = nextga->Attribute("type");
 /*
                     if (type=="onoffstatus" || type=="levelstatus") {
                         AGO_DEBUG() << "Requesting current status: " << nextga->GetText();
@@ -148,7 +148,7 @@ void AgoKnx::reportDevices(Variant::Map devicemap) {
 /**
  * looks up the uuid for a specific GA - this is needed to match incoming telegrams to the right device
  */
-string AgoKnx::uuidFromGA(Variant::Map devicemap, string ga) {
+std::string AgoKnx::uuidFromGA(Variant::Map devicemap, std::string ga) {
     for (Variant::Map::const_iterator it = devicemap.begin(); it != devicemap.end(); ++it) {
         Variant::Map device;
 
@@ -166,7 +166,7 @@ string AgoKnx::uuidFromGA(Variant::Map devicemap, string ga) {
 /**
  * looks up the type for a specific GA - this is needed to match incoming telegrams to the right event type
  */
-string AgoKnx::typeFromGA(Variant::Map device, string ga) {
+std::string AgoKnx::typeFromGA(Variant::Map device, std::string ga) {
     for (Variant::Map::const_iterator itd = device.begin(); itd != device.end(); itd++) {
         if (itd->second.asString() == ga) {
             // AGO_TRACE() << "GA " << itd->second.asString() << " belongs to " << itd->first;
@@ -183,7 +183,7 @@ void *AgoKnx::listener() {
 
     AGO_TRACE() << "starting listener thread";
     while(!isExitSignaled()) {
-        string uuid;
+        std::string uuid;
         pthread_mutex_lock (&mutexCon);
         received=EIB_Poll_Complete(eibcon);
         pthread_mutex_unlock (&mutexCon);
@@ -236,7 +236,7 @@ void *AgoKnx::listener() {
                     << tl.getShortUserData();
                 uuid = uuidFromGA(deviceMap, Telegram::gaddrtostring(tl.getGroupAddress()));
                 if (uuid != "") {
-                    string type = typeFromGA(deviceMap[uuid].asMap(),Telegram::gaddrtostring(tl.getGroupAddress()));
+                    std::string type = typeFromGA(deviceMap[uuid].asMap(),Telegram::gaddrtostring(tl.getGroupAddress()));
                     if (type != "") {
                         AGO_DEBUG() << "handling telegram, GA from telegram belongs to: " << uuid << " - type: " << type;
                         if(type == "onoff" || type == "onoffstatus") { 

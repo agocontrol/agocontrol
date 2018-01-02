@@ -20,8 +20,6 @@
 using namespace qpid::messaging;
 using namespace qpid::types;
 using namespace agocontrol;
-using namespace std;
-using std::string;
 
 namespace pt = boost::posix_time;
 namespace greg = boost::gregorian;

@@ -1,8 +1,6 @@
 #include "MySensors.h"
 #include <string>
 
-using namespace std;
-
 /**
  * PROTOCOL v1.3
  * http://www.mysensors.org/download/serial_api_13
@@ -18,7 +16,7 @@ const char* getMsgTypeNameV13(enum msgTypeV13 type)
         case VARIABLE_ACK_V13: return "VARIABLE_ACK";
         case INTERNAL_V13: return "INTERNAL";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -52,7 +50,7 @@ const char* getDeviceTypeNameV13(enum deviceTypesV13 type)
         case S_IR_V13: return "S_IR";
         case S_WATER_V13: return "S_WATER";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -101,7 +99,7 @@ const char* getVariableTypeNameV13(enum varTypesV13 type)
         case V_VOLUME_V13: return "V_VOLUME";
         case V_LOCK_STATUS_V13: return "V_LOCK_STATUS";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -126,7 +124,7 @@ const char* getInternalTypeNameV13(enum internalTypesV13 type)
         case I_SKETCH_NAME_V13: return "I_SKETCH_NAME";
         case I_SKETCH_VERSION_V13: return "I_SKETCH_VERSION";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -148,7 +146,7 @@ const char* getMsgTypeNameV14(enum msgTypeV14 type)
         case INTERNAL_V14: return "INTERNAL";
         case STREAM_V14: return "STREAM";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -186,7 +184,7 @@ const char* getDeviceTypeNameV14(enum deviceTypesV14 type)
         case S_DUST_V14: return "S_DUST";
         case S_SCENE_CONTROLLER_V14: return "S_SCENE_CONTROLLER";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -238,7 +236,7 @@ const char* getVariableTypeNameV14(enum varTypesV14 type)
         case V_VOLTAGE_V14: return "V_VOLTAGE";
         case V_CURRENT_V14: return "V_CURRENT";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -265,7 +263,7 @@ const char* getInternalTypeNameV14(enum internalTypesV14 type)
         case I_REBOOT_V14: return "I_REBOOT";
         case I_GATEWAY_READY_V14: return "I_GATEWAY_READY";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -287,7 +285,7 @@ const char* getMsgTypeNameV15(enum msgTypeV15 type)
         case INTERNAL_V15: return "INTERNAL";
         case STREAM_V15: return "STREAM";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -335,7 +333,7 @@ const char* getDeviceTypeNameV15(enum deviceTypesV15 type)
         case S_VIBRATION_V15: return "S_VIBRATION";
         case S_MOISTURE_V15: return "S_MOISTURE";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -394,7 +392,7 @@ const char* getVariableTypeNameV15(enum varTypesV15 type)
         case V_HVAC_SETPOINT_HEAT_V15: return "V_HVAC_SETPOINT_HEAT";
         case V_HVAC_FLOW_MODE_V15: return "V_HVAC_FLOW_MODE";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -424,7 +422,7 @@ const char* getInternalTypeNameV15(enum internalTypesV15 type)
         case I_GET_NONCE_V15: return "I_GET_NONCE";
         case I_GET_NONCE_RESPONSE_V15: return "I_GET_NONCE_RESPONSE";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -446,7 +444,7 @@ const char* getMsgTypeNameV20(enum msgTypeV20 type)
         case INTERNAL_V20: return "INTERNAL";
         case STREAM_V20: return "STREAM";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -498,7 +496,7 @@ const char* getDeviceTypeNameV20(enum deviceTypesV20 type)
         case S_GPS_V20: return "S_GPS";
         case S_WATER_QUALITY_V20: return "S_WATER_QUALITY";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -567,7 +565,7 @@ const char* getVariableTypeNameV20(enum varTypesV20 type)
         case V_VA_V20: return "V_VA";
         case V_POWER_FACTOR_V20: return "V_POWER_FACTOR";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();
@@ -608,7 +606,7 @@ const char* getInternalTypeNameV20(enum internalTypesV20 type)
         case I_REGISTRATION_RESPONSE_V20: return "I_REGISTRATION_RESPONSE";
         case I_DEBUG_V20: return "I_DEBUG";
         default:
-            string out = "UNKNOWN[";
+            std::string out = "UNKNOWN[";
             out += (int)type;
             out += "]";
             return out.c_str();

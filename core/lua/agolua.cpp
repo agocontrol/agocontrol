@@ -26,7 +26,6 @@
 
 namespace fs = ::boost::filesystem;
 
-using namespace std;
 using namespace agocontrol;
 using namespace qpid::types;
 
@@ -79,7 +78,7 @@ private:
     bool canExecuteScript(qpid::types::Variant::Map content, const fs::path &script);
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
     void eventHandler(std::string subject, qpid::types::Variant::Map content) ;
-    bool enableScript(const string& script, uint8_t enabled);
+    bool enableScript(const std::string& script, uint8_t enabled);
 
     void setupApp();
 
@@ -475,8 +474,8 @@ int AgoLua::luaSendMessage(lua_State *L)
     // print input arguments
     for(int i=0; i<argc; i++)
     {
-        string name, value;
-        if (nameval(string(lua_tostring(L, lua_gettop(L))),name, value))
+        std::string name, value;
+        if (nameval(std::string(lua_tostring(L, lua_gettop(L))),name, value))
         {
             if (name == "subject")
             {
@@ -1119,7 +1118,7 @@ void AgoLua::debugScript(qpid::types::Variant::Map content, const std::string sc
  * @param script: script full path
  * @param enable: enable(1) or disabled(0)
  */
-bool AgoLua::enableScript(const string& script, uint8_t enabled)
+bool AgoLua::enableScript(const std::string& script, uint8_t enabled)
 {
     boost::lock_guard<boost::mutex> lock(mutexScriptInfos);
 
@@ -1322,7 +1321,7 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
                         qpid::types::Variant::Map item;
                         //get script name
                         fs::path script = construct_script_name(it->path().filename());
-                        string scriptName = it->path().stem().string();
+                        std::string scriptName = it->path().stem().string();
                         item["name"] = scriptName;
                         //get script infos
                         if( !scripts[script.string()].isVoid() )
@@ -1359,7 +1358,7 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
                 // if a path is passed, strip it for security reasons
                 fs::path input(content["name"]);
                 fs::path script = construct_script_name(input.stem());
-                string scriptcontent = get_file_contents(script);
+                std::string scriptcontent = get_file_contents(script);
                 AGO_DEBUG() << "Reading script " << script;
                 returnData["script"]=base64_encode(reinterpret_cast<const unsigned char*>(scriptcontent.c_str()), scriptcontent.length());
                 returnData["name"]=content["name"].asString();
@@ -1504,7 +1503,7 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
                         return responseFailed("Script already exists. Script not imported");
                     }
                 }
-                catch( const exception& e )
+                catch( const std::exception& e )
                 {
                     AGO_ERROR() << "Exception during script import" << e.what();
                     return responseFailed("Unable to import script");
