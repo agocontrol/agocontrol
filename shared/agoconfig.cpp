@@ -118,6 +118,12 @@ fs::path getConfigPath(const fs::path &subpath) {
     fs::path res(config_dir);
     if(!subpath.empty()) {
         res /= subpath;
+        try {
+            ensureParentDirExists(res);
+        }catch(const fs::filesystem_error& error) {
+            AGO_WARNING() << "Failed to create parent directory/ies for " << res
+                          << ": " << error.code().message();
+        }
     }
     return res;
 }
@@ -129,6 +135,12 @@ fs::path getLocalStatePath(const fs::path &subpath) {
     fs::path res(localstate_dir);
     if(!subpath.empty()) {
         res /= subpath;
+        try {
+            ensureParentDirExists(res);
+        }catch(const fs::filesystem_error& error) {
+            AGO_WARNING() << "Failed to create parent directory/ies for " << res
+                          << ": " << error.code().message();
+        }
     }
     return res;
 }

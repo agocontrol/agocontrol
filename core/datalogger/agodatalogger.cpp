@@ -1514,7 +1514,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
 
             //database infos
             qpid::types::Variant::Map db;
-            fs::path dbpath = ensureParentDirExists(getLocalStatePath(DBFILE));
+            fs::path dbpath = getLocalStatePath(DBFILE);
             struct stat stat_buf;
             int rc = stat(dbpath.c_str(), &stat_buf);
             db["size"] = (rc==0 ? (int)stat_buf.st_size : 0);
@@ -1814,7 +1814,7 @@ void AgoDataLogger::setupApp()
     allowedPurgeTables.push_back("journal");
 
     //init database
-    fs::path dbpath = ensureParentDirExists(getLocalStatePath(DBFILE));
+    fs::path dbpath = getLocalStatePath(DBFILE);
     try {
         std::string dbconnection = getConfigOption("dbconnection", std::string("sqlite3:db=" + dbpath.string()).c_str());
         AGO_TRACE() << "CppDB connection string: " << dbconnection;

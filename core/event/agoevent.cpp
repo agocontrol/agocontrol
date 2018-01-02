@@ -347,7 +347,7 @@ qpid::types::Variant::Map AgoEvent::commandHandler(qpid::types::Variant::Map con
 void AgoEvent::setupApp()
 {
     AGO_DEBUG() << "parsing eventmap file" << endl;
-    fs::path file = ensureParentDirExists(getConfigPath(EVENTMAPFILE));
+    fs::path file = getConfigPath(EVENTMAPFILE);
     eventmap = jsonFileToVariantMap(file);
 
     addCommandHandler();

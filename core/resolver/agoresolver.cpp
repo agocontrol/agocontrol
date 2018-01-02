@@ -966,7 +966,7 @@ void AgoResolver::setupApp()
     AGO_DEBUG() << "reading inventory";
     try
     {
-        inv = new Inventory(ensureParentDirExists(getConfigPath(INVENTORYDBFILE)));
+        inv = new Inventory(getConfigPath(INVENTORYDBFILE));
     }
     catch(std::exception& e)
     {

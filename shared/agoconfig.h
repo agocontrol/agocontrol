@@ -11,9 +11,11 @@
 namespace agocontrol {
 
     /// Return the full path to the configuration directory, with subpath appended if not NULL
+    /// If subpath is set, it attempts to create all parent directories if they do not already exist
     boost::filesystem::path getConfigPath(const boost::filesystem::path &subpath = boost::filesystem::path());
 
     /// Return the full path to the local-state directory, with subpath appended if not NULL
+    /// If subpath is set, it attempts to create all parent directories if they do not already exist
     boost::filesystem::path getLocalStatePath(const boost::filesystem::path &subpath = boost::filesystem::path());
 
     // XXX: This should preferably also be in AgoClientInternal, but called from global

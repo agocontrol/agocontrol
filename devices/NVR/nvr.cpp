@@ -215,7 +215,7 @@ void AgoSurveillance::timelapseFunction(string internalid, qpid::types::Variant:
             filename << "_" << inc;
         }
         filename << ".avi";
-        filepath = ensureParentDirExists(getLocalStatePath(filename.str()));
+        filepath = getLocalStatePath(filename.str());
         if( fs::exists(filepath) )
         {
             //file already exists
@@ -686,7 +686,7 @@ void AgoSurveillance::motionFunction(string internalid, qpid::types::Variant::Ma
                             filename << internalid << "_";
                             filename << getDateTimeString(true, true, false, "_");
                             filename << ".avi";
-                            recordPath = ensureParentDirExists(getLocalStatePath(filename.str()));
+                            recordPath = getLocalStatePath(filename.str());
                             AGO_DEBUG() << "Motion '" << internalid << "': record to " << recordPath.c_str();
 
                             try
