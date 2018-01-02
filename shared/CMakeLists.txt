@@ -9,6 +9,7 @@ configure_file (
 set(LIBAGOCLIENT_SOURCE_FILES
 	agoclient.cpp
 	agoproto.cpp
+	agojson.cpp
 	agolog.cpp
 	agoapp.cpp
 	agoconfig.cpp

@@ -113,15 +113,6 @@ public:
 
 };
 
-// helper to determine last element
-#if !defined(_LIBCPP_ITERATOR) and __cplusplus < 201103L
-    template <typename Iter>
-Iter next(Iter iter)
-{
-    return ++iter;
-}
-#endif
-
 /**
  * Save device map (only if persistence option activated (default not))
  */
@@ -140,8 +131,8 @@ bool AgoResolver::saveDevicemap()
  */
 void AgoResolver::loadDevicemap()
 {
-    inventory = jsonFileToVariantMap(getConfigPath(DEVICESMAPFILE));
-    AGO_TRACE() << inventory;
+    jsonFileToVariantMap(inventory, getConfigPath(DEVICESMAPFILE));
+    AGO_TRACE() << "Inventory: " << inventory;
 }
 
 /**

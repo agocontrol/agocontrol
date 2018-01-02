@@ -137,16 +137,6 @@ public:
     void onTimeout();
 };
 
-// helper to determine last element
-#ifndef _LIBCPP_ITERATOR
-template <typename Iter>
-Iter next(Iter iter)
-{
-    return ++iter;
-}
-#endif
-
-
 class AgoRpc: public AgoApp {
 private:
     std::map<std::string, Subscriber> subscriptions;

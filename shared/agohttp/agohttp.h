@@ -13,10 +13,6 @@
 namespace agocontrol {
 namespace agohttp {
 
-void variantMapToJson(const qpid::types::Variant::Map &map, Json::Value &root) ;
-void variantListToJson(const qpid::types::Variant::List &list, Json::Value &root) ;
-
-
 class HttpReqRep {
 private:
     int responseCode = 0;

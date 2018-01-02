@@ -1,11 +1,11 @@
-#include <json/reader.h>
-#include <json/writer.h>
-
 #include <qpid/messaging/Message.h>
 #include <boost/foreach.hpp>
 
 #include "agolog.h"
 #include "agohttp.h"
+
+#include <json/reader.h>
+#include <json/writer.h>
 
 #define MONGOOSE_POLLING_INTERVAL 1000 //in ms, minimum mongoose poll interval
 
@@ -67,105 +67,6 @@ const char *mg_event_name(int ev){
             return "unknown event";
     }
 }
-
-
-// TODO: Move to agoclient?
-void variantMapToJson(const qpid::types::Variant::Map &map, Json::Value &root) {
-    assert(root.isObject());
-
-    for (qpid::types::Variant::Map::const_iterator it = map.begin(); it != map.end(); ++it) {
-        switch (it->second.getType()) {
-            case qpid::types::VAR_MAP:
-                root[it->first] = Json::Value(Json::objectValue);
-                variantMapToJson(it->second.asMap(), root[it->first]);
-                break;
-            case qpid::types::VAR_LIST:
-                root[it->first] = Json::Value(Json::arrayValue);
-                variantListToJson(it->second.asList(), root[it->first]);
-                break;
-            case qpid::types::VAR_BOOL:
-                root[it->first] = it->second.asBool(); break;
-            case qpid::types::VAR_STRING:
-            case qpid::types::VAR_UUID:
-                root[it->first] = it->second.asString(); break;
-            case qpid::types::VAR_FLOAT:
-            case qpid::types::VAR_DOUBLE:
-                root[it->first] = it->second.asDouble(); break;
-            case qpid::types::VAR_VOID:
-                // null
-                root[it->first] = Json::Value(); break;
-            case qpid::types::VAR_UINT8:
-                root[it->first] = it->second.asUint8(); break;
-            case qpid::types::VAR_UINT16:
-                root[it->first] = it->second.asUint16(); break;
-            case qpid::types::VAR_UINT32:
-                root[it->first] = it->second.asUint32(); break;
-            case qpid::types::VAR_UINT64:
-                root[it->first] = (Json::UInt64)it->second.asUint64(); break;
-            case qpid::types::VAR_INT8:
-                root[it->first] = it->second.asInt8(); break;
-            case qpid::types::VAR_INT16:
-                root[it->first] = it->second.asInt16(); break;
-            case qpid::types::VAR_INT32:
-                root[it->first] = it->second.asInt32(); break;
-            case qpid::types::VAR_INT64:
-                root[it->first] = (Json::Int64)it->second.asInt64(); break;
-            default:
-                AGO_WARNING() << "Unhandled Variant type " << it->second.getType() << ", mapping to String";
-                root[it->first] = it->second.asString();
-                break;
-        }
-    }
-}
-
-void variantListToJson(const qpid::types::Variant::List &list, Json::Value &root) {
-    assert(root.isArray());
-    int idx=0;
-    for (qpid::types::Variant::List::const_iterator it = list.begin(); it != list.end(); ++it, idx++) {
-        switch (it->getType()) {
-            case qpid::types::VAR_MAP:
-                root[idx] = Json::Value(Json::objectValue);
-                variantMapToJson(it->asMap(), root[idx]);
-                break;
-            case qpid::types::VAR_LIST:
-                root[idx] = Json::Value(Json::arrayValue);
-                variantListToJson(it->asList(), root[idx]);
-                break;
-            case qpid::types::VAR_BOOL:
-                root[idx] = it->asBool(); break;
-            case qpid::types::VAR_STRING:
-            case qpid::types::VAR_UUID:
-                root[idx] = it->asString(); break;
-            case qpid::types::VAR_FLOAT:
-            case qpid::types::VAR_DOUBLE:
-                root[idx] = it->asDouble(); break;
-            case qpid::types::VAR_VOID:
-                // null
-                root[idx] = Json::Value(); break;
-            case qpid::types::VAR_UINT8:
-                root[idx] = it->asUint8(); break;
-            case qpid::types::VAR_UINT16:
-                root[idx] = it->asUint16(); break;
-            case qpid::types::VAR_UINT32:
-                root[idx] = it->asUint32(); break;
-            case qpid::types::VAR_UINT64:
-                root[idx] = (Json::UInt64)it->asUint64(); break;
-            case qpid::types::VAR_INT8:
-                root[idx] = it->asInt8(); break;
-            case qpid::types::VAR_INT16:
-                root[idx] = it->asInt16(); break;
-            case qpid::types::VAR_INT32:
-                root[idx] = it->asInt32(); break;
-            case qpid::types::VAR_INT64:
-                root[idx] = (Json::Int64)it->asInt64(); break;
-            default:
-                AGO_WARNING() << "Unhandled Variant type " << it->getType() << ", mapping to String";
-                root[idx] = it->asString();
-                break;
-        }
-    }
-}
-
 
 
 /* On each mg_connection we have user_data which we use

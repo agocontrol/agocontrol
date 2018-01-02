@@ -16,14 +16,12 @@
 #include <qpid/messaging/Session.h>
 #include <qpid/messaging/Address.h>
 
-#include <json/value.h>
-
 #include <boost/filesystem.hpp>
 #include <boost/function.hpp>
 
 #include "agolog.h"
 #include "agoconfig.h"
-
+#include "agojson.h"
 #include "agoproto.h"
 
 #include <uuid/uuid.h>
@@ -37,22 +35,6 @@ namespace agocontrol {
     // string split helper
     std::vector<std::string> split(const std::string &s, char delimiter);
     std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems);
-
-    /// convert a Variant::Map to JSON string representation.
-    std::string variantMapToJSONString(qpid::types::Variant::Map map);
-    /// convert a Variant::List to JSON string.
-    std::string variantListToJSONString(qpid::types::Variant::List list);
-    /// convert a JSON value to a Variant::Map.
-    qpid::types::Variant::Map jsonToVariantMap(Json::Value value);
-    /// convert a JSON string to a Variant::List.
-    qpid::types::Variant::List jsonToVariantList(Json::Value value);
-    /// convert a JSON string to a Variant::Map.
-    qpid::types::Variant::Map jsonStringToVariantMap(std::string jsonstring);
-
-    /// convert content of a JSON file containing JSON data.
-    qpid::types::Variant::Map jsonFileToVariantMap(const boost::filesystem::path &filename);
-    // write a Variant::Map to a JSON file.
-    bool variantMapToJSONFile(qpid::types::Variant::Map map, const boost::filesystem::path &filename);
 
     /// helper to generate a string containing a uuid.
     std::string generateUuid();

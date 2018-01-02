@@ -8,22 +8,13 @@
 
 #include <boost/bind.hpp>
 
-#include <json/reader.h>
 #include "agoclient.h"
+#include "agojson.h"
 
 using namespace std;
 using namespace qpid::messaging;
 using namespace qpid::types;
 namespace fs = ::boost::filesystem;
-
-// helper to determine last element
-#if !defined(_LIBCPP_ITERATOR) and __cplusplus < 201103L
-template <typename Iter>
-Iter next(Iter iter)
-{
-    return ++iter;
-}
-#endif
 
 bool agocontrol::nameval(const std::string& in, std::string& name, std::string& value) {
     std::string::size_type i = in.find("=");
@@ -83,215 +74,6 @@ std::string agocontrol::double2str(double f) {
     stringstream sstream;
     sstream << f;
     return sstream.str();
-}
-
-bool agocontrol::variantMapToJSONFile(qpid::types::Variant::Map map, const fs::path &filename) {
-    ofstream mapfile;
-    try {
-        mapfile.open(filename.c_str());
-        mapfile << variantMapToJSONString(map);
-        mapfile.close();
-        return true;
-    } catch (const std::exception& ex) {
-        AGO_ERROR() << "Failed to write " << filename << ": " << ex.what();
-        return false;
-    }
-}
-
-qpid::types::Variant::Map agocontrol::jsonFileToVariantMap(const fs::path &filename) {
-    string content;
-    qpid::types::Variant::Map result;
-    ifstream mapfile (filename.c_str());
-    if (mapfile.is_open()) {
-        while (mapfile.good()) {
-            string line;
-            getline(mapfile, line);
-            content += line;
-        }
-        mapfile.close();
-    }
-    result =  jsonStringToVariantMap(content);
-    return result;
-}
-
-
-std::string agocontrol::variantMapToJSONString(qpid::types::Variant::Map map) {
-    string result;
-    result += "{";
-    for (Variant::Map::const_iterator it = map.begin(); it != map.end(); ++it) {
-        result += "\""+ it->first + "\":";
-        std::string tmpstring;
-        switch (it->second.getType()) {
-            case VAR_MAP:
-                result += variantMapToJSONString(it->second.asMap());
-                break;
-            case VAR_LIST:
-                result += variantListToJSONString(it->second.asList());
-                break;
-            case VAR_BOOL:
-                if( it->second.asBool() ) {
-                    result += "1";
-                } else {
-                    result += "0";
-                }
-                break;
-            case VAR_STRING:
-                tmpstring = it->second.asString();
-                replaceString(tmpstring, "\\", "\\\\");
-                replaceString(tmpstring, "\"", "\\\"");
-                result += "\"" +  tmpstring + "\"";
-                break;
-            case VAR_FLOAT:
-                result += float2str(it->second);
-                break;
-            case VAR_DOUBLE:
-                result += double2str(it->second);
-                break;
-            default:
-                if (it->second.asString().size() != 0) {
-                    result += it->second.asString();
-                } else {
-                    result += "null";
-                }
-        }
-        if ((it != map.end()) && (next(it) != map.end())) result += ",";
-    }
-    result += "}";
-    return result;
-}
-
-std::string agocontrol::variantListToJSONString(qpid::types::Variant::List list) {
-    string result;
-    result += "[";
-    for (Variant::List::const_iterator it = list.begin(); it != list.end(); ++it) {
-        std::string tmpstring;
-        switch(it->getType()) {
-            case VAR_MAP:
-                result += variantMapToJSONString(it->asMap());
-                break;
-            case VAR_LIST:
-                result += variantListToJSONString(it->asList());
-                break;
-            case VAR_BOOL:
-                if( it->asBool() ) {
-                    result += "1";
-                } else {
-                    result += "0";
-                }
-                break;
-            case VAR_STRING:
-                tmpstring = it->asString();
-                replaceString(tmpstring, "\\", "\\\\");
-                replaceString(tmpstring, "\"", "\\\"");
-                result += "\"" +  tmpstring + "\"";
-                break;
-            default:
-                if (it->asString().size() != 0) {
-                    result += it->asString();
-                } else {
-                    result += "null";
-                }
-        }
-        if ((it != list.end()) && (next(it) != list.end())) result += ",";
-    }
-    result += "]";
-    return result;
-}
-
-qpid::types::Variant::List agocontrol::jsonToVariantList(Json::Value value) {
-    Variant::List list;
-    try {
-        for (Json::ValueIterator it = value.begin(); it != value.end(); it++) {
-            switch((*it).type()) {
-                case Json::nullValue:
-                    break;
-                case Json::intValue:
-                    list.push_back( (*it).asInt());
-                    break;
-                case Json::uintValue:
-                    list.push_back( (*it).asUInt());
-                    break;
-                case Json::realValue:
-                    list.push_back( (*it).asDouble());
-                    break;
-                case Json::stringValue:
-                    list.push_back( (*it).asString());
-                    break;
-                case Json::booleanValue:
-                    list.push_back( (*it).asBool());
-                    break;
-                case Json::arrayValue:
-                    list.push_back(jsonToVariantList((*it)));
-                    break;
-                case Json::objectValue:
-                    list.push_back(jsonToVariantMap((*it)));
-                    break;
-                default:
-                    AGO_WARNING() << "Unhandled Json::ValueType in jsonToVariantList()";
-
-
-            }
-        }
-    } catch (const std::exception& error) {
-        AGO_ERROR() << "Exception during JSON->Variant::List conversion: " << error.what();
-    }
-
-
-    return list;
-}
-qpid::types::Variant::Map agocontrol::jsonToVariantMap(Json::Value value) {
-    Variant::Map map;
-    try {
-        for (Json::ValueIterator it = value.begin(); it != value.end(); it++) {
-            switch((*it).type()) {
-                case Json::nullValue:
-                    break;
-                case Json::intValue:
-                    map[it.key().asString()] = (*it).asInt();
-                    break;
-                case Json::uintValue:
-                    map[it.key().asString()] = (*it).asUInt();
-                    break;
-                case Json::realValue:
-                    map[it.key().asString()] = (*it).asDouble();
-                    break;
-                case Json::stringValue:
-                    map[it.key().asString()] = (*it).asString();
-                    break;
-                case Json::booleanValue:
-                    map[it.key().asString()] = (*it).asBool();
-                    break;
-                case Json::arrayValue:
-                    map[it.key().asString()] = jsonToVariantList((*it));
-                    break;
-                case Json::objectValue:
-                    map[it.key().asString()] = jsonToVariantMap((*it));
-                    break;
-                default:
-                    AGO_WARNING() << "Unhandled Json::ValueType in jsonToVariantMap()";
-            }
-        }
-    } catch (const std::exception& error) {
-        AGO_ERROR() << "Exception during JSON->Variant::Map conversion: " << error.what();
-    }
-    return map;
-}
-
-qpid::types::Variant::Map agocontrol::jsonStringToVariantMap(std::string jsonstring) {
-    Json::Value root;
-    Json::Reader reader;
-    Variant::Map result;
-
-    try {
-        if ( reader.parse(jsonstring, root)) {
-            result = jsonToVariantMap(root);
-        }/* else {
-            printf("warning, could not parse json to Variant::Map: %s\n",jsonstring.c_str());
-            }*/
-    } catch (const std::exception& error) {
-        AGO_ERROR() << "Exception during JSON String->Variant::Map conversion: " << error.what();
-    }
-    return result;
 }
 
 // generates a uuid as string via libuuid
@@ -686,26 +468,12 @@ void agocontrol::AgoConnection::reportDevices()
 }
 
 bool agocontrol::AgoConnection::storeUuidMap() {
-    ofstream mapfile;
-    mapfile.open(uuidMapFile.c_str());
-    mapfile << variantMapToJSONString(uuidMap);
-    mapfile.close();
+    variantMapToJSONFile(uuidMap, uuidMapFile);
     return true;
 }
 
 bool agocontrol::AgoConnection::loadUuidMap() {
-    string content;
-    ifstream mapfile (uuidMapFile.c_str());
-    if (mapfile.is_open()) {
-        while (mapfile.good()) {
-            string line;
-            getline(mapfile, line);
-            content += line;
-        }
-        mapfile.close();
-    }
-    uuidMap = jsonStringToVariantMap(content);
-    return true;
+    return jsonFileToVariantMap(uuidMap, uuidMapFile);
 }
 
 bool agocontrol::AgoConnection::addHandler(qpid::types::Variant::Map (*handler)(qpid::types::Variant::Map)) {
