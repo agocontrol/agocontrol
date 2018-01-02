@@ -34,7 +34,7 @@ class AgoFrameConsumer
 {
     private:
         std::string _id;
-        queue<Mat> _frames;
+        std::queue<Mat> _frames;
 
     public:
         AgoFrameConsumer();
@@ -52,8 +52,8 @@ class AgoFrameProvider
     private:
         std::string _uri;
         //queue<AgoFrame*> _frames;
-        queue<Mat> _frames;
-        list<AgoFrameConsumer*> _consumers;
+        std::queue<Mat> _frames;
+        std::list<AgoFrameConsumer*> _consumers;
         boost::thread* _thread;
         int _fps;
         Size _resolution;

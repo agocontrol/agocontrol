@@ -186,7 +186,7 @@ bool AgoFrameProvider::isRunning()
 void AgoFrameProvider::subscribe(AgoFrameConsumer* consumer)
 {
     bool found = false;
-    for( list<AgoFrameConsumer*>::iterator it=_consumers.begin(); it!=_consumers.end(); it++ )
+    for( std::list<AgoFrameConsumer*>::iterator it=_consumers.begin(); it!=_consumers.end(); it++ )
     {
         if( consumer->getId()==(*it)->getId() )
         {
@@ -206,7 +206,7 @@ void AgoFrameProvider::subscribe(AgoFrameConsumer* consumer)
  */
 void AgoFrameProvider::unsubscribe(AgoFrameConsumer* consumer)
 {
-    for( list<AgoFrameConsumer*>::iterator it=_consumers.begin(); it!=_consumers.end(); it++ )
+    for( std::list<AgoFrameConsumer*>::iterator it=_consumers.begin(); it!=_consumers.end(); it++ )
     {
         if( consumer->getId()==(*it)->getId() )
         {
@@ -258,7 +258,7 @@ void AgoFrameProvider::threadFunction()
                     (*_capture) >> frame;
     
                     //push frame to registered consumers
-                    for( list<AgoFrameConsumer*>::iterator it=_consumers.begin(); it!=_consumers.end(); it++ )
+                    for( std::list<AgoFrameConsumer*>::iterator it=_consumers.begin(); it!=_consumers.end(); it++ )
                     {
                         (*it)->pushFrame(frame);
                     }
