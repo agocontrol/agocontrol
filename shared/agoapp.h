@@ -201,17 +201,17 @@ namespace agocontrol {
          *  The value found.
          *  If not found, defaultValue is passed through unmodified.
          */
-        std::string getConfigOption(const char *option, const char *defaultValue, const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
+        std::string getConfigOption(const std::string& option, const char* defaultValue, const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
+            ConfigNameList section_(section, appConfigSection);
+            ConfigNameList app_(app, section_);
+            return getConfigSectionOption(section_, option, std::string(defaultValue), app_);
+        }
+        std::string getConfigOption(const std::string& option, const std::string& defaultValue, const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
             ConfigNameList section_(section, appConfigSection);
             ConfigNameList app_(app, section_);
             return getConfigSectionOption(section_, option, defaultValue, app_);
         }
-        std::string getConfigOption(const char *option, std::string &defaultValue, const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
-            ConfigNameList section_(section, appConfigSection);
-            ConfigNameList app_(app, section_);
-            return getConfigSectionOption(section_, option, defaultValue, app_);
-        }
-        boost::filesystem::path getConfigOption(const char *option, const boost::filesystem::path &defaultValue, const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
+        boost::filesystem::path getConfigOption(const std::string& option, const boost::filesystem::path &defaultValue, const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
             ConfigNameList section_(section, appConfigSection);
             ConfigNameList app_(app, section_);
             return getConfigSectionOption(section_, option, defaultValue, app_);
@@ -240,25 +240,17 @@ namespace agocontrol {
          *  true if sucesfully stored, false otherwise.
          *  Please refer to the error log for failure indication.
          */
-        bool setConfigOption(const char *option, const char* value, const char *section=NULL, const char *app=NULL) {
-            if(section == NULL) section = appConfigSection.c_str();
-            if(app == NULL)     app = section;
-            return setConfigSectionOption(section, option, value, app);
+        bool setConfigOption(const std::string& option, const std::string& value, const std::string& section={}, const std::string& app={}) {
+            return setConfigSectionOption(section.empty() ? appConfigSection : section, option, value, app.empty() ? section : app);
         }
-        bool setConfigOption(const char *option, const float value, const char *section=NULL, const char *app=NULL) {
-            if(section == NULL) section = appConfigSection.c_str();
-            if(app == NULL)     app = section;
-            return setConfigSectionOption(section, option, value, app);
+        bool setConfigOption(const std::string& option, float value, const std::string& section={}, const std::string& app={}) {
+            return setConfigSectionOption(section.empty() ? appConfigSection : section, option, value, app.empty() ? section : app);
         }
-        bool setConfigOption(const char *option, const int value, const char *section=NULL, const char *app=NULL) {
-            if(section == NULL) section = appConfigSection.c_str();
-            if(app == NULL)     app = section;
-            return setConfigSectionOption(section, option, value, app);
+        bool setConfigOption(const std::string& option, int value, const std::string& section={}, const std::string& app={}) {
+            return setConfigSectionOption(section.empty() ? appConfigSection : section, option, value, app.empty() ? section : app);
         }
-        bool setConfigOption(const char *option, const bool value, const char *section=NULL, const char *app=NULL) {
-            if(section == NULL) section = appConfigSection.c_str();
-            if(app == NULL)     app = section;
-            return setConfigSectionOption(section, option, value, app);
+        bool setConfigOption(const std::string& option, bool value, const std::string& section={}, const std::string& app={}) {
+            return setConfigSectionOption(section.empty() ? appConfigSection : section, option, value, app.empty() ? section : app);
         }
     public:
         AgoApp(const char *appName);

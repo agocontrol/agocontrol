@@ -62,8 +62,8 @@ namespace agocontrol {
 
     public:
         ConfigNameList() : extra(false) {}
-        ConfigNameList(const char *name) ;
-        ConfigNameList(const std::string &name) ;
+        ConfigNameList(const char* name) ; // Must keep this to allow implicit conversion of "xxx" -> ConfigNameList("xxx")
+        ConfigNameList(const std::string& name) ;
         ConfigNameList(const ConfigNameList &names) ;
         ConfigNameList(const ConfigNameList &names1, const ConfigNameList &names2) ;
         ConfigNameList& add(const std::string &name) ;
@@ -79,11 +79,7 @@ namespace agocontrol {
      */
     class ExtraConfigNameList : public ConfigNameList {
     public:
-        ExtraConfigNameList(const char *name)
-            : ConfigNameList(name)
-        {extra = true;}
-
-        ExtraConfigNameList(const std::string &name)
+        ExtraConfigNameList(const std::string& name)
             : ConfigNameList(name)
         {extra = true;}
     };
@@ -123,9 +119,10 @@ namespace agocontrol {
      *  The value found.
      *  If not found, defaultValue is passed through unmodified.
      */
-    std::string getConfigSectionOption(const ConfigNameList &section, const char *option, const std::string &defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
-    std::string getConfigSectionOption(const ConfigNameList &section, const char *option, const char *defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
-    boost::filesystem::path getConfigSectionOption(const ConfigNameList &section, const char *option, const boost::filesystem::path &defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
+    // keep a distinct char* to avoid ambiguous overload between std::string and fs::path when char* is given
+    std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const char* defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
+    std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const std::string& defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
+    boost::filesystem::path getConfigSectionOption(const ConfigNameList& section, const std::string& option, const boost::filesystem::path& defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
     qpid::types::Variant::Map getConfigTree();
 
     /**
@@ -151,10 +148,10 @@ namespace agocontrol {
      *  true if sucesfully stored, false otherwise.
      *  Please refer to the error log for failure indication.
      */
-    bool setConfigSectionOption(const char *section, const char *option, const char* value, const char *app = NULL);
-    bool setConfigSectionOption(const char *section, const char *option, const float value, const char *app = NULL);
-    bool setConfigSectionOption(const char *section, const char *option, const int value, const char *app = NULL);
-    bool setConfigSectionOption(const char *section, const char *option, const bool value, const char *app = NULL);
+    bool setConfigSectionOption(const std::string& section, const std::string& option, const std::string& value, const std::string& app = {});
+    bool setConfigSectionOption(const std::string& section, const std::string& option, float value, const std::string& app = {});
+    bool setConfigSectionOption(const std::string& section, const std::string& option, int value, const std::string& app = {});
+    bool setConfigSectionOption(const std::string& section, const std::string& option, bool value, const std::string& app = {});
 
 }
 #endif

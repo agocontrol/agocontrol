@@ -237,10 +237,10 @@ static fs::path confPathFromApp(const std::string &app) {
         / (app + ".conf");
 }
 
-static std::string augeasPath(const fs::path &confPath, const std::string &section, const char *option) {
+static std::string augeasPath(const fs::path &confPath, const std::string &section, const std::string& option) {
     assert(!confPath.empty());
     assert(!section.empty());
-    assert(option != NULL);
+    assert(!section.empty());
 
     std::stringstream valuepath;
     valuepath << "/files";
@@ -255,12 +255,12 @@ static std::string augeasPath(const fs::path &confPath, const std::string &secti
 // Default value
 const ConfigNameList BLANK_CONFIG_NAME_LIST = ConfigNameList();
 
-ConfigNameList::ConfigNameList(const char *name) {
+ConfigNameList::ConfigNameList(const char* name) {
     extra = false;
     add(name);
 }
 
-ConfigNameList::ConfigNameList(const std::string &name) {
+ConfigNameList::ConfigNameList(const std::string& name) {
     extra = false;
     add(name);
 }
@@ -313,16 +313,17 @@ std::ostream& operator<< (std::ostream& os, const ConfigNameList &list) {
 
 
 
-std::string getConfigNameListOption(const ConfigNameList &section, const char *option, const std::string &defaultValue, const ConfigNameList &app) {
-    return getConfigSectionOption(section, option, (const char*)defaultValue.c_str(), app);
-}
 
-fs::path getConfigSectionOption(const ConfigNameList &section, const char *option, const fs::path &defaultValue, const ConfigNameList &app) {
-    std::string value = getConfigSectionOption(section, option, (const char*)defaultValue.c_str(), app);
+fs::path getConfigSectionOption(const ConfigNameList& section, const std::string& option, const fs::path& defaultValue, const ConfigNameList &app) {
+    std::string value = getConfigSectionOption(section, option, defaultValue.string(), app);
     return fs::path(value);
 }
 
-std::string getConfigSectionOption(const ConfigNameList &section, const char *option, const char *defaultValue, const ConfigNameList &app) {
+std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const char* defaultValue, const ConfigNameList &app) {
+    return getConfigSectionOption(section, option, std::string(defaultValue), app);
+}
+
+std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const std::string& defaultValue, const ConfigNameList &app) {
     if (augeas==NULL){
         if(!augeas_init()) {
             return defaultValue;
@@ -340,17 +341,16 @@ std::string getConfigSectionOption(const ConfigNameList &section, const char *op
 
             int ret = aug_get(augeas, aug_path.c_str(), &value);
             if(ret == 1 && value != NULL) {
-                std::stringstream result;
-                AGO_TRACE() << "Augeas: using config value from " << aug_path << ": " << value;
-                result << value;
-                return result.str();
+                std::string result(value);
+                AGO_TRACE() << "Augeas: using config value from " << aug_path << ": " << result;
+                return result;
             }
 
             AGO_TRACE() << "Augeas: config value at " << aug_path << " not found (ret=" << ret << ")";
         }
     }
 
-    if(defaultValue) {
+    if(!defaultValue.empty()) {
         AGO_TRACE() << "Augeas, no match on " << section << " / " << app << ", falling back to default value " << defaultValue;
         return defaultValue;
     }
@@ -359,28 +359,28 @@ std::string getConfigSectionOption(const ConfigNameList &section, const char *op
     return std::string();
 }
 
-bool setConfigSectionOption(const char* section, const char* option, const float value, const char *app) {
+bool setConfigSectionOption(const std::string& section, const std::string& option, float value, const std::string& app) {
     std::stringstream stringvalue;
     stringvalue << value;
-    return setConfigSectionOption(section, option, stringvalue.str().c_str());
+    return setConfigSectionOption(section, option, stringvalue.str(), app);
 }
 
-bool setConfigSectionOption(const char* section, const char* option, const int value, const char *app) {
+bool setConfigSectionOption(const std::string& section, const std::string& option, int value, const std::string& app) {
     std::stringstream stringvalue;
     stringvalue << value;
-    return setConfigSectionOption(section, option, stringvalue.str().c_str());
+    return setConfigSectionOption(section, option, stringvalue.str(), app);
 }
 
-bool setConfigSectionOption(const char* section, const char* option, const bool value, const char *app) {
+bool setConfigSectionOption(const std::string& section, const std::string& option, bool value, const std::string& app) {
     std::stringstream stringvalue;
     stringvalue << value;
-    return setConfigSectionOption(section, option, stringvalue.str().c_str());
+    return setConfigSectionOption(section, option, stringvalue.str(), app);
 }
 
 
 
 
-bool setConfigSectionOption(const char* section, const char* option, const char* value, const char *app) {
+bool setConfigSectionOption(const std::string& section, const std::string& option, const std::string& value, const std::string& app) {
     AGO_DEBUG() << "setConfigSectionOption: section="
         << section
         << " option="
@@ -397,10 +397,7 @@ bool setConfigSectionOption(const char* section, const char* option, const char*
         }
     }
 
-    if(app == NULL || !strlen(app))
-        app = section;
-
-    fs::path file = confPathFromApp(app);
+    fs::path file = confPathFromApp(app.empty() ? section : app);
 
     // Make file is writeable; augeas 1.2.0 (probably others) segfaults,
     // we protect ourselfs from this:
@@ -417,7 +414,7 @@ bool setConfigSectionOption(const char* section, const char* option, const char*
 
     std::string aug_path = augeasPath(file, section, option);
 
-    if (aug_set(augeas, aug_path.c_str(), value) == -1) {
+    if (aug_set(augeas, aug_path.c_str(), value.c_str()) == -1) {
         AGO_WARNING() << "Could not set value!";
         if(aug_error(augeas)) {
             std::string err = augeasGetError();

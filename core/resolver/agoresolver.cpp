@@ -549,10 +549,10 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
             checkMsgParameter(content, "value");
             checkMsgParameter(content, "app", VAR_STRING);
 
-            if (setConfigSectionOption(content["section"].asString().c_str(),
-                        content["option"].asString().c_str(),
-                        content["value"].asString().c_str(),
-                        content["app"].asString().c_str()))
+            if (setConfigSectionOption(content["section"].asString(),
+                        content["option"].asString(),
+                        content["value"].asString(),
+                        content["app"].asString()))
             {
                 AGO_INFO() << "Changed config option by request:"
                     << " section = " << content["section"].asString()
@@ -571,8 +571,8 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
             checkMsgParameter(content, "section", VAR_STRING);
             checkMsgParameter(content, "option", VAR_STRING);
             checkMsgParameter(content, "app", VAR_STRING);
-            std::string value = getConfigSectionOption(content["section"].asString().c_str(), content["option"].asString().c_str(),
-                                                       "", content["app"].asString().c_str());
+            std::string value = getConfigSectionOption(content["section"].asString(), content["option"].asString(),
+                                                       "", content["app"].asString());
             qpid::types::Variant::Map response;
             response["value"] = value;
             return responseSuccess(response);
