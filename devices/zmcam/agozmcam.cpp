@@ -143,7 +143,7 @@ void AgoZmcam::setupApp() {
 
     std::string device;
     while (std::getline(devices, device, ','))
-        agoConnection->addDevice(device.c_str(), "camera");
+        agoConnection->addDevice(device, "camera");
 
     addCommandHandler();
 }

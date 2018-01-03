@@ -496,7 +496,7 @@ bool AgoMySensors::deleteDevice(std::string internalid)
         if( !devices[internalid].isVoid() )
         {
             //remove device from uuidmap
-            if( agoConnection->removeDevice(internalid.c_str()) )
+            if( agoConnection->removeDevice(internalid) )
             {
                 //clear all infos
                 pthread_mutex_lock(&devicemapMutex);
@@ -548,7 +548,7 @@ void AgoMySensors::addDevice(std::string internalid, std::string devicetype, qpi
     devices[internalid] = infos;
     devicemap["devices"] = devices;
     variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
-    agoConnection->addDevice(internalid.c_str(), devicetype.c_str());
+    agoConnection->addDevice(internalid, devicetype);
     AGO_TRACE() << "Device [" << internalid << "] " << addStatus;
     pthread_mutex_unlock(&devicemapMutex);
 }
@@ -1445,7 +1445,7 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
                     }
 
                     //emit battery level
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.batterylevelchanged", payload.c_str(), "percent");
+                    agoConnection->emitEvent(internalid, "event.device.batterylevelchanged", payload, "percent");
                     break;
                 case I_SKETCH_NAME_V13:
                     //only used to update timestamp. Useful if network relay support enabled
@@ -1594,47 +1594,47 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
                     valid = 1;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degC");
+                        agoConnection->emitEvent(internalid, "event.environment.temperaturechanged", payload, "degC");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degF");
+                        agoConnection->emitEvent(internalid, "event.environment.temperaturechanged", payload, "degF");
                     }
                     break;
                 case V_TRIPPED_V13:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
+                    agoConnection->emitEvent(internalid, "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
                     break;
                 case V_HUM_V13:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.humiditychanged", payload.c_str(), "percent");
+                    agoConnection->emitEvent(internalid, "event.environment.humiditychanged", payload, "percent");
                     break;
                 case V_LIGHT_V13:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload=="1" ? 255 : 0, "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", payload=="1" ? 255 : 0, "");
                     break;
                 case V_DIMMER_V13:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload.c_str(), "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", payload, "");
                     break;
                 case V_PRESSURE_V13:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.pressurechanged", payload.c_str(), "mBar");
+                    agoConnection->emitEvent(internalid, "event.environment.pressurechanged", payload, "mBar");
                     break;
                 case V_FORECAST_V13:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.forecastchanged", payload.c_str(), "");
+                    agoConnection->emitEvent(internalid, "event.environment.forecastchanged", payload, "");
                     break;
                 case V_RAIN_V13:
                 case V_RAINRATE_V13:
                     valid = 1;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "mm");
+                        agoConnection->emitEvent(internalid, "event.environment.rainchanged", payload, "mm");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "inches");
+                        agoConnection->emitEvent(internalid, "event.environment.rainchanged", payload, "inches");
                     }
                     break;
                 case V_WIND_V13:
@@ -1651,11 +1651,11 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
                     valid = 1;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "cm");
+                        agoConnection->emitEvent(internalid, "event.environment.distancechanged", payload, "cm");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "inch");
+                        agoConnection->emitEvent(internalid, "event.environment.distancechanged", payload, "inch");
                     }
                     break;
                 case V_IMPEDANCE_V13:
@@ -1666,7 +1666,7 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
                     break;
                 case V_KWH_V13:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "kWh");
+                    agoConnection->emitEvent(internalid, "event.environment.powerchanged", payload, "kWh");
                     break;
                 case V_SCENE_ON_V13:
                     break;
@@ -1678,7 +1678,7 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
                     break;
                 case V_LIGHT_LEVEL_V13:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.brightnesschanged", payload.c_str(), "lux");
+                    agoConnection->emitEvent(internalid, "event.environment.brightnesschanged", payload, "lux");
                     break;
                 case V_VAR1_V13:
                     break;
@@ -1779,7 +1779,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     }
 
                     //emit battery level
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.batterylevelchanged", payload.c_str(), "percent");
+                    agoConnection->emitEvent(internalid, "event.device.batterylevelchanged", payload, "percent");
                     break;
                 case I_TIME_V14:
                     timestamp << time(NULL);
@@ -2081,47 +2081,47 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degC");
+                        agoConnection->emitEvent(internalid, "event.environment.temperaturechanged", payload, "degC");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degF");
+                        agoConnection->emitEvent(internalid, "event.environment.temperaturechanged", payload, "degF");
                     }
                     break;
                 case V_TRIPPED_V14:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
+                    agoConnection->emitEvent(internalid, "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
                     break;
                 case V_HUM_V14:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.humiditychanged", payload.c_str(), "percent");
+                    agoConnection->emitEvent(internalid, "event.environment.humiditychanged", payload, "percent");
                     break;
                 case V_LIGHT_V14:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload=="1" ? 255 : 0, "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", payload=="1" ? 255 : 0, "");
                     break;
                 case V_DIMMER_V14:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload.c_str(), "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", payload, "");
                     break;
                 case V_PRESSURE_V14:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.pressurechanged", payload.c_str(), "mBar");
+                    agoConnection->emitEvent(internalid, "event.environment.pressurechanged", payload, "mBar");
                     break;
                 case V_FORECAST_V14:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.forecastchanged", payload.c_str(), "");
+                    agoConnection->emitEvent(internalid, "event.environment.forecastchanged", payload, "");
                     break;
                 case V_RAIN_V14:
                 case V_RAINRATE_V14:
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "mm");
+                        agoConnection->emitEvent(internalid, "event.environment.rainchanged", payload, "mm");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "inches");
+                        agoConnection->emitEvent(internalid, "event.environment.rainchanged", payload, "inches");
                     }
                     break;
                 case V_WIND_V14:
@@ -2138,11 +2138,11 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "cm");
+                        agoConnection->emitEvent(internalid, "event.environment.distancechanged", payload, "cm");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "inch");
+                        agoConnection->emitEvent(internalid, "event.environment.distancechanged", payload, "inch");
                     }
                     break;
                 case V_IMPEDANCE_V14:
@@ -2153,7 +2153,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     break;
                 case V_KWH_V14:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "kWh");
+                    agoConnection->emitEvent(internalid, "event.environment.powerchanged", payload, "kWh");
                     break;
                 case V_SCENE_ON_V14:
                     break;
@@ -2165,7 +2165,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     break;
                 case V_LIGHT_LEVEL_V14:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.brightnesschanged", payload.c_str(), "lux");
+                    agoConnection->emitEvent(internalid, "event.environment.brightnesschanged", payload, "lux");
                     break;
                 case V_VAR1_V14:
                     //custom value 1 is reserved for pin code
@@ -2173,7 +2173,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     {
                         qpid::types::Variant::Map payloadMap;
                         payloadMap["pin"]=payload;
-                        agoConnection->emitEvent(internalid.c_str(), "event.security.pinentered", payloadMap);
+                        agoConnection->emitEvent(internalid, "event.security.pinentered", payloadMap);
                     }
                     break;
                 case V_VAR2_V14:
@@ -2218,7 +2218,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     break;
                 case V_CURRENT_V14:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "A");
+                    agoConnection->emitEvent(internalid, "event.environment.powerchanged", payload, "A");
                     break;
                 default:
                     break;
@@ -2327,7 +2327,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     }
 
                     //emit battery level
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.batterylevelchanged", payload.c_str(), "percent");
+                    agoConnection->emitEvent(internalid, "event.device.batterylevelchanged", payload, "percent");
                     break;
                 case I_TIME_V20:
                     timestamp << time(NULL);
@@ -2680,47 +2680,47 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degC");
+                        agoConnection->emitEvent(internalid, "event.environment.temperaturechanged", payload, "degC");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degF");
+                        agoConnection->emitEvent(internalid, "event.environment.temperaturechanged", payload, "degF");
                     }
                     break;
                 case V_TRIPPED_V20:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
+                    agoConnection->emitEvent(internalid, "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
                     break;
                 case V_HUM_V20:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.humiditychanged", payload.c_str(), "percent");
+                    agoConnection->emitEvent(internalid, "event.environment.humiditychanged", payload, "percent");
                     break;
                 case V_STATUS_V20:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload=="1" ? 255 : 0, "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", payload=="1" ? 255 : 0, "");
                     break;
                 case V_PERCENTAGE_V20:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload.c_str(), "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", payload, "");
                     break;
                 case V_PRESSURE_V20:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.pressurechanged", payload.c_str(), "mBar");
+                    agoConnection->emitEvent(internalid, "event.environment.pressurechanged", payload, "mBar");
                     break;
                 case V_FORECAST_V20:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.forecastchanged", payload.c_str(), "");
+                    agoConnection->emitEvent(internalid, "event.environment.forecastchanged", payload, "");
                     break;
                 case V_RAIN_V20:
                 case V_RAINRATE_V20:
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "mm");
+                        agoConnection->emitEvent(internalid, "event.environment.rainchanged", payload, "mm");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "inches");
+                        agoConnection->emitEvent(internalid, "event.environment.rainchanged", payload, "inches");
                     }
                     break;
                 case V_WIND_V20:
@@ -2737,11 +2737,11 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "cm");
+                        agoConnection->emitEvent(internalid, "event.environment.distancechanged", payload, "cm");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "inch");
+                        agoConnection->emitEvent(internalid, "event.environment.distancechanged", payload, "inch");
                     }
                     break;
                 case V_IMPEDANCE_V20:
@@ -2752,7 +2752,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     break;
                 case V_KWH_V20:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "kWh");
+                    agoConnection->emitEvent(internalid, "event.environment.powerchanged", payload, "kWh");
                     break;
                 case V_SCENE_ON_V20:
                     break;
@@ -2764,7 +2764,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     break;
                 case V_LIGHT_LEVEL_V20:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.brightnesschanged", payload.c_str(), "lux");
+                    agoConnection->emitEvent(internalid, "event.environment.brightnesschanged", payload, "lux");
                     break;
                 case V_VAR1_V20:
                     //custom value 1 is reserved for security pin code
@@ -2772,7 +2772,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     {
                         qpid::types::Variant::Map payloadMap;
                         payloadMap["pin"]=payload;
-                        agoConnection->emitEvent(internalid.c_str(), "event.security.pinentered", payloadMap);
+                        agoConnection->emitEvent(internalid, "event.security.pinentered", payloadMap);
                     }
                     break;
                 case V_VAR2_V20:
@@ -2817,7 +2817,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     break;
                 case V_CURRENT_V20:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "A");
+                    agoConnection->emitEvent(internalid, "event.environment.powerchanged", payload, "A");
                     break;
                 case V_RGB_V20:
                     break;
@@ -2939,7 +2939,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     }
 
                     //emit battery level
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.batterylevelchanged", payload.c_str(), "percent");
+                    agoConnection->emitEvent(internalid, "event.device.batterylevelchanged", payload, "percent");
                     break;
                 case I_TIME_V15:
                     timestamp << time(NULL);
@@ -3292,47 +3292,47 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degC");
+                        agoConnection->emitEvent(internalid, "event.environment.temperaturechanged", payload, "degC");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.temperaturechanged", payload.c_str(), "degF");
+                        agoConnection->emitEvent(internalid, "event.environment.temperaturechanged", payload, "degF");
                     }
                     break;
                 case V_TRIPPED_V15:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
+                    agoConnection->emitEvent(internalid, "event.security.sensortriggered", payload == "1" ? 255 : 0, "");
                     break;
                 case V_HUM_V15:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.humiditychanged", payload.c_str(), "percent");
+                    agoConnection->emitEvent(internalid, "event.environment.humiditychanged", payload, "percent");
                     break;
                 case V_STATUS_V15:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload=="1" ? 255 : 0, "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", payload=="1" ? 255 : 0, "");
                     break;
                 case V_PERCENTAGE_V15:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", payload.c_str(), "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", payload, "");
                     break;
                 case V_PRESSURE_V15:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.pressurechanged", payload.c_str(), "mBar");
+                    agoConnection->emitEvent(internalid, "event.environment.pressurechanged", payload, "mBar");
                     break;
                 case V_FORECAST_V15:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.forecastchanged", payload.c_str(), "");
+                    agoConnection->emitEvent(internalid, "event.environment.forecastchanged", payload, "");
                     break;
                 case V_RAIN_V15:
                 case V_RAINRATE_V15:
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "mm");
+                        agoConnection->emitEvent(internalid, "event.environment.rainchanged", payload, "mm");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.rainchanged", payload.c_str(), "inches");
+                        agoConnection->emitEvent(internalid, "event.environment.rainchanged", payload, "inches");
                     }
                     break;
                 case V_WIND_V15:
@@ -3349,11 +3349,11 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     valid = VALID_SAVE;
                     if (units == "M")
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "cm");
+                        agoConnection->emitEvent(internalid, "event.environment.distancechanged", payload, "cm");
                     }
                     else
                     {
-                        agoConnection->emitEvent(internalid.c_str(), "event.environment.distancechanged", payload.c_str(), "inch");
+                        agoConnection->emitEvent(internalid, "event.environment.distancechanged", payload, "inch");
                     }
                     break;
                 case V_IMPEDANCE_V15:
@@ -3364,7 +3364,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     break;
                 case V_KWH_V15:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "kWh");
+                    agoConnection->emitEvent(internalid, "event.environment.powerchanged", payload, "kWh");
                     break;
                 case V_SCENE_ON_V15:
                     break;
@@ -3376,7 +3376,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     break;
                 case V_LIGHT_LEVEL_V15:
                     valid = VALID_SAVE;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.brightnesschanged", payload.c_str(), "lux");
+                    agoConnection->emitEvent(internalid, "event.environment.brightnesschanged", payload, "lux");
                     break;
                 case V_VAR1_V15:
                     //custom value 1 is reserved for pin code
@@ -3384,7 +3384,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     {
                         qpid::types::Variant::Map payloadMap;
                         payloadMap["pin"]=payload;
-                        agoConnection->emitEvent(internalid.c_str(), "event.security.pinentered", payloadMap);
+                        agoConnection->emitEvent(internalid, "event.security.pinentered", payloadMap);
                     }
                     break;
                 case V_VAR2_V15:
@@ -3429,7 +3429,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     break;
                 case V_CURRENT_V15:
                     valid = 1;
-                    agoConnection->emitEvent(internalid.c_str(), "event.environment.powerchanged", payload.c_str(), "A");
+                    agoConnection->emitEvent(internalid, "event.environment.powerchanged", payload, "A");
                     break;
                 case V_RGB_V15:
                     break;
@@ -3741,13 +3741,13 @@ void AgoMySensors::checkStaleFunction()
                     std::string internalid = (std::string)it->first;
                     if( !infos["last_timestamp"].isVoid() && checkInternalid(internalid) )
                     {
-                        if( !agoConnection->isDeviceStale(internalid.c_str()) )
+                        if( !agoConnection->isDeviceStale(internalid) )
                         {
                             if( (int)now>(infos["last_timestamp"].asInt32()+staleThreshold) )
                             {
                                 //device is stalled
                                 AGO_TRACE() << "Stale: Suspend device " << internalid << " last_ts=" << infos["last_timestamp"].asInt32() << " threshold=" << staleThreshold << " now=" << (int)now;
-                                agoConnection->suspendDevice(internalid.c_str());
+                                agoConnection->suspendDevice(internalid);
                             }
                         }
                         else
@@ -3756,7 +3756,7 @@ void AgoMySensors::checkStaleFunction()
                             {
                                 //device woke up
                                 AGO_TRACE() << "Stale: Resume device " << internalid << " last_ts=" << infos["last_timestamp"].asInt32() << " threshold=" << staleThreshold << " now=" << (int)now;
-                                agoConnection->resumeDevice(internalid.c_str());
+                                agoConnection->resumeDevice(internalid);
                             }
                         }
                     }
@@ -3957,7 +3957,7 @@ void AgoMySensors::setupApp()
                 log << " - " << internalid << ":" << infos["type"].asString().c_str();
                 if( internalid.length()>0 && checkInternalid(internalid) )
                 {
-                    agoConnection->addDevice(it->first.c_str(), (infos["type"].asString()).c_str());
+                    agoConnection->addDevice(it->first, (infos["type"].asString()));
                 }
                 else
                 {

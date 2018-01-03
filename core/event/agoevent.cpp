@@ -290,7 +290,7 @@ qpid::types::Variant::Map AgoEvent::commandHandler(qpid::types::Variant::Map con
             AGO_TRACE() << "event uuid:" << eventuuid;
             eventmap[eventuuid] = newevent;
 
-            agoConnection->addDevice(eventuuid.c_str(), "event", true);
+            agoConnection->addDevice(eventuuid, "event", true);
             if (variantMapToJSONFile(eventmap, getConfigPath(EVENTMAPFILE)))
             {
                 responseData["event"] = eventuuid;
@@ -324,7 +324,7 @@ qpid::types::Variant::Map AgoEvent::commandHandler(qpid::types::Variant::Map con
             if (it != eventmap.end())
             {
                 AGO_TRACE() << "removing ago device" << event;
-                agoConnection->removeDevice(it->first.c_str());
+                agoConnection->removeDevice(it->first);
                 eventmap.erase(it);
                 if (!variantMapToJSONFile(eventmap, getConfigPath(EVENTMAPFILE)))
                 {
@@ -357,7 +357,7 @@ void AgoEvent::setupApp()
     for (qpid::types::Variant::Map::const_iterator it = eventmap.begin(); it!=eventmap.end(); it++)
     {
         AGO_DEBUG() << "adding event:" << it->first << ":" << it->second;
-        agoConnection->addDevice(it->first.c_str(), "event", true);
+        agoConnection->addDevice(it->first, "event", true);
     }
 }
 

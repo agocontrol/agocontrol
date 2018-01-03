@@ -382,13 +382,13 @@ bool setConfigSectionOption(const char* section, const char* option, const bool 
 
 bool setConfigSectionOption(const char* section, const char* option, const char* value, const char *app) {
     AGO_DEBUG() << "setConfigSectionOption: section="
-        << LOG_STR_OR_NULL(section)
+        << section
         << " option="
-        << LOG_STR_OR_NULL(option)
+        << option
         << " value="
-        << LOG_STR_OR_NULL(value)
+        << value
         << " app="
-        << LOG_STR_OR_NULL(app);
+        << app;
 
     if (augeas==NULL){
         if(!augeas_init()) {

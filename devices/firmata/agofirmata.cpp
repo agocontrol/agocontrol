@@ -53,7 +53,7 @@ void AgoFirmata::setupApp() {
     std::string output;
     while (getline(outputs, output, ',')) {
         f->setPinMode(atoi(output.c_str()), FIRMATA_OUTPUT);
-        agoConnection->addDevice(output.c_str(), "switch");
+        agoConnection->addDevice(output, "switch");
         AGO_INFO() << "adding DIGITAL out pin as switch: " << output;
     } 
     addCommandHandler();

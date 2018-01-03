@@ -106,7 +106,7 @@ qpid::types::Variant::Map agocontrol::responseSuccess(const std::string& message
 
 /* Helper to check incoming messages */
 void agocontrol::checkMsgParameter(/*const */qpid::types::Variant::Map& content, const std::string& key) {
-    if(!content.count(key.c_str()) || content[key.c_str()].isVoid()) {
+    if(!content.count(key) || content[key].isVoid()) {
         std::stringstream err;
         err << "Parameter " << key << " is required";
         throw AgoCommandException(RESPONSE_ERR_PARAMETER_MISSING, err.str());
@@ -116,40 +116,38 @@ void agocontrol::checkMsgParameter(/*const */qpid::types::Variant::Map& content,
         qpid::types::VariantType type, bool allowEmpty) {
     checkMsgParameter(content, key);
 
-    const char *ckey = key.c_str();
-
-    qpid::types::VariantType msgType = content[ckey].getType();
+    qpid::types::VariantType msgType = content[key].getType();
     try {
         // For INT types, try to make an actual conversion to the target
         // type. If it is not possible, an InvalidConversion will be thrown.
         // We could re-implement the QPID probe code ourselfs, but this is easier..
         switch(type) {
             case VAR_UINT8:
-                content[ckey].asUint8();
+                content[key].asUint8();
                 return;
             case VAR_UINT16:
-                content[ckey].asUint16();
+                content[key].asUint16();
                 return;
             case VAR_UINT32:
-                content[ckey].asUint32();
+                content[key].asUint32();
                 return;
             case VAR_UINT64:
-                content[ckey].asUint64();
+                content[key].asUint64();
                 return;
             case VAR_INT8:
-                content[ckey].asInt8();
+                content[key].asInt8();
                 return;
             case VAR_INT16:
-                content[ckey].asInt16();
+                content[key].asInt16();
                 return;
             case VAR_INT32:
-                content[ckey].asInt32();
+                content[key].asInt32();
                 return;
             case VAR_INT64:
-                content[ckey].asInt64();
+                content[key].asInt64();
                 return;
             case VAR_BOOL:
-                content[ckey].asBool();
+                content[key].asBool();
                 return;
             default:
                 // Not an int type
@@ -165,7 +163,7 @@ void agocontrol::checkMsgParameter(/*const */qpid::types::Variant::Map& content,
         throw AgoCommandException(RESPONSE_ERR_PARAMETER_INVALID, err.str());
     }
 
-    if(msgType == VAR_STRING && !allowEmpty && content[ckey].getString().empty()) {
+    if(msgType == VAR_STRING && !allowEmpty && content[key].getString().empty()) {
         std::stringstream err;
         err << "Parameter " << key << " must not be empty";
         throw AgoCommandException(RESPONSE_ERR_PARAMETER_INVALID, err.str());

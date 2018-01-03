@@ -88,8 +88,8 @@ private:
     bool saveDeviceParametersMap();
     void loadDeviceParametersMap();
     void get_sysinfo();
-    bool emitNameEvent(const char *uuid, const char *eventType, const char *name);
-    bool emitFloorplanEvent(const char *uuid, const char *eventType, const char *floorplan, int x, int y);
+    bool emitNameEvent(const std::string& uuid, const std::string& eventType, const std::string& name);
+    bool emitFloorplanEvent(const std::string& uuid, const std::string& eventType, const std::string& floorplan, int x, int y);
     void handleEvent(Variant::Map *device, std::string subject, Variant::Map *content);
     qpid::types::Variant::Map getDefaultParameters();
 
@@ -213,7 +213,7 @@ void AgoResolver::get_sysinfo() {
 #endif
 }
 
-bool AgoResolver::emitNameEvent(const char *uuid, const char *eventType, const char *name)
+bool AgoResolver::emitNameEvent(const std::string& uuid, const std::string& eventType, const std::string& name)
 {
     Variant::Map content;
     content["name"] = name;
@@ -221,7 +221,7 @@ bool AgoResolver::emitNameEvent(const char *uuid, const char *eventType, const c
     return agoConnection->sendMessage(eventType, content);
 }
 
-bool AgoResolver::emitFloorplanEvent(const char *uuid, const char *eventType, const char *floorplan, int x, int y) {
+bool AgoResolver::emitFloorplanEvent(const std::string& uuid, const std::string& eventType, const std::string& floorplan, int x, int y) {
     Variant::Map content;
     content["uuid"] = uuid;
     content["floorplan"] = floorplan;
@@ -333,7 +333,7 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
             {
                 // return room UUID
                 responseData["uuid"] = roomUuid;
-                emitNameEvent(roomUuid.c_str(), "event.system.roomnamechanged", content["name"].asString().c_str());
+                emitNameEvent(roomUuid, "event.system.roomnamechanged", content["name"].asString());
                 return responseSuccess(responseData);
             }
             else
@@ -387,7 +387,7 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
                     (*device)["name"]= name;
                 }
                 saveDevicemap();
-                emitNameEvent(content["device"].asString().c_str(), "event.system.devicenamechanged", content["name"].asString().c_str());
+                emitNameEvent(content["device"].asString(), "event.system.devicenamechanged", content["name"].asString());
 
                 return responseSuccess();
             }
@@ -419,7 +419,7 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
             if (inv->deleteRoom(content["room"]))
             {
                 std::string uuid = content["room"].asString();
-                emitNameEvent(uuid.c_str(), "event.system.roomdeleted", "");
+                emitNameEvent(uuid, "event.system.roomdeleted", "");
                 return responseSuccess();
             }
             else
@@ -438,7 +438,7 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
 
             if (inv->setFloorplanName(uuid, content["name"]))
             {
-                emitNameEvent(content["floorplan"].asString().c_str(), "event.system.floorplannamechanged", content["name"].asString().c_str());
+                emitNameEvent(content["floorplan"].asString(), "event.system.floorplannamechanged", content["name"].asString());
                 responseData["uuid"] = uuid;
                 return responseSuccess(responseData);
             }
@@ -456,9 +456,9 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
 
             if (inv->setDeviceFloorplan(content["device"], content["floorplan"], content["x"], content["y"]))
             {
-                emitFloorplanEvent(content["device"].asString().c_str(),
+                emitFloorplanEvent(content["device"].asString(),
                         "event.system.floorplandevicechanged",
-                        content["floorplan"].asString().c_str(),
+                        content["floorplan"].asString(),
                         content["x"],
                         content["y"]);
                 return responseSuccess();
@@ -482,7 +482,7 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
 
             if (inv->deleteFloorplan(content["floorplan"]))
             {
-                emitNameEvent(content["floorplan"].asString().c_str(), "event.system.floorplandeleted", "");
+                emitNameEvent(content["floorplan"].asString(), "event.system.floorplandeleted", "");
                 return responseSuccess();
             }
             else
@@ -856,7 +856,7 @@ void AgoResolver::staleFunction(const boost::system::error_code& error)
                             {
                                 AGO_DEBUG() << "Device " << it->first << " is dead";
                                 (*device)["stale"] = (uint8_t)1;
-                                agoConnection->emitDeviceStale(uuid.c_str(), 1);
+                                agoConnection->emitDeviceStale(uuid, 1);
 
                                 save = true;
                             }
@@ -873,7 +873,7 @@ void AgoResolver::staleFunction(const boost::system::error_code& error)
                                 //disable stale status
                                 AGO_DEBUG() << "Device " << it->first << " is alive";
                                 (*device)["stale"] = (uint8_t)0;
-                                agoConnection->emitDeviceStale(uuid.c_str(), 0);
+                                agoConnection->emitDeviceStale(uuid, 0);
                                 save = true;
                             }
                             else

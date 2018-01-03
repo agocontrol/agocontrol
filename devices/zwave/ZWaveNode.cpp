@@ -1,6 +1,7 @@
+#include <openzwave/value_classes/ValueID.h>
 #include "ZWaveNode.h"
 
-ZWaveNode::ZWaveNode(std::string _id, std::string _devicetype) {
+ZWaveNode::ZWaveNode(const std::string& _id, const std::string& _devicetype) {
     devicetype = _devicetype;
     id = _id;
 }
@@ -8,19 +9,19 @@ ZWaveNode::ZWaveNode(std::string _id, std::string _devicetype) {
 ZWaveNode::~ZWaveNode() {
 }
 
-std::string ZWaveNode::getId() {
+const std::string& ZWaveNode::getId() {
     return id;
 }
 
-std::string ZWaveNode::getDevicetype() {
+const std::string& ZWaveNode::getDevicetype() {
     return devicetype;
 }
 
-void ZWaveNode::setDevicetype(std::string _devicetype) {
+void ZWaveNode::setDevicetype(const std::string& _devicetype) {
     devicetype = _devicetype;
 }
 
-OpenZWave::ValueID *ZWaveNode::getValueID(std::string label) {
+OpenZWave::ValueID *ZWaveNode::getValueID(const std::string& label) {
     for (std::map<std::string, OpenZWave::ValueID>::iterator it = values.begin(); it != values.end(); ++it) {
         if (it->first == label) return &(it->second);
     }
@@ -34,8 +35,9 @@ bool ZWaveNode::hasValue(OpenZWave::ValueID valueID) {
     return false;
 }
 
-bool ZWaveNode::addValue(std::string label, OpenZWave::ValueID valueID) {
-    if (!hasValue(valueID)) values.insert ( std::pair<std::string, OpenZWave::ValueID>  (label, valueID));
+bool ZWaveNode::addValue(const std::string& label, OpenZWave::ValueID valueID) {
+    if (!hasValue(valueID))
+        values.insert ( std::pair<std::string, OpenZWave::ValueID>  (label, valueID));
     return true;
 }
 
@@ -67,9 +69,10 @@ ZWaveNode *ZWaveNodes::findValue(OpenZWave::ValueID valueID) {
     return NULL;
 }
 
-ZWaveNode *ZWaveNodes::findId(std::string id) {
+ZWaveNode *ZWaveNodes::findId(const std::string& id) {
     for (std::list<ZWaveNode*>::const_iterator it = nodes.begin(); it!= nodes.end(); it++) {
-        if ((*it)->getId() == id) return (*it);
+        if ((*it)->getId() == id)
+            return (*it);
     }
     return NULL;
 }
@@ -79,7 +82,7 @@ bool ZWaveNodes::add(ZWaveNode *node) {
     return true;
 }
 
-bool ZWaveNodes::remove(std::string id) {
+bool ZWaveNodes::remove(const std::string& id) {
     for (std::list<ZWaveNode*>::iterator it = nodes.begin(); it!= nodes.end(); it++) {
         if ((*it)->getId() == id) {
             nodes.erase(it);

@@ -761,7 +761,7 @@ void AgoRpc::eventHandler(std::string subject, qpid::types::Variant::Map content
         for (std::map<std::string, Subscriber>::iterator it = subscriptions.begin(); it != subscriptions.end();) {
             if (it->second.queue.size() > 100) {
                 // this subscription seems to be abandoned, let's remove it to save resources
-                AGO_INFO() << "removing subscription as the queue size exceeds limits: " << it->first.c_str();
+                AGO_INFO() << "removing subscription as the queue size exceeds limits: " << it->first;
                 subscriptions.erase(it++);
             } else {
                 it->second.queue.push_back(content);

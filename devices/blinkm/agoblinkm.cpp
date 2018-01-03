@@ -55,7 +55,7 @@ qpid::types::Variant::Map  AgoBlinkm::commandHandler(qpid::types::Variant::Map c
         buf[2]=0xff;
         if (i2ccommand(devicefile.c_str(),i2caddr,0x63,3,buf))
         {
-            agoConnection->emitEvent(content["internalid"].asString().c_str(), "event.device.statechanged", "255", "");
+            agoConnection->emitEvent(content["internalid"].asString(), "event.device.statechanged", "255", "");
             return responseSuccess();
         } else return responseFailed("Cannot write i2c command");
     } else if (content["command"] == "off") {
@@ -64,7 +64,7 @@ qpid::types::Variant::Map  AgoBlinkm::commandHandler(qpid::types::Variant::Map c
         buf[2]=0x0;
         if (i2ccommand(devicefile.c_str(),i2caddr,0x63,3,buf))
         {
-            agoConnection->emitEvent(content["internalid"].asString().c_str(), "event.device.statechanged", "0", "");
+            agoConnection->emitEvent(content["internalid"].asString(), "event.device.statechanged", "0", "");
             return responseSuccess();
         } else return responseFailed("Cannot write i2c command");
     } else if (content["command"] == "setlevel") {
@@ -74,7 +74,7 @@ qpid::types::Variant::Map  AgoBlinkm::commandHandler(qpid::types::Variant::Map c
         buf[2] = atoi(content["level"].asString().c_str()) * 255 / 100;
         if (i2ccommand(devicefile.c_str(),i2caddr,0x63,3,buf))
         {
-            agoConnection->emitEvent(content["internalid"].asString().c_str(), "event.device.statechanged", content["level"].asString().c_str(), "");
+            agoConnection->emitEvent(content["internalid"].asString(), "event.device.statechanged", content["level"].asString(), "");
             return responseSuccess();
         } else return responseFailed("Cannot write i2c command");
     } else if (content["command"] == "setcolor") {
@@ -104,7 +104,7 @@ void AgoBlinkm::setupApp() {
 
     std::string device;
     while (getline(devices, device, ',')) {
-        agoConnection->addDevice(device.c_str(), "dimmerrgb");
+        agoConnection->addDevice(device, "dimmerrgb");
         i2ccommand(devicefile.c_str(),atoi(device.c_str()),0x6f,0,NULL); // stop script on blinkm
     } 
     addCommandHandler();

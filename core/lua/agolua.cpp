@@ -137,7 +137,7 @@ fs::path AgoLua::construct_script_name(fs::path input)
 // read file into string. credits go to "insane coder" - http://stackoverflow.com/questions/2602013/read-whole-ascii-file-into-c-stdstring
 static std::string get_file_contents(const fs::path &filename)
 {
-    std::ifstream in(filename.c_str(), std::ios::in | std::ios::binary);
+    std::ifstream in(filename.string(), std::ios::in | std::ios::binary);
     if (in)
     {
         std::string contents;
@@ -488,7 +488,7 @@ int AgoLua::luaSendMessage(lua_State *L)
 
     //execute sendMessage
     AGO_DEBUG() << "Sending message: " << subject << " " << content;
-    AgoResponse response = agoConnection->sendRequest(subject.c_str(), content);
+    AgoResponse response = agoConnection->sendRequest(subject, content);
     pushTableFromMap(L, response.getResponse());
 
     return 1;
@@ -509,7 +509,7 @@ int AgoLua::luaSetVariable(lua_State *L)
     content["uuid"]=agocontroller;
 
     AGO_DEBUG() << "Set variable: " << content;
-    AgoResponse resp = agoConnection->sendRequest(subject.c_str(), content);
+    AgoResponse resp = agoConnection->sendRequest(subject, content);
 
     //manage result
     if( resp.isOk() )

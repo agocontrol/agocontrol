@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     }
 
     std::cout << "Sending message: " << content << std::endl;
-    AgoResponse response = agoConnection.sendRequest(subject.c_str(), content);
+    AgoResponse response = agoConnection.sendRequest(subject, content);
     if(response.isOk()) {
         std::cout << "Success: " << response.getResponse() << std::endl;
     }else{

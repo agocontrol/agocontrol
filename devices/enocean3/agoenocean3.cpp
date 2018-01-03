@@ -67,19 +67,19 @@ void AgoEnocean3::_handler(esp3::Notification const* message) {
                 std::stringstream internalid;
                 internalid << id.str() << "-" << i;
                 devicemap[internalid.str()]="remoteswitch";
-                agoConnection->addDevice(internalid.str().c_str(), "remoteswitch");
+                agoConnection->addDevice(internalid.str(), "remoteswitch");
             }
             variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
         } else {
             if (switchNotif->getIsPressed()) {
                 std::stringstream internalid;
                 internalid << id.str() << "-" << switchNotif->getRockerId();
-                agoConnection->emitEvent(internalid.str().c_str(), "event.device.statechanged", 255, "");
+                agoConnection->emitEvent(internalid.str(), "event.device.statechanged", 255, "");
             } else {
                 for (qpid::types::Variant::Map::iterator it = devicemap.begin(); it!=devicemap.end(); it++) {
                     AGO_DEBUG() << "matching id: " << it->first;
                     if (it->first.find(id.str()) != std::string::npos) {
-                        agoConnection->emitEvent(it->first.c_str(), "event.device.statechanged", 0, "");
+                        agoConnection->emitEvent(it->first, "event.device.statechanged", 0, "");
                     }
                 }
             }
@@ -115,14 +115,14 @@ qpid::types::Variant::Map AgoEnocean3::commandHandler(qpid::types::Variant::Map 
     } else {
         int rid = 0; rid = atol(internalid.c_str());
         if (content["command"] == "on") {
-            if (agoConnection->getDeviceType(internalid.c_str())=="dimmer") {
+            if (agoConnection->getDeviceType(internalid)=="dimmer") {
                 myESP3->fourbsCentralCommandDimLevel(rid,0x64,1);
             } else {
                 myESP3->fourbsCentralCommandSwitchOn(rid);
             }
             return responseSuccess();
         } else if (content["command"] == "off") {
-            if (agoConnection->getDeviceType(internalid.c_str())=="dimmer") {
+            if (agoConnection->getDeviceType(internalid)=="dimmer") {
                 myESP3->fourbsCentralCommandDimOff(rid);
             } else {
                 myESP3->fourbsCentralCommandSwitchOff(rid);
@@ -155,21 +155,21 @@ void AgoEnocean3::setupApp() {
     std::stringstream dimmers(getConfigOption("dimmers", "1"));
     std::string dimmer;
     while (getline(dimmers, dimmer, ',')) {
-        agoConnection->addDevice(dimmer.c_str(), "dimmer");
+        agoConnection->addDevice(dimmer, "dimmer");
         AGO_DEBUG() << "adding rid " << dimmer << " as dimmer";
     }
 
     std::stringstream switches(getConfigOption("switches", "20"));
     std::string switchdevice;
     while (getline(switches, switchdevice, ',')) {
-        agoConnection->addDevice(switchdevice.c_str(), "switch");
+        agoConnection->addDevice(switchdevice, "switch");
         AGO_DEBUG() << "adding rid " << switchdevice << " as switch";
     } 
 
     devicemap = jsonFileToVariantMap(getConfigPath(DEVICEMAPFILE));
     for (qpid::types::Variant::Map::iterator it = devicemap.begin(); it!=devicemap.end(); it++) {
         AGO_DEBUG() << "Found id in devicemap file: " << it->first;
-        agoConnection->addDevice(it->first.c_str(), it->second.asString().c_str());
+        agoConnection->addDevice(it->first, it->second.asString());
     }
 }
 

@@ -398,7 +398,7 @@ void AgoSurveillance::launchTimelapses()
 void AgoSurveillance::launchTimelapse(std::string internalid, qpid::types::Variant::Map& timelapse)
 {
     //create timelapse device
-    agoConnection->addDevice(internalid.c_str(), "timelapse");
+    agoConnection->addDevice(internalid, "timelapse");
     
     AGO_DEBUG() << "Launch timelapse '" << internalid << "'";
     if( timelapse["enabled"].asBool()==true )
@@ -669,7 +669,7 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
                             imwrite(picture.c_str(), result);
                             qpid::types::Variant::Map content;
                             content["filename"] = picture;
-                            agoConnection->emitEvent(internalid.c_str(), "event.device.pictureavailable", content);
+                            agoConnection->emitEvent(internalid, "event.device.pictureavailable", content);
                         }
                         catch(...)
                         {
@@ -714,7 +714,7 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
                         }
 
                         //emit security event (enable motion sensor)
-                        agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", 255, "");
+                        agoConnection->emitEvent(internalid, "event.device.statechanged", 255, "");
                         isTriggered = true;
                     }
                 }
@@ -735,7 +735,7 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
                         //emit video available event
                         qpid::types::Variant::Map content;
                         content["filename"] = recordPath.c_str();
-                        agoConnection->emitEvent(internalid.c_str(), "event.device.videoavailable", content);
+                        agoConnection->emitEvent(internalid, "event.device.videoavailable", content);
                     }
                     else
                     {
@@ -750,7 +750,7 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
                         isTriggered = false;
 
                         //emit security event (disable motion sensor)
-                        agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", 0, "");
+                        agoConnection->emitEvent(internalid, "event.device.statechanged", 0, "");
                     }
                 }
             }
@@ -874,7 +874,7 @@ void AgoSurveillance::launchMotions()
 void AgoSurveillance::launchMotion(std::string internalid, qpid::types::Variant::Map& motion)
 {
     //create motion device
-    agoConnection->addDevice(internalid.c_str(), "motionsensor");
+    agoConnection->addDevice(internalid, "motionsensor");
 
     AGO_DEBUG() << "Launch motion: " << internalid;
     if( motion["enabled"].asBool()==true )

@@ -30,7 +30,7 @@ Inventory::Inventory(const fs::path &dbfile) {
         AGO_ERROR() << "Can't open database " << dbfile.string() << ": " << sqlite3_errmsg(db);
         throw std::runtime_error("Cannot open database");
     }
-    AGO_DEBUG() << "Succesfully opened database: " << dbfile.c_str();
+    AGO_DEBUG() << "Succesfully opened database: " << dbfile;
 
     createTableIfNotExist("devices","CREATE TABLE devices (uuid text, name text, room text)");
     createTableIfNotExist("rooms", "CREATE TABLE rooms (uuid text, name text, location text)");
@@ -231,7 +231,7 @@ std::string Inventory::getFloorplanName(std::string uuid) {
 bool Inventory::setFloorplanName(std::string uuid, std::string name) {
     if (getFloorplanName(uuid) == "") { // does not exist, create
         std::string query = "insert into floorplans (name, uuid) VALUES (?, ?)";
-        AGO_DEBUG() << "creating floorplan: " << query.c_str();
+        AGO_DEBUG() << "creating floorplan: " << query;
         getFirst(query.c_str(), 2, name.c_str(), uuid.c_str());
     } else {
         std::string query = "update floorplans set name = ? WHERE uuid = ?";

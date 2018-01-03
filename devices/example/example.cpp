@@ -16,12 +16,12 @@ qpid::types::Variant::Map AgoExample::commandHandler(qpid::types::Variant::Map c
     std::string internalid = command["internalid"].asString();
     if (command["command"] == "on") {
         AGO_DEBUG() << "Switch " << internalid << " ON";
-        agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", "255", "");
+        agoConnection->emitEvent(internalid, "event.device.statechanged", "255", "");
         return responseSuccess();
 
     } else if (command["command"] == "off") {
         AGO_DEBUG() << "Switch " << internalid << " OFF";
-        agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", "0", "");
+        agoConnection->emitEvent(internalid, "event.device.statechanged", "0", "");
         return responseSuccess();
     }   
     return responseUnknownCommand();

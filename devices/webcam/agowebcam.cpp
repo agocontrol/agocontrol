@@ -96,9 +96,9 @@ void AgoWebcam::setupApp() {
     std::string device;
     while (std::getline(devices, device, ',')) {
         if (device.find("rtsp://") != std::string::npos) {
-            agoConnection->addDevice(device.c_str(), "onvifnvt"); // this is a helper for agoonvif for situations where the device can't be discovered (e.g. multicast issues)
+            agoConnection->addDevice(device, "onvifnvt"); // this is a helper for agoonvif for situations where the device can't be discovered (e.g. multicast issues)
         } else {
-            agoConnection->addDevice(device.c_str(), "camera");
+            agoConnection->addDevice(device, "camera");
         }
     } 
 }

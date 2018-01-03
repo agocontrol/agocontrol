@@ -260,13 +260,13 @@ void AgoPlcbus::setupApp() {
     std::stringstream dimmers(getConfigOption("dimmers", "A1"));
     std::string dimmer;
     while (std::getline(dimmers, dimmer, ',')) {
-        agoConnection->addDevice(dimmer.c_str(), "dimmer");
+        agoConnection->addDevice(dimmer, "dimmer");
         AGO_INFO() << "adding code " << dimmer << " as dimmer";
     }
     std::stringstream switches(getConfigOption("switches", "A2"));
     std::string switchdevice;
     while (std::getline(switches, switchdevice, ',')) {
-        agoConnection->addDevice(switchdevice.c_str(), "switch");
+        agoConnection->addDevice(switchdevice, "switch");
         AGO_INFO() << "adding code " << switchdevice << " as switch";
     } 
 

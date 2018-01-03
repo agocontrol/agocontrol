@@ -184,7 +184,7 @@ void AgoDmx::reportDevices(Variant::Map channelmap) {
         Variant::Map device;
 
         device = it->second.asMap();
-        agoConnection->addDevice(device["internalid"].asString().c_str(), device["devicetype"].asString().c_str());
+        agoConnection->addDevice(device["internalid"].asString(), device["devicetype"].asString());
     }
 }
 
@@ -196,7 +196,7 @@ qpid::types::Variant::Map AgoDmx::commandHandler(qpid::types::Variant::Map conte
 
     if (content["command"] == "on") {
         if (setDevice_level(device, device["onlevel"])) {
-            agoConnection->emitEvent(internalid, "event.device.statechanged", device["onlevel"].asString().c_str(), "");
+            agoConnection->emitEvent(internalid, "event.device.statechanged", device["onlevel"].asString(), "");
             return responseSuccess();
         } else return responseFailed("cannot set device level via OLA");
     } else if (content["command"] == "off") {
@@ -212,7 +212,7 @@ qpid::types::Variant::Map AgoDmx::commandHandler(qpid::types::Variant::Map conte
             content["onlevel"] = content["level"].asString().c_str();
             channelMap[internalid] = content;
 
-            agoConnection->emitEvent(internalid, "event.device.statechanged", content["level"].asString().c_str(), "");
+            agoConnection->emitEvent(internalid, "event.device.statechanged", content["level"].asString(), "");
             return responseSuccess();
         } else return responseFailed("cannot set device level via OLA");
     } else if (content["command"] == "setcolor") {

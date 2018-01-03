@@ -50,8 +50,8 @@ void AgoI2c::readBMP085(){
 
         std::stringstream value2;
         value2 << ((double)temperature)/10,0x00B0;
-        agoConnection->emitEvent("BMP085-baro", "event.environment.pressurechanged", value.str().c_str(), "hPa");
-        agoConnection->emitEvent("BMP085-temp", "event.environment.temperaturechanged", value2.str().c_str(), "degC");
+        agoConnection->emitEvent("BMP085-baro", "event.environment.pressurechanged", value.str(), "hPa");
+        agoConnection->emitEvent("BMP085-temp", "event.environment.temperaturechanged", value2.str(), "degC");
 
         sleep(interval);
     }
@@ -174,9 +174,9 @@ qpid::types::Variant::Map AgoI2c::commandHandler(qpid::types::Variant::Map conte
             AGO_DEBUG() << "setting output " << output << " to state " << state << " for i2caddr: 0x" << std::hex << i2caddr;
             if (set_pcf8574_output(devicefile.c_str(),i2caddr, output, state)) {
                 if (state) { 
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", "255", "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", "255", "");
                 } else {
-                    agoConnection->emitEvent(internalid.c_str(), "event.device.statechanged", "0", "");
+                    agoConnection->emitEvent(internalid, "event.device.statechanged", "0", "");
                 }
                 return responseSuccess();
             } else return responseError(RESPONSE_ERR_INTERNAL, "Cannot set PCF8574 output");
@@ -217,11 +217,11 @@ void AgoI2c::setupApp() {
             for (int i=0;i<8;i++) {
                 std::stringstream id;
                 id << device << "/" << i;
-                agoConnection->addDevice(id.str().c_str(), "switch");
+                agoConnection->addDevice(id.str(), "switch");
                 if (state & (1 << i)) {	
-                    agoConnection->emitEvent(id.str().c_str(), "event.device.statechanged", "255", "");
+                    agoConnection->emitEvent(id.str(), "event.device.statechanged", "255", "");
                 } else {
-                    agoConnection->emitEvent(id.str().c_str(), "event.device.statechanged", "0", "");
+                    agoConnection->emitEvent(id.str(), "event.device.statechanged", "0", "");
                 }
             }
         }

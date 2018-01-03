@@ -94,7 +94,7 @@ qpid::types::Variant::Map AgoScenario::commandHandler(qpid::types::Variant::Map 
             AGO_TRACE() << "scenario uuid:" << scenariouuid;
             scenariomap[scenariouuid] = newscenario;
 
-            agoConnection->addDevice(scenariouuid.c_str(), "scenario", true);
+            agoConnection->addDevice(scenariouuid, "scenario", true);
             if (variantMapToJSONFile(scenariomap, getConfigPath(SCENARIOMAPFILE)))
             {
                 returnData["scenario"] = scenariouuid;
@@ -127,7 +127,7 @@ qpid::types::Variant::Map AgoScenario::commandHandler(qpid::types::Variant::Map 
             if (it != scenariomap.end())
             {
                 AGO_DEBUG() << "removing ago device" << scenario;
-                agoConnection->removeDevice(it->first.c_str());
+                agoConnection->removeDevice(it->first);
                 scenariomap.erase(it);
                 if (!variantMapToJSONFile(scenariomap, getConfigPath(SCENARIOMAPFILE)))
                 {
@@ -164,7 +164,7 @@ void AgoScenario::setupApp()
     for (qpid::types::Variant::Map::const_iterator it = scenariomap.begin(); it!=scenariomap.end(); it++)
     {
         AGO_DEBUG() << "Loading scenario: " << it->first << ":" << it->second;
-        agoConnection->addDevice(it->first.c_str(), "scenario", true);
+        agoConnection->addDevice(it->first, "scenario", true);
     }
 }
 

@@ -141,7 +141,7 @@ void AgoKnx::reportDevices(Variant::Map devicemap) {
     for (Variant::Map::const_iterator it = devicemap.begin(); it != devicemap.end(); ++it) {
         Variant::Map device;
         device = it->second.asMap();
-        agoConnection->addDevice(it->first.c_str(), device["devicetype"].asString().c_str(), true);
+        agoConnection->addDevice(it->first, device["devicetype"].asString(), true);
     }
 }
 
@@ -240,30 +240,30 @@ void *AgoKnx::listener() {
                     if (type != "") {
                         AGO_DEBUG() << "handling telegram, GA from telegram belongs to: " << uuid << " - type: " << type;
                         if(type == "onoff" || type == "onoffstatus") { 
-                            agoConnection->emitEvent(uuid.c_str(), "event.device.statechanged", tl.getShortUserData()==1 ? 255 : 0, "");
+                            agoConnection->emitEvent(uuid, "event.device.statechanged", tl.getShortUserData()==1 ? 255 : 0, "");
                         } else if (type == "setlevel" || type == "levelstatus") {
                             int data = tl.getUIntData(); 
-                            agoConnection->emitEvent(uuid.c_str(), "event.device.statechanged", data*100/255, "");
+                            agoConnection->emitEvent(uuid, "event.device.statechanged", data*100/255, "");
                         } else if (type == "temperature") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.environment.temperaturechanged", tl.getFloatData(), "degC");
+                            agoConnection->emitEvent(uuid, "event.environment.temperaturechanged", tl.getFloatData(), "degC");
                         } else if (type == "brightness") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.environment.brightnesschanged", tl.getFloatData(), "lux");
+                            agoConnection->emitEvent(uuid, "event.environment.brightnesschanged", tl.getFloatData(), "lux");
                         } else if (type == "humidity") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.environment.humiditychanged", tl.getFloatData(), "percent");
+                            agoConnection->emitEvent(uuid, "event.environment.humiditychanged", tl.getFloatData(), "percent");
                         } else if (type == "airquality") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.environment.co2changed", tl.getFloatData(), "ppm");
+                            agoConnection->emitEvent(uuid, "event.environment.co2changed", tl.getFloatData(), "ppm");
                         } else if (type == "windspeed") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.environment.windspeedchanged", tl.getFloatData(), "m/s");
+                            agoConnection->emitEvent(uuid, "event.environment.windspeedchanged", tl.getFloatData(), "m/s");
                         } else if (type == "energy") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.environment.energychanged", tl.getFloatData(), "kWh");
+                            agoConnection->emitEvent(uuid, "event.environment.energychanged", tl.getFloatData(), "kWh");
                         } else if (type == "power") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.environment.powerchanged", tl.getFloatData(), "kWh");
+                            agoConnection->emitEvent(uuid, "event.environment.powerchanged", tl.getFloatData(), "kWh");
                         } else if (type == "flow") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.environment.flowchanged", tl.getFloatData(), "l/h");
+                            agoConnection->emitEvent(uuid, "event.environment.flowchanged", tl.getFloatData(), "l/h");
                         } else if (type == "counter") {
-                        	agoConnection->emitEvent(uuid.c_str(), "event.environment.counterchanged",tl.getIntData(), "Wh");
+                        	agoConnection->emitEvent(uuid, "event.environment.counterchanged",tl.getIntData(), "Wh");
                         } else if (type == "binary") {
-                            agoConnection->emitEvent(uuid.c_str(), "event.security.sensortriggered", tl.getShortUserData()==1 ? 255 : 0, "");
+                            agoConnection->emitEvent(uuid, "event.security.sensortriggered", tl.getShortUserData()==1 ? 255 : 0, "");
                         }
                     }
                 }
@@ -392,7 +392,7 @@ qpid::types::Variant::Map AgoKnx::commandHandler(qpid::types::Variant::Map conte
                 deviceuuid = generateUuid();
 
             deviceMap[deviceuuid] = newdevice;
-            agoConnection->addDevice(deviceuuid.c_str(), newdevice["devicetype"].asString().c_str(), true);
+            agoConnection->addDevice(deviceuuid, newdevice["devicetype"].asString(), true);
             if (variantMapToJSONFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE)))
             {
                 returnData["device"] = deviceuuid;
@@ -435,7 +435,7 @@ qpid::types::Variant::Map AgoKnx::commandHandler(qpid::types::Variant::Map conte
             if (it != deviceMap.end())
             {
                 AGO_DEBUG() << "removing ago device" << device;
-                agoConnection->removeDevice(it->first.c_str());
+                agoConnection->removeDevice(it->first);
                 deviceMap.erase(it);
                 if (!variantMapToJSONFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE)))
                 {

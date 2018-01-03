@@ -1247,15 +1247,13 @@ bool AgoDataLogger::purgeTable(std::string table, int timestamp=0)
  */
 std::string dateToDatabaseFormat(boost::posix_time::ptime pt)
 {
-  std::string s;
   std::ostringstream datetime_ss;
   time_facet * p_time_output = new time_facet;
   std::locale special_locale (std::locale(""), p_time_output);
   datetime_ss.imbue (special_locale);
   (*p_time_output).format("%Y-%m-%dT%H:%M:%SZ");
   datetime_ss << pt;
-  s = datetime_ss.str().c_str();
-  return s;
+  return datetime_ss.str();
 
 }
 
@@ -1537,7 +1535,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
             checkMsgParameter(content, "period", VAR_INT32);
 
             std::string internalid = "multigraph" + std::string(devicemap["nextid"]);
-            if( agoConnection->addDevice(internalid.c_str(), "multigraph") )
+            if( agoConnection->addDevice(internalid, "multigraph") )
             {
                 devicemap["nextid"] = devicemap["nextid"].asInt32() + 1;
                 qpid::types::Variant::Map device;
@@ -1558,7 +1556,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
             checkMsgParameter(content, "multigraph", VAR_STRING);
 
             std::string internalid = content["multigraph"].asString();
-            if( agoConnection->removeDevice(internalid.c_str()) )
+            if( agoConnection->removeDevice(internalid) )
             {
                 devicemap["multigraphs"].asMap().erase(internalid);
                 saveDeviceMapFile();
@@ -1687,7 +1685,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
             if( !error )
             {
                 desiredRendering = content["rendering"].asString();
-                if( !setConfigOption("rendering", desiredRendering.c_str()) )
+                if( !setConfigOption("rendering", desiredRendering) )
                 {
                     AGO_ERROR() << "Unable to save rendering value to config file";
                     error = true;
@@ -1936,9 +1934,9 @@ void AgoDataLogger::setupApp()
     qpid::types::Variant::Map multigraphs = devicemap["multigraphs"].asMap();
     for( qpid::types::Variant::Map::const_iterator it=multigraphs.begin(); it!=multigraphs.end(); it++ )
     {
-        std::string internalid = (std::string)it->first;
+        std::string internalid = it->first;
         AGO_INFO() << " - " << internalid;
-        agoConnection->addDevice(internalid.c_str(), "multigraph");
+        agoConnection->addDevice(internalid, "multigraph");
     }
 
     addEventHandler();

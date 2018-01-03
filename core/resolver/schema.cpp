@@ -139,10 +139,10 @@ Variant::List sequenceToVariantList(const YAML::Node &node) {
 
 Variant::Map parseSchema(const fs::path &file) {
 #ifdef __YAMLCPP05__
-    YAML::Node schema = YAML::LoadFile(file.c_str());
+    YAML::Node schema = YAML::LoadFile(file.string());
     return YAMLMapToVariantMap(schema);
 #else
-    std::ifstream fin(file.c_str());
+    std::ifstream fin(file.string());
     YAML::Parser parser(fin);
     Variant::Map schema;
     YAML::Node doc;

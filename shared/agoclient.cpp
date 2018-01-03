@@ -409,7 +409,7 @@ bool agocontrol::AgoConnection::suspendDevice(const std::string& internalId)
     if( uuid.length()>0 && !deviceMap[uuid].isVoid() )
     {
         deviceMap[internalIdToUuid(internalId)].asMap()["stale"] = 1;
-        return emitDeviceStale(uuid.c_str(), 1);
+        return emitDeviceStale(uuid, 1);
     }
     return false;
 }
@@ -423,7 +423,7 @@ bool agocontrol::AgoConnection::resumeDevice(const std::string& internalId)
     if( uuid.length()>0 && !deviceMap[uuid].isVoid() )
     {
         deviceMap[internalIdToUuid(internalId)].asMap()["stale"] = 0;
-        return emitDeviceStale(uuid.c_str(), 0);
+        return emitDeviceStale(uuid, 0);
     }
     return false;
 }
@@ -449,13 +449,11 @@ void agocontrol::AgoConnection::reportDevices()
     {
         Variant::Map device;
 
-        // printf("uuid: %s\n", it->first.c_str());
         device = it->second.asMap();
-        // printf("devicetype: %s\n", device["devicetype"].asString().c_str());
         // do not announce stale devices
         if( device["stale"].asInt8()==0 )
         {
-            emitDeviceDiscover(device["internalid"].asString().c_str(), device["devicetype"].asString().c_str());
+            emitDeviceDiscover(device["internalid"].asString(), device["devicetype"].asString());
         }
     }
 }

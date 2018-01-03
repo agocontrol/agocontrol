@@ -80,7 +80,7 @@ void AgoRain8net::setupApp() {
     for (int i=1; i<9; i++) {
         std::stringstream valve;
         valve << i;
-        agoConnection->addDevice(valve.str().c_str(), "switch");
+        agoConnection->addDevice(valve.str(), "switch");
     }
     addCommandHandler();
 
