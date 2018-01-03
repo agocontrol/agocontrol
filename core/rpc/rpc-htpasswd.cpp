@@ -38,10 +38,9 @@ int modify_passwords_file(const char *fname, const char *domain,
         const char *user, const char *pass) {
     int found;
     char line[512], u[512], d[512], ha1[33], tmp[PATH_MAX];
-    FILE *fp, *fp2;
+    FILE *fp, *fp2 = NULL;
 
     found = 0;
-    fp = fp2 = NULL;
 
     // Regard empty password as no password - remove user record.
     if (pass != NULL && pass[0] == '\0') {

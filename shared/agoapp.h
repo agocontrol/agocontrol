@@ -118,7 +118,7 @@ namespace agocontrol {
          */
         virtual void setup();
         void setupLogging();
-        void setupAgoConnection();
+        virtual void setupAgoConnection();
         void setupSignals();
         /* App specific init can be done in this */
         virtual void setupApp() { };
