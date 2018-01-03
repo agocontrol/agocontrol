@@ -59,7 +59,7 @@ private:
     boost::thread *listenerThread;
 
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
-    void eventHandler(std::string subject, qpid::types::Variant::Map content);
+    void eventHandler(const std::string& subject , qpid::types::Variant::Map content);
     void sendDate();
     void sendTime();
     bool sendShortData(std::string dest, int data);
@@ -276,7 +276,7 @@ void *AgoKnx::listener() {
     return NULL;
 }
 
-void AgoKnx::eventHandler(std::string subject, qpid::types::Variant::Map content) {
+void AgoKnx::eventHandler(const std::string& subject , qpid::types::Variant::Map content) {
     if (subject == "event.environment.timechanged") {
         // send time/date every hour
         if (content["minute"].asInt32() == 0) {

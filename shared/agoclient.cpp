@@ -478,12 +478,12 @@ bool agocontrol::AgoConnection::addHandler(boost::function<qpid::types::Variant:
     return true;
 }
 
-bool agocontrol::AgoConnection::addEventHandler(void (*handler)(std::string, qpid::types::Variant::Map)) {
+bool agocontrol::AgoConnection::addEventHandler(void (*handler)(const std::string&, qpid::types::Variant::Map)) {
     addEventHandler(boost::bind(handler, _1, _2));
     return true;
 }
 
-bool agocontrol::AgoConnection::addEventHandler(boost::function<void (std::string, qpid::types::Variant::Map)> handler)
+bool agocontrol::AgoConnection::addEventHandler(boost::function<void (const std::string&, qpid::types::Variant::Map)> handler)
 {
     eventHandler = handler;
     return true;

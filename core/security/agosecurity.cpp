@@ -66,7 +66,7 @@ private:
     void disableAlarm(std::string zone, std::string housemode);
     void triggerAlarms(std::string zone, std::string housemode);
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
-    void eventHandler(std::string subject, qpid::types::Variant::Map content);
+    void eventHandler(const std::string& subject , qpid::types::Variant::Map content);
     TriggerStatus triggerZone(std::string zone, std::string housemode);
     void getHousemodeItems(std::string zone, std::string housemode, ItemType type, qpid::types::Variant::List* items);
     bool changeHousemode(std::string housemode);
@@ -592,7 +592,7 @@ void AgoSecurity::refreshAlertGateways()
 /**
  * Event handler
  */
-void AgoSecurity::eventHandler(std::string subject, qpid::types::Variant::Map content)
+void AgoSecurity::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
 {
     bool alarmTriggered = false;
     std::string housemode = "";

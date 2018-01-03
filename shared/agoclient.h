@@ -67,7 +67,7 @@ namespace agocontrol {
         void reportDevices();
         bool filterCommands;
         boost::function< qpid::types::Variant::Map (qpid::types::Variant::Map) > commandHandler;
-        boost::function< void (std::string, qpid::types::Variant::Map) > eventHandler;
+        boost::function< void (const std::string&, qpid::types::Variant::Map) > eventHandler;
         bool emitDeviceAnnounce(const std::string& internalId, const std::string& deviceType, const std::string& initialName);
         bool emitDeviceDiscover(const std::string& internalId, const std::string& deviceType);
         bool emitDeviceRemove(const std::string& internalId);
@@ -88,11 +88,11 @@ namespace agocontrol {
 
         // C-style function pointers
         bool addHandler(qpid::types::Variant::Map (*handler)(qpid::types::Variant::Map));
-        bool addEventHandler(void (*eventHandler)(std::string, qpid::types::Variant::Map));
+        bool addEventHandler(void (*eventHandler)(const std::string&, qpid::types::Variant::Map));
 
         // C++-style function pointers, permits class references
         bool addHandler(boost::function<qpid::types::Variant::Map (qpid::types::Variant::Map)> handler);
-        bool addEventHandler(boost::function<void (std::string, qpid::types::Variant::Map)> eventHandler);
+        bool addEventHandler(boost::function<void (const std::string&, qpid::types::Variant::Map)> eventHandler);
 
         bool setFilter(bool filter);
         bool sendMessage(const std::string& subject, qpid::types::Variant::Map content);

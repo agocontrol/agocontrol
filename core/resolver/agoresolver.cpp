@@ -90,12 +90,12 @@ private:
     void get_sysinfo();
     bool emitNameEvent(const std::string& uuid, const std::string& eventType, const std::string& name);
     bool emitFloorplanEvent(const std::string& uuid, const std::string& eventType, const std::string& floorplan, int x, int y);
-    void handleEvent(Variant::Map *device, std::string subject, Variant::Map *content);
+    void handleEvent(Variant::Map *device, const std::string& subject, Variant::Map *content);
     qpid::types::Variant::Map getDefaultParameters();
 
     void scanSchemaDir(const fs::path &schemaPrefix) ;
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
-    void eventHandler(std::string subject, qpid::types::Variant::Map content) ;
+    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
 
     boost::asio::deadline_timer discoveryTimer;
     void discoverFunction(const boost::system::error_code& error) ;
@@ -240,7 +240,7 @@ std::string valuesToString(Variant::Map *values) {
 }
 
 // handles events that update the state or values of a device
-void AgoResolver::handleEvent(Variant::Map *device, std::string subject, Variant::Map *content)
+void AgoResolver::handleEvent(Variant::Map *device, const std::string& subject, Variant::Map *content)
 {
     bool save = false;
     Variant::Map *values;
@@ -666,7 +666,7 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
     throw std::logic_error("Should not go here");
 }
 
-void AgoResolver::eventHandler(std::string subject, qpid::types::Variant::Map content)
+void AgoResolver::eventHandler(const std::string& subject, qpid::types::Variant::Map content)
 {
     if( subject=="event.device.announce" || subject=="event.device.discover" )
     {

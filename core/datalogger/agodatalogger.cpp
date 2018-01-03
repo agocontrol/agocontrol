@@ -91,7 +91,7 @@ private:
     //system
     void saveDeviceMapFile();
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
-    void eventHandler(std::string subject, qpid::types::Variant::Map content);
+    void eventHandler(const std::string& subject , qpid::types::Variant::Map content);
     void eventHandlerRRDtool(std::string subject, std::string uuid, qpid::types::Variant::Map content);
     void eventHandlerSQL(std::string subject, std::string uuid, qpid::types::Variant::Map content);
     void dailyPurge();
@@ -899,7 +899,7 @@ bool AgoDataLogger::eventHandlerJournal(std::string message, std::string type)
 /**
  * Main event handler
  */
-void AgoDataLogger::eventHandler(std::string subject, qpid::types::Variant::Map content)
+void AgoDataLogger::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
 {
     if( subject!="" && !content["uuid"].isVoid() )
     {

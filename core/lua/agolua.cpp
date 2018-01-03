@@ -77,7 +77,7 @@ private:
     void executeScript(qpid::types::Variant::Map content, const fs::path &script);
     bool canExecuteScript(qpid::types::Variant::Map content, const fs::path &script);
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
-    void eventHandler(std::string subject, qpid::types::Variant::Map content) ;
+    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
     bool enableScript(const std::string& script, uint8_t enabled);
 
     void setupApp();
@@ -1607,7 +1607,7 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
 /**
  * Agocontrol event handler
  */
-void AgoLua::eventHandler(std::string subject, qpid::types::Variant::Map content)
+void AgoLua::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
 {
     if( subject=="event.device.announce" || subject=="event.device.discover" )
     {

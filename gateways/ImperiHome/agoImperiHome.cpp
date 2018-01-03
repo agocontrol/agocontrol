@@ -37,7 +37,7 @@ private:
     boost::shared_ptr<HttpReqRep> handleReqSystem(struct mg_connection *conn, struct http_message *hm, const std::string &path);
     boost::shared_ptr<HttpReqRep> handleReqRooms(struct mg_connection *conn, struct http_message *hm, const std::string &path);
 
-    void eventHandler(std::string subject, qpid::types::Variant::Map content) ;
+    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
 
     void setupApp();
 
@@ -370,7 +370,7 @@ boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqRooms(struct mg_connection
 /**
  * Agoclient event handler
  */
-void AgoImperiHome::eventHandler(std::string subject, qpid::types::Variant::Map content)
+void AgoImperiHome::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
 {
 }
 

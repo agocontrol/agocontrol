@@ -46,7 +46,7 @@ private:
     std::string agocontroller;
     qpid::types::Variant::Map videomap;
     pthread_mutex_t videomapMutex;
-    void eventHandler(std::string subject, qpid::types::Variant::Map content);
+    void eventHandler(const std::string& subject , qpid::types::Variant::Map content);
     qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
     bool stopProcess;
     bool stopTimelapses;
@@ -1018,7 +1018,7 @@ std::string AgoSurveillance::getDateTimeString(bool date, bool time, bool withSe
 /**
  * Event handler
  */
-void AgoSurveillance::eventHandler(std::string subject, qpid::types::Variant::Map content)
+void AgoSurveillance::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
 {
     if( videomap["recordings"].isVoid() )
     {

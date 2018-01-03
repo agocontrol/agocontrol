@@ -150,7 +150,7 @@ namespace agocontrol {
         }
 
         /* Event handler registered with the agoConncetion; override! */
-        virtual void eventHandler(std::string subject, qpid::types::Variant::Map content) {}
+        virtual void eventHandler(const std::string& subject , qpid::types::Variant::Map content) {}
 
         /**
          * This is called from a separate thread when the app is

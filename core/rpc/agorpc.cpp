@@ -157,7 +157,7 @@ private:
     boost::shared_ptr<HttpReqRep> uploadFiles(struct mg_connection *conn, struct http_message *hm);
     void uploadFile_thread(boost::shared_ptr<FileUploadReqRep> reqRep);
 
-    void eventHandler(std::string subject, qpid::types::Variant::Map content) ;
+    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
 
     void jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mutex> &lock, const Json::Value& params, Json::Value& responseRoot);
     void jsonrpc_thread(boost::shared_ptr<JsonRpcReqRep> conn);
@@ -729,7 +729,7 @@ void FileDownloadReqRep::onTimeout() {
 /**
  * Agoclient event handler
  */
-void AgoRpc::eventHandler(std::string subject, qpid::types::Variant::Map content) {
+void AgoRpc::eventHandler(const std::string& subject , qpid::types::Variant::Map content) {
     // don't flood clients with unneeded events
     if (subject == "event.environment.timechanged" || subject == "event.device.discover") {
         return;
