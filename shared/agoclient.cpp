@@ -96,13 +96,13 @@ std::string agocontrol::uint64ToString(uint64_t i) {
     return tmp.str();
 }
 
-unsigned int agocontrol::stringToUint(std::string v)
+unsigned int agocontrol::stringToUint(const std::string& v)
 {
     unsigned int r;
     std::istringstream (v) >> r;
     return r;
 }
-agocontrol::AgoConnection::AgoConnection(const char *interfacename)
+agocontrol::AgoConnection::AgoConnection(const std::string& interfacename)
     : shutdownSignaled(false)
 {
     // TODO: Move to AgoApp
@@ -120,7 +120,7 @@ agocontrol::AgoConnection::AgoConnection(const char *interfacename)
     instance = interfacename;
 
     uuidMapFile = getConfigPath("uuidmap");
-    uuidMapFile /= (std::string(interfacename) + ".json");
+    uuidMapFile /= (interfacename + ".json");
     AGO_DEBUG() << "Using uuidMapFile " << uuidMapFile;
     try {
         ensureParentDirExists(uuidMapFile);
@@ -281,7 +281,7 @@ void agocontrol::AgoConnection::shutdown() {
 /**
  * Report device has been discovered
  */
-bool agocontrol::AgoConnection::emitDeviceDiscover(const char *internalId, const char *deviceType)
+bool agocontrol::AgoConnection::emitDeviceDiscover(const std::string& internalId, const std::string& deviceType)
 {
     Variant::Map content;
     Message event;
@@ -304,7 +304,7 @@ bool agocontrol::AgoConnection::emitDeviceDiscover(const char *internalId, const
     return true;
 }
 
-bool agocontrol::AgoConnection::emitDeviceAnnounce(const char *internalId, const char *deviceType, const char *initialName) {
+bool agocontrol::AgoConnection::emitDeviceAnnounce(const std::string& internalId, const std::string& deviceType, const std::string& initialName) {
     Variant::Map content;
     Message event;
 
@@ -313,7 +313,7 @@ bool agocontrol::AgoConnection::emitDeviceAnnounce(const char *internalId, const
     content["handled-by"] = instance;
     content["uuid"] = internalIdToUuid(internalId);
 
-    if(initialName)
+    if(!initialName.empty())
         content["initial_name"] = initialName;
 
     encode(content, event);
@@ -330,14 +330,14 @@ bool agocontrol::AgoConnection::emitDeviceAnnounce(const char *internalId, const
 /**
  * Emit stale state
  */
-bool agocontrol::AgoConnection::emitDeviceStale(const char* uuid, const int stale)
+bool agocontrol::AgoConnection::emitDeviceStale(const std::string& uuid, const int stale)
 {
     Variant::Map content;
     Message event;
 
     //content["internalid"] = internalId;
     content["stale"] = stale;
-    content["uuid"] = std::string(uuid);
+    content["uuid"] = uuid;
     encode(content, event);
     event.setSubject("event.device.stale");
     try
@@ -352,7 +352,7 @@ bool agocontrol::AgoConnection::emitDeviceStale(const char* uuid, const int stal
     return true;
 }
 
-bool agocontrol::AgoConnection::emitDeviceRemove(const char *internalId) {
+bool agocontrol::AgoConnection::emitDeviceRemove(const std::string& internalId) {
     Variant::Map content;
     Message event;
 
@@ -368,7 +368,7 @@ bool agocontrol::AgoConnection::emitDeviceRemove(const char *internalId) {
     return true;
 }
 
-bool agocontrol::AgoConnection::addDevice(const char *internalId, const char *deviceType, bool passuuid) {
+bool agocontrol::AgoConnection::addDevice(const std::string& internalId, const std::string& deviceType, bool passuuid) {
     if (!passuuid) return addDevice(internalId, deviceType);
     uuidMap[internalId] = internalId;
     storeUuidMap();
@@ -376,7 +376,7 @@ bool agocontrol::AgoConnection::addDevice(const char *internalId, const char *de
 
 }
 
-bool agocontrol::AgoConnection::addDevice(const char *internalId, const char *deviceType, const char*initialName) {
+bool agocontrol::AgoConnection::addDevice(const std::string& internalId, const std::string& deviceType, const std::string& initialName) {
     if (internalIdToUuid(internalId).size()==0) {
         // need to generate new uuid
         uuidMap[generateUuid()] = internalId;
@@ -396,7 +396,7 @@ bool agocontrol::AgoConnection::addDevice(const char *internalId, const char *de
     return true;
 }
 
-bool agocontrol::AgoConnection::removeDevice(const char *internalId) {
+bool agocontrol::AgoConnection::removeDevice(const std::string& internalId) {
     if (internalIdToUuid(internalId).size()!=0) {
         emitDeviceRemove(internalId);
         Variant::Map::const_iterator it = deviceMap.find(internalIdToUuid(internalId));
@@ -409,7 +409,7 @@ bool agocontrol::AgoConnection::removeDevice(const char *internalId) {
 /**
  * Suspend device (set stale flag)
  */
-bool agocontrol::AgoConnection::suspendDevice(const char* internalId)
+bool agocontrol::AgoConnection::suspendDevice(const std::string& internalId)
 {
     std::string uuid = internalIdToUuid(internalId);
     if( uuid.length()>0 && !deviceMap[uuid].isVoid() )
@@ -423,7 +423,7 @@ bool agocontrol::AgoConnection::suspendDevice(const char* internalId)
 /**
  * Resume device (reset stale flag)
  */
-bool agocontrol::AgoConnection::resumeDevice(const char* internalId)
+bool agocontrol::AgoConnection::resumeDevice(const std::string& internalId)
 {
     std::string uuid = internalIdToUuid(internalId);
     if( uuid.length()>0 && !deviceMap[uuid].isVoid() )
@@ -434,16 +434,16 @@ bool agocontrol::AgoConnection::resumeDevice(const char* internalId)
     return false;
 }
 
-std::string agocontrol::AgoConnection::uuidToInternalId(std::string uuid) {
+std::string agocontrol::AgoConnection::uuidToInternalId(const std::string& uuid) {
     return uuidMap[uuid].asString();
 }
 
-std::string agocontrol::AgoConnection::internalIdToUuid(std::string internalId) {
-    std::string result;
+std::string agocontrol::AgoConnection::internalIdToUuid(const std::string& internalId) {
     for (Variant::Map::const_iterator it = uuidMap.begin(); it != uuidMap.end(); ++it) {
-        if (it->second.asString() == internalId) return it->first;
+        if (it->second.asString() == internalId)
+            return it->first;
     }
-    return result;
+    return std::string();
 }
 
 /**
@@ -498,7 +498,7 @@ bool agocontrol::AgoConnection::addEventHandler(boost::function<void (std::strin
 }
 
 
-bool agocontrol::AgoConnection::sendMessage(const char *subject, qpid::types::Variant::Map content) {
+bool agocontrol::AgoConnection::sendMessage(const std::string& subject, qpid::types::Variant::Map content) {
     Message message;
 
     try {
@@ -574,7 +574,7 @@ bool agocontrol::AgoConnection::sendMessage(qpid::types::Variant::Map content) {
     return sendMessage("",content);
 }
 
-bool agocontrol::AgoConnection::emitEvent(const char *internalId, const char *eventType, const char *level, const char *unit) {
+bool agocontrol::AgoConnection::emitEvent(const std::string& internalId, const std::string& eventType, const std::string& level, const std::string& unit) {
     Variant::Map content;
     std::string _level = level;
     Variant value;
@@ -584,14 +584,14 @@ bool agocontrol::AgoConnection::emitEvent(const char *internalId, const char *ev
     content["uuid"] = internalIdToUuid(internalId);
     return sendMessage(eventType, content);
 }
-bool agocontrol::AgoConnection::emitEvent(const char *internalId, const char *eventType, double level, const char *unit) {
+bool agocontrol::AgoConnection::emitEvent(const std::string& internalId, const std::string& eventType, double level, const std::string& unit) {
     Variant::Map content;
     content["level"] = level;
     content["unit"] = unit;
     content["uuid"] = internalIdToUuid(internalId);
     return sendMessage(eventType, content);
 }
-bool agocontrol::AgoConnection::emitEvent(const char *internalId, const char *eventType, int level, const char *unit) {
+bool agocontrol::AgoConnection::emitEvent(const std::string& internalId, const std::string& eventType, int level, const std::string& unit) {
     Variant::Map content;
     content["level"] = level;
     content["unit"] = unit;
@@ -599,14 +599,14 @@ bool agocontrol::AgoConnection::emitEvent(const char *internalId, const char *ev
     return sendMessage(eventType, content);
 }
 
-bool agocontrol::AgoConnection::emitEvent(const char *internalId, const char *eventType, qpid::types::Variant::Map _content) {
+bool agocontrol::AgoConnection::emitEvent(const std::string& internalId, const std::string& eventType, qpid::types::Variant::Map _content) {
     Variant::Map content;
     content = _content;
     content["uuid"] = internalIdToUuid(internalId);
     return sendMessage(eventType, content);
 }
 
-std::string agocontrol::AgoConnection::getDeviceType(const char *internalId) {
+std::string agocontrol::AgoConnection::getDeviceType(const std::string& internalId) {
     std::string uuid = internalIdToUuid(internalId);
     if (uuid.size() > 0) {
         Variant::Map device = deviceMap[internalIdToUuid(internalId)].asMap();
@@ -618,7 +618,7 @@ std::string agocontrol::AgoConnection::getDeviceType(const char *internalId) {
 /**
  * Return device stale state
  */
-int agocontrol::AgoConnection::isDeviceStale(const char* internalId)
+int agocontrol::AgoConnection::isDeviceStale(const std::string& internalId)
 {
     std::string uuid = internalIdToUuid(internalId);
     if (uuid.size() > 0)
@@ -692,7 +692,7 @@ std::string agocontrol::AgoConnection::getAgocontroller() {
     return agocontroller;
 }
 
-bool agocontrol::AgoConnection::setGlobalVariable(std::string variable, qpid::types::Variant value) {
+bool agocontrol::AgoConnection::setGlobalVariable(const std::string& variable, const qpid::types::Variant& value) {
     Variant::Map setvariable;
     std::string agocontroller = getAgocontroller();
     if (agocontroller != "") {
