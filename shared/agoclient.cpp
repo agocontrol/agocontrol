@@ -77,17 +77,11 @@ std::string agocontrol::double2str(double f) {
 
 // generates a uuid as std::string via libuuid
 std::string agocontrol::generateUuid() {
-    std::string strUuid;
-    char *name;
-    if ((name=(char*)malloc(38)) != NULL) {
-        uuid_t tmpuuid;
-        name[0]=0;
-        uuid_generate(tmpuuid);
-        uuid_unparse(tmpuuid,name);
-        strUuid = std::string(name);
-        free(name);
-    }
-    return strUuid;
+    std::unique_ptr<char> name(new char[38]);
+    uuid_t tmpuuid;
+    uuid_generate(tmpuuid);
+    uuid_unparse(tmpuuid, name.get());
+    return std::string(name.get());
 }
 
 std::string agocontrol::uint64ToString(uint64_t i) {
