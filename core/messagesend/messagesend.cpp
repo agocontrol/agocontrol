@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
         return -1;
     }
     AgoConnection agoConnection = AgoConnection("messagesend");		
+    agoConnection.start();
 
     qpid::types::Variant::Map content;
     std::string subject;
