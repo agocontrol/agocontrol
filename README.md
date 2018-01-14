@@ -1,4 +1,4 @@
-<img src="https://www.agocontrol.com/wp-content/uploads/2012/10/ago-control-logo.png" width="15%">
+<img src="https://www.agocontrol.com/wp-content/uploads/2012/10/ago-control-logo.png" width="25%">
 ago control
 ==========
 
@@ -11,12 +11,12 @@ Have fun!
 
  
 
-- [Support](#support)
+- [Support](#Support)
   - [Wiki](#Wiki)
   - [Forum](#Forum)
   - [IRC](#IRC)
-- [Building](#building)
-- [License](#license)
+- [Building](#Building)
+- [License](#License)
 
 
 ## Support
@@ -24,13 +24,13 @@ Have fun!
 [wiki](http://wiki.agocontrol.com)
 
 ### Forum
-For any discussions or suport from end users, visit the [forum](http://agocontrol.com/forum) 
+For any discussions or support from other end users, visit the [forum](http://agocontrol.com/forum) 
 
 ### IRC
 Join the channel #agocontrol on freenode IRC, where end users and core developers can be reached.
 
 ##Building
-The biuld wall can be found at http://builder.aboliton.at:8010/waterfall 
+The build wall can be found at http://builder.aboliton.at:8010/waterfall 
 
 ##License
 GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
