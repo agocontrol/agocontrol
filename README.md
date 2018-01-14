@@ -29,8 +29,8 @@ For any discussions or support from other end users, visit the [forum](http://ag
 ### IRC
 Join the channel #agocontrol on freenode IRC, where end users and core developers can be reached.
 
-##Building
+## Building
 The build wall can be found at http://builder.aboliton.at:8010/waterfall 
 
-##License
+## License
 GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
