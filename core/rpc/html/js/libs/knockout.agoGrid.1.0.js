@@ -79,7 +79,7 @@
             this.gridId = configuration.gridId || 'agoGrid';
             // If you don't specify columns configuration, we'll use scaffolding
             this.columns = configuration.columns || getColumnsForScaffolding(ko.unwrap(this.data));
-            this.sortKey = ko.observable(configuration.defaultSort ? configuration.defaultSort : this.columns.length>0 ? this.columns[0].rowText : '');
+            this.sortKey = ko.observable(configuration.defaultSort !== undefined ? configuration.defaultSort : this.columns.length>0 ? this.columns[0].rowText : '');
             this.sortAsc = ko.observable(true);
             this.rowTemplate = configuration.rowTemplate || "ko_agoGrid_row";
             this.bodyTemplate = configuration.rowTemplate ? "ko_agoGrid_customBody" : "ko_agoGrid_body";

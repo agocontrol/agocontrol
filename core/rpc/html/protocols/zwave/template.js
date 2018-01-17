@@ -869,6 +869,7 @@ function zwaveConfig(zwave) {
             {headerText:'Value', rowText:'value'}
         ],
         rowTemplate: 'nodeInfosRowTemplate',
+        defaultSort:'',
         displayRowCount: false,
         displaySearch: false,
         displayPagination: false
