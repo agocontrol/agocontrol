@@ -17,6 +17,119 @@ Agocontrol.prototype.unblock = function(el)
     $(el).unblock();    
 };
 
+Agocontrol.prototype.makeFieldDeviceNameEditable = function(el, device, extraOptions) {
+    var self = this;
+    var el = $(el);
+
+    el.text(device.name());
+    var options = {
+        data : function(value, settings) {
+            return value;
+        }
+    };
+
+    $.extend(options, extraOptions);
+
+    el.editable(function(value, settings) {
+            var content = {};
+            content.device = device.uuid;
+            content.uuid = self.agoController;
+            content.command = "setdevicename";
+            content.name = value;
+            self.sendCommand(content)
+                .then(function(res) {
+                    notif.success("Device name updated");
+                    // Update of name in local inventory is handled via
+                    // event.system.devicenamechanged
+                })
+                .catch(function(err) {
+                    notif.error('Error updating device name');
+                });
+            return value;
+        },
+        options);
+    el.click();
+};
+
+Agocontrol.prototype.makeFieldDeviceRoomEditable = function(el, device, extraOptions) {
+    var self = this;
+    var el = $(el);
+
+    if(!device.name()) {
+        notif.warning('Please specify device name first');
+        return;
+    }
+
+    var options = {
+        data : function(value, settings)
+        {
+            var list = {};
+            list["unset"] = "--";
+            var rooms = self.rooms();
+            for( var i=0; i < rooms.length; i++ )
+            {
+                list[rooms[i].uuid] = rooms[i].name;
+            }
+            return JSON.stringify(list);
+        },
+        type : "select",
+        onblur : "submit"
+    };
+
+    $.extend(options, extraOptions);
+
+    el.editable(
+        function(value, settings) {
+            if(value === device.roomUID) return;
+
+            var content = {};
+            content.device = device.uuid;
+            content.uuid = self.agoController;
+            content.command = "setdeviceroom";
+            value = value == "unset" ? "" : value;
+            content.room = value;
+            self.sendCommand(content)
+                .then(function(res) {
+                    notif.success("Device room updated");
+                    //update local inventory; there is no roomchanged event right now.
+                    if(value==="")
+                    {
+                        device.room = device.roomUID = "";
+                        self.inventory.devices[device.uuid].room = "";
+                        self.inventory.devices[device.uuid].roomUID = "";
+                    }
+                    else
+                    {
+                        device.roomUID = value;
+                        self.inventory.devices[device.uuid].roomUID = value;
+
+                        var room = self.findRoom(value);
+                        if( room )
+                        {
+                            device.room = room.name;
+                            self.inventory.devices[device.uuid].room = room.name;
+                        }
+                    }
+                })
+                .catch(function(err) {
+                    notif.error('Error updating room');
+                });
+
+            // Return the set value
+            if( value==="" )
+            {
+                return "unset";
+            }
+            else
+            {
+                var room = self.findRoom(value);
+                return room.name;
+            }
+        },
+        options);
+    el.click();
+};
+
 /* Tries to convert a JSON-RPC error object into a error string.
  *
  * If .data.description is set, this is used.

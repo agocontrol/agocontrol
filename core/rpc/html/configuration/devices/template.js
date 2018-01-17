@@ -218,100 +218,18 @@ function DeviceConfig(agocontrol)
     };
 
     self.makeEditable = function(item, td, tr) {
-        if( $(td).hasClass('edit_device') )
-        {
-            $(td).editable(function(value, settings) {
-                var content = {};
-                content.device = item.uuid;
-                content.uuid = self.agocontrol.agoController;
-                content.command = "setdevicename";
-                content.name = value;
-                self.agocontrol.sendCommand(content)
-                    .catch(function(err) {
-                        notif.error('Error updating device name');
-                    });
-                return value;
-            },
-            {
-                data : function(value, settings) { return value; },
-                onblur : "cancel"
-            }).click();
+        // rowCallback, called when a cell is clicked
+        if( $(td).hasClass('edit_device') ) {
+            self.agocontrol.makeFieldDeviceNameEditable(td, item);
         }
-            
-        if( $(td).hasClass('select_device_room') )
-        {
-            var d = self.agocontrol.findDevice(item.uuid);
-            if( d && d.name() && d.name().length>0 )
-            {
-                $(td).editable(function(value, settings) {
-                    var content = {};
-                    content.device = item.uuid;
-                    content.uuid = self.agocontrol.agoController;
-                    content.command = "setdeviceroom";
-                    value = value == "unset" ? "" : value;
-                    content.room = value;
-                    self.agocontrol.sendCommand(content)
-                        .then(function(res) {
-                            //update inventory
-                            var d = self.agocontrol.findDevice(item.uuid);
-                            if( d && value==="" )
-                            {
-                                d.room = d.roomUID = "";
-                                self.agocontrol.inventory.devices[item.uuid].room = "";
-                                self.agocontrol.inventory.devices[item.uuid].roomUID = "";
-                            }
-                            else if( d )
-                            {
-                                var room = self.agocontrol.findRoom(value);
-                                if( room )
-                                {
-                                    d.room = room.name;
-                                    self.agocontrol.inventory.devices[item.uuid].room = room.name;
-                                }
-                                d.roomUID = value;
-                                self.agocontrol.inventory.devices[item.uuid].roomUID = value;
-                            }
-
-                            //update room filters
-                            self.updateRoomFilters();
-                        })
-                        .catch(function(err) {
-                            notif.error('Error updating room');
-                        });
-                    if( value==="" )
-                    {
-                        return "unset";
-                    }
-                    else
-                    {
-                        for( var i=0; i<self.agocontrol.rooms().length; i++ )
-                        {
-                            if( self.agocontrol.rooms()[i].uuid==value )
-                            {
-                                return self.agocontrol.rooms()[i].name;
-                            }
-                        }
-                    }
-                },
+        if( $(td).hasClass('select_device_room') ) {
+            self.agocontrol.makeFieldDeviceRoomEditable(td, item,
                 {
-                    data : function(value, settings)
-                    {
-                        var list = {};
-                        list["unset"] = "--";
-                        for( var i=0; i<self.agocontrol.rooms().length; i++ )
-                        {
-                            list[self.agocontrol.rooms()[i].uuid] = self.agocontrol.rooms()[i].name;
-                        }
-                        return JSON.stringify(list);
-                    },
-                    type : "select",
-                    onblur : "submit"
-                }).click();
-            }
-            else
-            {
-                notif.warning('Please specify device name first');
-            }
+                    callback: function(){
+                        //update room filters
+                        self.updateRoomFilters();
+                    }
+                });
         }
     };
 
