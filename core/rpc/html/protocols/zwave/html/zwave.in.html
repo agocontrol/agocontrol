@@ -13,18 +13,41 @@
                         <ul class="nav nav-tabs" data-bind="bootstrapTabs:{}">
                             <li class="active"><_a href="#infos" class="en-info" data-translateable="true">Infos</_a></li>
                             <li><_a href="#status" class="en-doc" data-translateable="true">Status</_a></li>
+                            <li><_a href="#devices" class="fa fa-cube" data-translateable="true">Devices</_a></li>
                             <li><_a href="#associations" class="en-share" data-translateable="true">Associations</_a></li>
                             <li><_a href="#configuration" class="en-tools" data-translateable="true">Configuration</_a></li>
                             <li><_a href="#commands" class="en-cog" data-translateable="true">Commands</_a></li>
                         </ul>
                         <div class="tab-content">
-            		    <!-- infos tab -->
+                            <!-- infos tab -->
                             <div id="infos" class="tab-pane fade in active">
                                 <script type="text/html" id="nodeInfosRowTemplate">
+                                    <!-- Also used in addNode dialog -->
                                     <td><span data-bind="text: info"/></td>
                                     <td><span data-bind="text: value"/></td>
                                 </script>
                                 <div data-bind="agoGrid:nodeInfosGrid"/>
+                            </div>
+                            <!-- devices tab -->
+                            <div id="devices" class="tab-pane fade">
+                                <script type="text/html" id="devicesRowTemplate">
+                                    <!-- Also used in addNode dialog -->
+                                    <ko opts="if: name">
+                                        <td class="edit_device" data-bind="attr: {'data-uuid': uuid}, text: name"></td>
+                                    </ko>
+                                    <ko opts="ifnot: name">
+                                        <_td data-translateable="true" class="edit_device" data-bind="attr: {'data-uuid': uuid}">unset</_td>
+                                    </ko>
+                                    <ko opts="if: room">
+                                        <td class="select_device_room" data-bind="attr: {'data-uuid': uuid}, text: room"></td>
+                                    </ko>
+                                    <ko opts="ifnot: room">
+                                        <_td data-translateable="true" class="select_device_room" data-bind="attr: {'data-uuid': uuid}" >unset</_td>
+                                    </ko>
+                                    <td data-bind="text: devicetype"></td>
+                                    <td data-bind="attr: {'title': internalid }, text: internalid"></td>
+                                </script>
+                                <div data-bind="agoGrid:nodeDevicesGrid"/>
                             </div>
                             <!-- status tab -->
                             <div id="status" class="tab-pane fade">
@@ -186,13 +209,52 @@
         </div>
     </div>
 
+    <!-- add node popup -->
+    <div class="modal fade" id="addNode" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">x</span></button>
+                    <_h4 data-translateable="true" class="modal-title">Z-Wave pairing</_h4>
+                </div>
+                <div class="modal-body">
+                    <ko opts="if: addNodeState() != 'complete'">
+                        <div data-bind="visible: addNodeState() == 'pairing'">
+                            <p>Waiting for node to be paired.</p>
+                            <p>Please complete pairing process by following the instructions provided with the device.</p>
+                        </div>
+                        <div data-bind="visible: addNodeState() == 'querying'">
+                            <p>Node paired, gathering data.</p>
+                        </div>
+                        <p>
+                            <i class="fa fa-spinner fa-spin"> </i>
+                        </p>
+                    </ko>
+                    <ko opts="if: addNodeState() == 'complete'">
+                        <p>New Z-Wave node paired.</p>
+                        <div data-bind="agoGrid:nodeDevicesGrid"/>
+
+                        <hr/>
+                        <p>Node details</p>
+                        <div data-bind="agoGrid:nodeInfosGrid"/>
+                    </ko>
+                </div>
+                <div class="modal-footer">
+                    <_button data-translateable="true" type="button" class="btn btn-default" data-dismiss="modal" data-bind="visible: addNodeState() == 'pairing'">Abort pairing</_button>
+                    <_button data-translateable="true" type="button" class="btn btn-default" data-bind="visible: addNodeState() == 'complete', click: addNode">Add another device</_button>
+                    <_button data-translateable="true" type="button" class="btn btn-default" data-dismiss="modal" data-bind="visible: addNodeState() == 'complete', click: openNodeDetails">Configure device</_button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- notifications -->
     <section class="content-notifs">
         <_span id="nr" data-translateable="true">zwavecontroller is not responding. Unable to execute action.</_span>
         <_span id="setportok" data-translateable="true">Port configured</_span>
         <_span id="resetok" data-translateable="true">Z-Wave controller resetted</_span>
-        <_span id="addnodeok" data-translateable="true">Add node command sent to controller</_span>
         <_span id="removenodeok" data-translateable="true">Remove node command sent to controller</_span>
+        <_span id="noderemoved" data-translateable="true">Node removed</_span>
         <_span id="testnetworkok" data-translateable="true">Test network command launched</_span>
         <_span id="cancelok" data-translateable="true">Cancel command sent to controller</_span>
         <_span id="saveconfigok" data-translateable="true">Save configuration sent to controller</_span>
@@ -208,7 +270,7 @@
         <_span id="removeassociationok" data-translateable="true">Association removed successfully</_span>
         <_span id="reallyremoveassociation" data-translateable="true">Really remove this association?</_span>
         <_span id="reallyremovenode" data-translateable="true">Really remove this node?</_span>
-        <_span id="reallyreset" data-translateable="true">Reset controller (everything will be lost!)</_span>
+        <_span id="reallyreset" data-translateable="true">Reset controller? (everything will be lost!)</_span>
         <_span id="reallytransferprimary" data-translateable="true">Are you sure you want to transfer primary role to another controller?</_span>
         <_span id="refreshnodeok" data-translateable="true">Refresh node infos command sent</_span>
         <_span id="refreshnodeko" data-translateable="true">Refresh node infos command failed</_span>

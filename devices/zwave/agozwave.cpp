@@ -565,7 +565,7 @@ string AgoZwave::getHRCommandClassId(uint8_t commandClassId)
 }
 
 /**
- * Return human readable notification type
+ * Return human readable notification type.
  */
 string AgoZwave::getHRNotification(Notification::NotificationType notificationType)
 {
@@ -656,6 +656,11 @@ string AgoZwave::getHRNotification(Notification::NotificationType notificationTy
         case Notification::Type_DriverRemoved:
             output="Type_DriverRemoved";
             break;
+#if HAVE_ZWAVE_VERSION(1,3,397)
+        case Notification::Type_ControllerCommand:
+            output="Type_ControllerCommand";
+            break;
+#endif
         default:
             output="Type_Unknown";
     }
@@ -1624,10 +1629,11 @@ void AgoZwave::_OnNotification (Notification const* _notification)
             NodeInfo* nodeInfo = new NodeInfo();
             nodeInfo->m_homeId = _notification->GetHomeId();
             nodeInfo->m_nodeId = _notification->GetNodeId();
-            nodeInfo->m_polled = false;		
+            nodeInfo->m_polled = false;
             g_nodes.push_back( nodeInfo );
 
-            // todo: announce node
+            // Note: this is sent when agozwave is restarted too!
+            // There is also a NodeNew event, but this is only triggered when device is found during startup?
             eventmap["description"]="Node added";
             eventmap["state"]="nodeadded";
             eventmap["nodeid"] = _notification->GetNodeId();
@@ -1674,7 +1680,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                 if (device != NULL)
                 {
                     AGO_DEBUG() << "Sending " << eventtype << " from child " << device->getId();
-                    emitFilteredEvent(device->getId().c_str(), eventtype.c_str(), level.str().c_str(), "");	
+                    emitFilteredEvent(device->getId().c_str(), eventtype.c_str(), level.str().c_str(), "");
                 }
                 else
                 {
@@ -1802,14 +1808,26 @@ void AgoZwave::_OnNotification (Notification const* _notification)
         }
         case Notification::Type_NodeNaming:
         case Notification::Type_NodeProtocolInfo:
-        case Notification::Type_NodeQueriesComplete:
         case Notification::Type_EssentialNodeQueriesComplete:
+        case Notification::Type_NodeQueriesComplete:
+        {
+            if( /*NodeInfo* nodeInfo = */getNodeInfo( _notification ) )
+            {
+                eventmap["nodeid"] = _notification->GetNodeId();
+                eventmap["homeid"] = _notification->GetHomeId();
+                eventmap["state"] = getHRNotification(_notification->GetType());
+
+                AGO_DEBUG() << "Sending " << eventmap["state"] << " for node " << eventmap["nodeid"];
+                agoConnection->emitEvent("zwavecontroller", "event.zwave.querystage", eventmap);
+            }
+            break;
+        }
 #if HAVE_ZWAVE_VERSION(1,3,397)
         case Notification::Type_ControllerCommand:
-#endif
         {
             break;
         }
+#endif
         default:
         {
             AGO_WARNING() << "Unhandled OpenZWave Event: " << _notification->GetType();
