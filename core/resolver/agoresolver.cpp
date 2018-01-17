@@ -370,24 +370,24 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         {
             checkMsgParameter(content, "device", VAR_STRING, true);
 
+            std::string uuid = content["device"];
             std::string name = content["name"].asString();
             if(name == "") {
-                // XXX: Should use deletedevice command instead
-                inv->deleteDevice(content["device"]);
+                inv->deleteDevice(uuid);
+                emitNameEvent(uuid, "event.system.devicenamechanged", "");
                 return responseSuccess();
-            }else if (inv->setDeviceName(content["device"], name))
+            }else if (inv->setDeviceName(uuid, name))
             {
                 // update name in local device map
                 Variant::Map *device;
-                name = inv->getDeviceName(content["device"]);
-                std::string uuid = content["device"];
+                name = inv->getDeviceName(uuid);
                 if (inventory.find(uuid) != inventory.end())
                 {
                     device = &inventory[uuid].asMap();
                     (*device)["name"]= name;
                 }
                 saveDevicemap();
-                emitNameEvent(content["device"].asString(), "event.system.devicenamechanged", content["name"].asString());
+                emitNameEvent(uuid, "event.system.devicenamechanged", content["name"].asString());
 
                 return responseSuccess();
             }
@@ -411,6 +411,7 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
             }
 
             inv->deleteDevice(uuid);
+            // TODO: Some event?
             return responseSuccess("Device removed");
         }
         else if (content["command"] == "deleteroom")
