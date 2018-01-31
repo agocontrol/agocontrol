@@ -47,37 +47,45 @@ configure_file (
 install (TARGETS agorpc rpc-htpasswd RUNTIME DESTINATION ${BINDIR})
 install (TARGETS get_table_lang.cgi RUNTIME DESTINATION ${HTMLDIR}/cgi-bin)
 
-# workaround to making the translations
-# This removes any *.in.html files from the binary directory. Make sure
-# we do NOT execute it if building in-source.
-# Also, it seems only .._BINARY_DIR expands symlinks. Make sure we get real path before comparing
+
 get_filename_component(CMAKE_CURRENT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
 get_filename_component(CMAKE_CURRENT_BINARY_DIR_REAL "${CMAKE_CURRENT_BINARY_DIR}" REALPATH)
+
+# If we are NOT in-source build, we have to copy all files below html/ to the build dir.
 if (NOT "${CMAKE_CURRENT_SOURCE_DIR_REAL}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR_REAL}")
-    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/html DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    file(GLOB_RECURSE HTML_FILES ${CMAKE_CURRENT_BINARY_DIR}/html/*.in.html)
-    if (NOT "${HTML_FILES}" STREQUAL "")
-        file(REMOVE ${HTML_FILES})
-    endif ()
+    file(GLOB_RECURSE HTML_FILES ${CMAKE_CURRENT_SOURCE_DIR}/html/*)
+    foreach (infile ${HTML_FILES})
+        # Almost all...
+        if (NOT infile MATCHES ".in.html$"
+                AND NOT infile MATCHES "/\\."
+                AND NOT IS_SYMLINK "${infile}")
+            # This is quite verbose, logging every file, but have not found any way to
+            # have a dependency on input file -> output file without this...
+            string(REPLACE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} outfile ${infile})
+            add_custom_command(
+                OUTPUT ${outfile} DEPENDS ${infile}
+                COMMAND ${CMAKE_COMMAND} -E copy ${infile} ${outfile})
+            set (UI_FILES ${UI_FILES} ${outfile})
+        endif()
+    endforeach(infile)
+    add_custom_target(html-ui DEPENDS ${UI_FILES})
 endif()
 
 
-
-file(GLOB_RECURSE HTML_FILES ${CMAKE_CURRENT_SOURCE_DIR}/html/*.in.html)
-
-foreach (infile ${HTML_FILES})
+# For every .in.html file, pass it through the mergetranslation.sh script
+file(GLOB_RECURSE HTML_IN_FILES ${CMAKE_CURRENT_SOURCE_DIR}/html/*.in.html)
+foreach (infile ${HTML_IN_FILES})
         string(REGEX REPLACE ".in.html$" ".html" outfile ${infile})
         string(REPLACE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} outfile ${outfile})
         add_custom_command(
                 OUTPUT ${outfile}
                 DEPENDS ${infile}
-                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/mergetranslation.sh ${infile} ${outfile}
-                COMMENT "Generate html files")
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/mergetranslation.sh ${infile} ${outfile})
         set (OUT_FILES ${OUT_FILES} ${outfile})
 endforeach (infile)
 
 add_custom_target(translations DEPENDS ${OUT_FILES})
-add_dependencies(agorpc translations)
+add_dependencies(agorpc html-ui translations)
 
 
 install(
