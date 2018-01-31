@@ -1,7 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Note: this requires GNU find to work!
+set -e
+
+cd html
 
 # set up symlinks .in.html -> .xml.in
-find -name \*.in.html -execdir bash \-c "file=\"{}\";ln -s \"{}\" \"\${file%.in.html}.xml.in\"" \;
+find -name \*.in.html -execdir bash \-c "file=\"{}\"; ln -s \"{}\" \"\${file%.in.html}.xml.in\"" \;
 
 # dynamically create POTFILES.in
 find -name \*.xml.in -printf "%P\n" > po/POTFILES.in
