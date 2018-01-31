@@ -894,7 +894,8 @@ function zwaveConfig(zwave) {
         rowTemplate: 'nodeAssociationsRowTemplate',
         displayRowCount: false,
         displaySearch: false,
-        displayPagination: false
+        displayPagination: false,
+        tableStyle: 'table-bordered table-stripped'
     });
     self.statsGrid = new ko.agoGrid.viewModel({
         data: self.stats,
@@ -1012,11 +1013,17 @@ function zwaveConfig(zwave) {
         }
 
         var nodesForAssoc = [];
-        for( i=0; i<self.nodes().length; i++ )
+        var nodes = self.nodes();
+        for( i=0; i < nodes.length; i++ )
         {
-            if( self.nodes()[i].id != self.selectedNode.id ) //compare string vs int
+            var other = nodes[i];
+            if( other.id !== self.selectedNode.id )
             {
-                nodesForAssoc.push({key:self.nodes()[i].id, value:self.nodes()[i].type+'('+self.nodes()[i].id+')'});
+                var descr = self.describeNode(other);
+                nodesForAssoc.push({
+                    key:other.id,
+                    value:descr
+                });
             }
         }
         self.nodesForAssociation.replaceAll(nodesForAssoc);
@@ -1063,7 +1070,7 @@ function zwaveConfig(zwave) {
                     // prevent late responses replacing global content
                     return;
 
-                var newAssocations = [];
+                var nodeAssociations = [];
                 var groups = res.data.groups;
                 for(var i=0; i < groups.length; i++) {
                     var
@@ -1071,35 +1078,37 @@ function zwaveConfig(zwave) {
                         associations = groups[i].associations,
                         label =  groups[i].label;
 
-                    // fill associations
+                    // fill existing associations
                     var j;
                     var skipTargets = {};
                     skipTargets[node.id] = true;
-                    var assos = ko.observableArray();
+                    var groupAssociations = ko.observableArray();
                     for( j=0; j < associations.length; j++)
                     {
+                        // Target is a node ID
                         var a = {
                             node: node.id,
                             group: group,
                             target: associations[j],
                             add:false
                         };
+
                         var name;
-                        var targetNode = self.getNode(associations[j]);
+                        var targetNode = self.getNode(a.target);
                         if(targetNode == null) {
                             notif.warning('Association to unknown node id #'+associations[j]);
-                            name = "UNKNOWN";
+                            name = "UNKNOWN id " + a.target;
                             a['nonexisting'] = true;
                         } else {
-                            name = targetNode.type;
+                            name = self.describeNode(targetNode);
                             skipTargets[a.target] = true;
                         }
-                        a['asso'] = name+'('+a.target+')';
+                        a['targetDescr'] = name;
 
-                        assos.push(a);
+                        groupAssociations.push(a);
                     }
 
-                    //fill list of targets with all nodes
+                    // fill list of targets with other nodes (excluding already associated)
                     var targets = ko.observableArray([]);
                     var nodes = self.nodes();
                     for( j=0; j<nodes.length; j++ )
@@ -1108,10 +1117,10 @@ function zwaveConfig(zwave) {
                         if(skipTargets[targetNode.id])
                             continue;
 
-                        // Add similar struct here which can be moved to assos array
+                        // Add similar struct here which can be moved to groupAssociations array
                         // after add
                         targets.push({
-                            asso: targetNode.type+'('+targetNode.id+')',
+                            targetDescr: self.describeNode(targetNode),
                             node: node.id,
                             group: group,
                             target: targetNode.id,
@@ -1120,16 +1129,17 @@ function zwaveConfig(zwave) {
                     }
 
                     // Final row for adding new associations (select box)
-                    assos.push({asso:'',
+                    groupAssociations.push({
+                        targetDescr:'',
                         node:node.id,
                         group:group,
                         target:ko.observable(),
                         targets:targets,
                         add:true});
 
-                    newAssocations.push({group: group, label:label, assos:assos});
+                    nodeAssociations.push({group: group, label:label, groupAssociations:groupAssociations});
                 }
-                self.nodeAssociations.replaceAll(newAssocations);
+                self.nodeAssociations.replaceAll(nodeAssociations);
             });
     };
 
@@ -1154,6 +1164,27 @@ function zwaveConfig(zwave) {
             self.nodes.replaceAll(newNodes);
             self.nodesCount(self.nodes().length);
         });
+    };
+
+    /* Given a node, try to describe it in a meaingful way so the user can identify it */
+    self.describeNode = function(node) {
+        var descr = '';
+        node.agoDevices.forEach(function(ad) {
+            if(ad.name() === '') return;
+            if(descr !== '') descr += ' / ';
+            descr+= ad.name();
+
+            if(!ad.room) return;
+            descr += ' ('+ad.room+')';
+
+        });
+
+        if(descr === '')
+            descr = node.type+' ('+node.id+')';
+        else
+            descr += ' (' + node.type+' '+node.id+')';
+
+        return descr;
     };
 
     //get nodes and build nodes graph
@@ -1349,9 +1380,9 @@ function zwaveConfig(zwave) {
                     if(nA[i].group !== asso.group)
                         continue;
 
-                    // Add to list of associations.. just before
+                    // Add to group's list of associations.. just before
                     // the selector
-                    nA[i].assos.splice(-1, 0, selectedTarget);
+                    nA[i].groupAssociations.splice(-1, 0, selectedTarget);
 
                     // Remove from list of targets
                     asso.targets.remove(selectedTarget);
@@ -1383,12 +1414,12 @@ function zwaveConfig(zwave) {
                             continue;
 
                         // Remove from list of associations
-                        var assos = nA[i].assos;
-                        assos.remove(asso);
+                        var groupAssociations = nA[i].groupAssociations;
+                        groupAssociations.remove(asso);
 
                         if(asso['nonexisting'] !== true) {
                             // Re-add to list of targets (which is on the last assos item)
-                            assos()[assos().length-1].targets.push(asso);
+                            groupAssociations()[groupAssociations().length-1].targets.push(asso);
                         }
                         break;
                     };

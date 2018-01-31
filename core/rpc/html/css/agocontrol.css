@@ -447,6 +447,10 @@ div.dashboard-widget-draggable {
     margin-top: 20px !important;
 }
 
+.valign-bottom {
+    vertical-align: bottom !important;
+}
+
 /********** adminLTE tweaks **********/
 .menu-no-hover {
     background: rgba(0,0,0,0) !important;

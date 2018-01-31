@@ -75,11 +75,11 @@
                                 <script type="text/html" id="nodeAssociationsRowTemplate">
                                     <td><span data-bind="text: label"/></td>
                                     <td>
-                                        <table style="width:550px; margin:0px;" class="agoTable">
-                                        <tbody data-bind="foreach: assos">
+                                        <table style="width:550px; margin:0px;" class="agoTable table">
+                                        <tbody data-bind="foreach: groupAssociations">
                                             <tr data-bind="ifnot: add">
                                                 <td>
-                                                    <span data-bind="text:asso"/>
+                                                    <span data-bind="text:targetDescr"/>
                                                 </td>
                                                 <td>
                                                     <button type="button" class="btn btn-primary btn-sm" _title="Delete node association" _alt="Delete node association" data-translateable="true" data-bind="click:$parents[1].removeAssociation"><i class="en-cancel"></i></button>
@@ -88,9 +88,9 @@
                                             <tr data-bind="if: add">
                                                 <td>
                                                     <span data-translateable="true">Add association with</span>
-                                                    <select class="form-control" data-bind="options:targets, optionsText:'asso', value:target"/>
+                                                    <select class="form-control" data-bind="options:targets, optionsText:'targetDescr', value:target"/>
                                                 </td>
-                                                <td>
+                                                <td class="valign-bottom">
                                                     <button type="button" class="btn btn-primary btn-sm" _title="Add association" _alt="Add association" data-translateable="true" data-bind="click:$parents[1].addAssociation"><i class="en-plus"></i></button>
                                                 </td>
                                             </tr>
@@ -266,8 +266,8 @@
         <_span id="healnodeok" data-translateable="true">Heal node command sent to controller</_span>
         <_span id="setconfigparamok" data-translateable="true">Parameter updated successfully</_span>
         <_span id="setconfigparamko" data-translateable="true">Unable to update parameter</_span>
-        <_span id="addassociationok" data-translateable="true">Association added successfully</_span>
-        <_span id="removeassociationok" data-translateable="true">Association removed successfully</_span>
+        <_span id="addassociationok" data-translateable="true">Association add command queued</_span>
+        <_span id="removeassociationok" data-translateable="true">Association removal queued</_span>
         <_span id="reallyremoveassociation" data-translateable="true">Really remove this association?</_span>
         <_span id="reallyremovenode" data-translateable="true">Really remove this node?</_span>
         <_span id="reallyreset" data-translateable="true">Reset controller? (everything will be lost!)</_span>
