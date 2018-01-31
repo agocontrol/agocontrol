@@ -69,6 +69,7 @@ if (NOT "${CMAKE_CURRENT_SOURCE_DIR_REAL}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR_
         endif()
     endforeach(infile)
     add_custom_target(html-ui DEPENDS ${UI_FILES})
+    add_dependencies(agorpc html-ui)
 endif()
 
 
@@ -85,7 +86,7 @@ foreach (infile ${HTML_IN_FILES})
 endforeach (infile)
 
 add_custom_target(translations DEPENDS ${OUT_FILES})
-add_dependencies(agorpc html-ui translations)
+add_dependencies(agorpc translations)
 
 
 install(
