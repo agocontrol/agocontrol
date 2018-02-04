@@ -59,19 +59,6 @@
                             </div>
                             <!-- associations tab -->
                             <div id="associations" class="tab-pane fade">
-                                <form class="form-horizontal">
-                                    <div class="form-group">
-                                        <_label class="col-sm-4 control-label" data-translateable="true">Create new association with</_label>
-                                        <div class="col-sm-4">
-                                            <div class="input-group">
-                                                <select class="form-control" data-bind="options:nodesForAssociation, optionsText:'value', value:selectedNodeForAssociation"/>
-                                                <span class="input-group-btn">
-                                                    <_button type="button" class="btn btn-primary" data-translateable="true" data-bind="click:createAssociation">Create</_button>
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </form>
                                 <script type="text/html" id="nodeAssociationsRowTemplate">
                                     <td><span data-bind="text: label"/></td>
                                     <td>

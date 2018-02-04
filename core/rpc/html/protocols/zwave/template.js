@@ -855,12 +855,10 @@ function zwaveConfig(zwave) {
     self.nodeParameters = ko.observableArray([]);
     self.nodeAssociations = ko.observableArray([]);
     self.nodeDevices = ko.observableArray([]);
-    self.nodesForAssociation = ko.observableArray([]);
 
     self.addNodeState = ko.observable();
 
     self.stats = ko.observableArray([]);
-    self.selectedNodeForAssociation = ko.observable();
     self.selectedNode = null;
     self.nodeInfosGrid = new ko.agoGrid.viewModel({
         data: self.nodeInfos,
@@ -1011,22 +1009,6 @@ function zwaveConfig(zwave) {
                 {status:'Failed', value:(self.selectedNode.status.failed ? 'true' : 'false')}
             ]);
         }
-
-        var nodesForAssoc = [];
-        var nodes = self.nodes();
-        for( i=0; i < nodes.length; i++ )
-        {
-            var other = nodes[i];
-            if( other.id !== self.selectedNode.id )
-            {
-                var descr = self.describeNode(other);
-                nodesForAssoc.push({
-                    key:other.id,
-                    value:descr
-                });
-            }
-        }
-        self.nodesForAssociation.replaceAll(nodesForAssoc);
 
         //get node parameters
         var nodeParameters = [];
@@ -1346,19 +1328,6 @@ function zwaveConfig(zwave) {
     //set device parameter
     self.setParameter = function(param) {
         zwave.setParameter(self.selectedNode.id, param.commandclassid, param.index, param.currentvalue());
-    };
-
-    //create association
-    self.createAssociation = function() {
-        //console.log("add association node="+self.selectedNode.id+" group="+(self.selectedNode.numgroups+1)+" target="+self.selectedNodeForAssociation().key);
-        var node = self.selectedNode;
-        zwave
-            .addAssociation(node.id, (node.numgroups+1), self.selectedNodeForAssociation().key)
-            .then(function(res) {
-                // Reload associations
-                self.loadAssociations(node);
-                notif.success('#addassociationok');
-            });
     };
 
     //add association
