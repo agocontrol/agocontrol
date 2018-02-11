@@ -70,7 +70,7 @@
             this.displayPagination = configuration.displayPagination===undefined ? true : configuration.displayPagination;
             this.rowCallback = configuration.rowCallback;
             this.currentPageIndex = ko.observable(0);
-            this.pageSize = ko.observable(configuration.pageSize || 10);
+            this.pageSize = ko.observable(configuration.pageSize || (localStorage && localStorage['agoGrid_pagesize']) || 10);
             this.pageSizes = ko.observableArray([10, 25, 50, 100]);
             this.hasPreviousPage = ko.observable(false);
             this.hasNextPage = ko.observable(false);
@@ -281,6 +281,13 @@
             this.resetFilters = function() {
                 this.filters.removeAll();
             };
+
+
+            if(localStorage) {
+                this.pageSize.subscribe(function(value) {
+                    localStorage['agoGrid_pagesize'] = value;
+                });
+            }
         }
     };
 
