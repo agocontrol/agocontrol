@@ -943,6 +943,29 @@ Agocontrol.prototype = {
             return;
         }
 
+        //update room name
+        if( response.result.event=="event.system.roomnamechanged" )
+        {
+            var uuid = response.result.uuid;
+            if( self.inventory && self.inventory.rooms && self.inventory.rooms[uuid]!==undefined )
+            {
+                self.inventory.rooms[uuid].name = response.result.name;
+
+                // refresh devices with this room
+                for(var devUuid in self.inventory.devices) {
+                    var dev = self.inventory.devices[devUuid];
+                    if (dev.roomUID !== uuid) continue;
+                    dev.room = response.result.name;
+                }
+                self.devices.forEach(function(dev) {
+                    if (dev.roomUID !== uuid) return;
+                    dev.room = response.result.name;
+                });
+            }
+
+            return;
+        }
+
         //update device name
         if( response.result.event=="event.system.devicenamechanged" )
         {
