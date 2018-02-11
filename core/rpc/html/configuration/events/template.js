@@ -64,24 +64,7 @@ function EventsConfig(agocontrol)
     {
         if( $(td).hasClass('edit_event') )
         {
-            $(td).editable(
-                function(value, settings) {
-                    var content = {};
-                    content.device = $(this).data('uuid');
-                    content.uuid = self.agocontrol.agoController;
-                    content.command = "setdevicename";
-                    content.name = value;
-                    self.agocontrol.sendCommand(content);
-                    return value;
-                },
-                {
-                    data : function(value, settings)
-                    {
-                        return value;
-                    },
-                    onblur : "cancel"
-               }
-            ).click();
+            self.agocontrol.makeFieldDeviceNameEditable(td, item);
         }
     };
 

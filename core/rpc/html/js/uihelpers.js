@@ -24,13 +24,16 @@ Agocontrol.prototype.makeFieldDeviceNameEditable = function(el, device, extraOpt
     el.text(device.name());
     var options = {
         data : function(value, settings) {
-            return value;
+            // Return current raw name, not the given value, since it may contain HTML codes such as &amp;
+            return device.name();
         }
     };
 
     $.extend(options, extraOptions);
 
     el.editable(function(value, settings) {
+            if(value === device.name())
+                return value;
             var content = {};
             content.device = device.uuid;
             content.uuid = self.agoController;
@@ -70,7 +73,7 @@ Agocontrol.prototype.makeFieldDeviceRoomEditable = function(el, device, extraOpt
             {
                 list[rooms[i].uuid] = rooms[i].name;
             }
-            return JSON.stringify(list);
+            return list;
         },
         type : "select",
         onblur : "submit"
@@ -80,40 +83,37 @@ Agocontrol.prototype.makeFieldDeviceRoomEditable = function(el, device, extraOpt
 
     el.editable(
         function(value, settings) {
-            if(value === device.roomUID) return;
-
-            var content = {};
-            content.device = device.uuid;
-            content.uuid = self.agoController;
-            content.command = "setdeviceroom";
-            value = value == "unset" ? "" : value;
-            content.room = value;
-            self.sendCommand(content)
-                .then(function(res) {
-                    notif.success("Device room updated");
-                    //update local inventory; there is no roomchanged event right now.
-                    if(value==="")
-                    {
-                        device.room = device.roomUID = "";
-                        self.inventory.devices[device.uuid].room = "";
-                        self.inventory.devices[device.uuid].roomUID = "";
-                    }
-                    else
-                    {
-                        device.roomUID = value;
-                        self.inventory.devices[device.uuid].roomUID = value;
-
-                        var room = self.findRoom(value);
-                        if( room )
-                        {
-                            device.room = room.name;
-                            self.inventory.devices[device.uuid].room = room.name;
+            if(value !== device.roomUID) {
+                var content = {};
+                content.device = device.uuid;
+                content.uuid = self.agoController;
+                content.command = "setdeviceroom";
+                value = value == "unset" ? "" : value;
+                content.room = value;
+                self.sendCommand(content)
+                    .then(function (res) {
+                        notif.success("Device room updated");
+                        //update local inventory; there is no roomchanged event right now.
+                        if (value === "") {
+                            device.room = device.roomUID = "";
+                            self.inventory.devices[device.uuid].room = "";
+                            self.inventory.devices[device.uuid].roomUID = "";
                         }
-                    }
-                })
-                .catch(function(err) {
-                    notif.error('Error updating room');
-                });
+                        else {
+                            device.roomUID = value;
+                            self.inventory.devices[device.uuid].roomUID = value;
+
+                            var room = self.findRoom(value);
+                            if (room) {
+                                device.room = room.name;
+                                self.inventory.devices[device.uuid].room = room.name;
+                            }
+                        }
+                    })
+                    .catch(function (err) {
+                        notif.error('Error updating room');
+                    });
+            }
 
             // Return the set value
             if( value==="" )

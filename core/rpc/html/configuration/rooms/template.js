@@ -16,6 +16,9 @@ function RoomConfig(agocontrol)
             $(td).editable(
                 function(value, settings)
                 {
+                    if(value === item.name())
+                        return value;
+
                     var content = {};
                     content.room = item.uuid;
                     content.uuid = self.agocontrol.agoController;
@@ -26,7 +29,7 @@ function RoomConfig(agocontrol)
                 }, 
                 {
                     data : function(value, settings) {
-                        return value;
+                        return item.name();
                     },
                     onblur : "cancel"
                 }
