@@ -645,8 +645,9 @@ Agocontrol.prototype = {
         var noHomeSelected = !localStorage['home_dashboard'];
 
         dashboards.push({
-            name:'all', uuid: 'all',
+            name:ko.observable('all'), uuid: 'all',
             ucName:ko.observable('All my devices'),
+            safeName: ko.observable('all'),
             action:'',
             editable:false, icon:'fa-th-large',
             isHome: ko.observable(noHomeSelected || isHome('all'))});
@@ -656,7 +657,11 @@ Agocontrol.prototype = {
             var dashboard = floorplans[uuid];
             dashboard.uuid = uuid;
             dashboard.action = '';
-            dashboard.ucName = ko.observable(dashboard.name);
+            dashboard.name = ko.observable(dashboard.name)
+            dashboard.ucName = dashboard.name;
+            dashboard.safeName = ko.computed(function(){
+                return this.name().replace(/[ &\?#]+/g, '_');
+            }, dashboard);
             dashboard.editable = true;
             dashboard.isHome = ko.observable(isHome(uuid));
             if( dashboard.icon===undefined )
@@ -814,8 +819,8 @@ Agocontrol.prototype = {
             });
     },
 
-    getDashboard:function(name){
-        return this.dashboards.findByKey('name', name);
+    getDashboard:function(safeName){
+        return this.dashboards.findByKey('safeName', safeName);
     },
 
     //get event
@@ -1003,11 +1008,11 @@ Agocontrol.prototype = {
         {
             for( var i=0; i<self.dashboards().length; i++ )
             {
-                if( self.dashboards()[i].uuid && self.dashboards()[i].uuid===response.result.uuid )
+                var dashboard = self.dashboards()[i];
+                if( dashboard.uuid && dashboard.uuid===response.result.uuid )
                 {
-                    self.dashboards()[i].name = response.result.name;
-                    self.dashboards()[i].ucName(response.result.name);
-                    //stop statement
+                    dashboard.name(response.result.name);
+                    dashboard.ucName(response.result.name);
                     break;
                 }
             }

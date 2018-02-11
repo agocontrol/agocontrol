@@ -158,7 +158,7 @@
             <ul class="sidebar-menu">
                 <_li class="header" data-translateable="true">DASHBOARDS</_li>
                 <ko opts="foreach:agocontrol.dashboards">
-                <li data-bind="attr:{'id':'menu_'+name.replace(' ','_')}">
+                <li data-bind="attr:{'id':'menu_'+safeName()}">
                     <a href="#" data-bind="click:$root.gotoDashboard">
                         <i data-bind="attr:{'class':'fa '+(icon||'fa-circle-o')}"> </i>
                         <span data-bind="text:ucName"> </span>

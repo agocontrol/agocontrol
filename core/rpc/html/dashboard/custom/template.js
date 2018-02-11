@@ -11,7 +11,7 @@ function Dashboard(dashboard, edition, agocontrol)
     var self = this;
     self.agocontrol = agocontrol;
     self.currentDashboard = dashboard;
-    self.dashboardName = ko.observable(ucFirst(self.currentDashboard.name));
+    self.dashboardName = ko.observable(ucFirst(self.currentDashboard.name()));
     self.editLabel = ko.observable('Edit');
     self.devices = ko.observableArray([]);
     self.selectedTextFilter = ko.observable('');

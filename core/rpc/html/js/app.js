@@ -160,7 +160,10 @@ ko.observableArray.fn.find = function(predicate) {
 ko.observableArray.fn.findByKey = function(key, wantedValue) {
     var underlyingArray = this();
     return underlyingArray.find(function(obj) {
-        return typeof(obj) === 'object' && obj[key] === wantedValue;
+        if(typeof(obj) !== 'object') return false;
+        if(obj[key] === wantedValue) return true;
+        // Observable value?
+        return typeof(obj[key]) === 'function' && obj[key]() === wantedValue;
     });
 };
 
@@ -496,11 +499,11 @@ function AgocontrolViewModel()
     {
         if( edit===true )
         {
-            location.hash = 'dashboard/' + dashboard.name + '/edit';
+            location.hash = 'dashboard/' + dashboard.safeName() + '/edit';
         }
         else
         {
-            location.hash = 'dashboard/' + dashboard.name;
+            location.hash = 'dashboard/' + dashboard.safeName();
         }
     };
 
@@ -689,9 +692,9 @@ function AgocontrolViewModel()
         self.plugins = self.agocontrol.initPlugins();
 
         //dashboard
-        this.get('#dashboard/:name', function()
+        this.get('#dashboard/:safeName', function()
         {
-            if( this.params.name==='all' )
+            if( this.params.safeName==='all' )
             {
                 //special case for main dashboard (all devices)
                 var basePath = 'dashboard/all';
@@ -700,11 +703,11 @@ function AgocontrolViewModel()
             }
             else
             {
-                var dashboard = self.agocontrol.getDashboard(this.params.name)
+                var dashboard = self.agocontrol.getDashboard(this.params.safeName)
                 if(dashboard)
                 {
                     var basePath = 'dashboard/custom';
-                    self.activate(dashboard.name);
+                    self.activate(dashboard.safeName());
                     self.loadTemplate(new Template(basePath, null, 'html/dashboard', {dashboard:dashboard, edition:false}));
                 }
                 else
@@ -715,13 +718,13 @@ function AgocontrolViewModel()
         });
 
         //custom dashboard edition
-        this.get('#dashboard/:name/edit', function()
+        this.get('#dashboard/:safeName/edit', function()
         {
-            var dashboard = self.agocontrol.getDashboard(this.params.name)
+            var dashboard = self.agocontrol.getDashboard(this.params.safeName)
             if(dashboard)
             {
                 var basePath = 'dashboard/custom';
-                self.activate(dashboard.name);
+                self.activate(dashboard.safeName());
                 self.loadTemplate(new Template(basePath, null, 'html/dashboard', {dashboard:dashboard, edition:true}));
             }
             else
@@ -813,16 +816,16 @@ function AgocontrolViewModel()
         //startup page (dashboard)
         this.get('', function ()
         {
-            var name = 'all';
+            var safeName = 'all';
             // Find default dashboard
             var home = localStorage && localStorage['home_dashboard'];
             if(home) {
                 var db = self.agocontrol.dashboards.findByKey('uuid', home);
                 if(db) {
-                    name = db.name;
+                    safeName = db.safeName();
                 }
             }
-            this.app.runRoute('get', '#dashboard/'+name);
+            this.app.runRoute('get', '#dashboard/'+safeName);
         });
     });
 
