@@ -7,6 +7,7 @@ function ScenarioConfig(agocontrol)
 {
     var self = this;
     self.agocontrol = agocontrol;
+    self.openScenario = ko.observable(null);
     self.scenarioName = ko.observable('');
     this.scenarios = ko.computed(function() {
         return self.agocontrol.devices().filter(function(d) {
@@ -393,7 +394,7 @@ function ScenarioConfig(agocontrol)
             }
 
             // Save the id (needed for the save command)
-            self.openScenario = item.uuid;
+            self.openScenario(item);
 
             // Open the dialog
             $("#editPopup").modal('show');
@@ -405,12 +406,12 @@ function ScenarioConfig(agocontrol)
         var content = {};
         content.command = "setscenario";
         content.uuid = self.agocontrol.scenarioController;
-        content.scenario = self.openScenario;
+        content.scenario = self.openScenario().uuid;
         content.scenariomap = self.buildScenarioMap("scenarioBuilderEdit");
         self.agocontrol.sendCommand(content)
         .then(function(res) {
             $('#scenarioBuilderEdit').html('');
-            self.openScenario = null;
+            self.openScenario();
             $("#editPopup").modal('hide');
         });
     };

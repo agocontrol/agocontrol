@@ -19,8 +19,8 @@
     <div class="modal fade" id="editPopup" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <div class="modal-header">
-                    <_span data-translateable="true">Edit scenario</_span>
+                <div class="modal-header" data-bind="with: openScenario">
+                    <_span data-translateable="true">Edit scenario: <span data-bind="text: name"></span></_span>
                 </div>
                 <div class="modal-body">
                     <div id="scenarioBuilderEdit" class="scenarioBuilder"></div>
