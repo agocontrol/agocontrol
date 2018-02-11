@@ -9,7 +9,7 @@ function Applications(agocontrol)
     self.favoritesCount = ko.observable(0);
     
     //filter applications that don't need to be displayed
-    self.applications = ko.computed(function() {
+    self.applications = ko.pureComputed(function() {
         var applications = [];
         var raw = self.agocontrol.applications();
         for( var i=0; i<raw.length; i++ )
@@ -22,7 +22,7 @@ function Applications(agocontrol)
         return applications;
     });
 
-    self.initFavorites = ko.computed(function() {
+    self.initFavorites = ko.pureComputed(function() {
         var favCount = 0;
         var raw = self.agocontrol.applications();
         for( var i=0; i<raw.length; i++ )

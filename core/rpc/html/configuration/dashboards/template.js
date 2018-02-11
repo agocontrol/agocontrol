@@ -11,7 +11,7 @@ function DashboardConfig(agocontrol)
 
     //filter dashboard that don't need to be displayed
     //need to do that because datatable odd is broken when filtering items using knockout
-    self.dashboards = ko.computed(function()
+    self.dashboards = ko.pureComputed(function()
     {
         var dashboards = [];
         for( var i=0; i<self.agocontrol.dashboards().length; i++ )

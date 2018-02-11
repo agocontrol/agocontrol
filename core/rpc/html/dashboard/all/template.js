@@ -85,7 +85,7 @@ function dashBoard(agocontrol)
         return out;
     });
 
-    self.devicesPerPage = ko.computed(function()
+    self.devicesPerPage = ko.pureComputed(function()
     {
         var currentList = self.deviceList().chunk(self.itemsPerPage());
         if (currentList.length < self.currentPage())
@@ -96,7 +96,7 @@ function dashBoard(agocontrol)
         return currentList;
     });
 
-    self.pages = ko.computed(function()
+    self.pages = ko.pureComputed(function()
     {
         var pages = [];
         var max = Math.ceil(self.deviceList().length / self.itemsPerPage());

@@ -46,7 +46,7 @@ function agoeinkPlugin() {
         self.placedDevices(result);
 
 
-    this.firstRow = ko.computed(function() {
+    this.firstRow = ko.pureComputed(function() {
         var result = [];
         var x = 0;
         for ( var y = 0; y < 3; y++) {
@@ -64,7 +64,7 @@ function agoeinkPlugin() {
         return result;
     });
 
-    this.secondRow = ko.computed(function() {
+    this.secondRow = ko.pureComputed(function() {
         var result = [];
         var x = 1;
         for ( var y = 0; y < 3; y++) {
@@ -82,7 +82,7 @@ function agoeinkPlugin() {
         return result;
     });
 
-    this.thirdRow = ko.computed(function() {
+    this.thirdRow = ko.pureComputed(function() {
         var result = [];
         var x = 2;
         for ( var y = 0; y < 3; y++) {

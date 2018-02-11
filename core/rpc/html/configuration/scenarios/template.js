@@ -9,7 +9,7 @@ function ScenarioConfig(agocontrol)
     self.agocontrol = agocontrol;
     self.openScenario = ko.observable(null);
     self.scenarioName = ko.observable('');
-    this.scenarios = ko.computed(function() {
+    this.scenarios = ko.pureComputed(function() {
         return self.agocontrol.devices().filter(function(d) {
             return d.devicetype=='scenario';
         });

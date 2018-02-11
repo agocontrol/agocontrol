@@ -27,7 +27,7 @@ function SecurityConfig(agocontrol)
     self.configChanged = ko.observable(false);
     
     //triggerable devices
-    self.triggerableDevices = ko.computed(function()
+    self.triggerableDevices = ko.pureComputed(function()
     {
         var output = [];
         for( var i=0; i<self.agocontrol.devices().length; i++ )
@@ -46,7 +46,7 @@ function SecurityConfig(agocontrol)
     });
 
     //alarmable devices
-    self.alarmableDevices = ko.computed(function()
+    self.alarmableDevices = ko.pureComputed(function()
     {
         var output = [];
         for( var i=0; i<self.agocontrol.devices().length; i++ )

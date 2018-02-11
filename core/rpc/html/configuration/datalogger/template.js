@@ -12,7 +12,7 @@ function dataloggerConfig(devices, agocontrol)
     self.selectedSensors = ko.observableArray([]);
     self.multigraphPeriod = ko.observable(12);
     self.selectedMultigraphToDel = ko.observable();
-    self.selectedMultigraphSensors = ko.computed(function() {
+    self.selectedMultigraphSensors = ko.pureComputed(function() {
         var sensors = [];
         if( self.selectedMultigraphToDel() )
         {

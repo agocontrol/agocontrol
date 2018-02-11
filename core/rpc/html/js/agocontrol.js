@@ -634,7 +634,7 @@ Agocontrol.prototype = {
             dashboard.action = '';
             dashboard.name = ko.observable(dashboard.name)
             dashboard.ucName = dashboard.name;
-            dashboard.safeName = ko.computed(function(){
+            dashboard.safeName = ko.pureComputed(function(){
                 return this.name().replace(/[ &\?#]+/g, '_');
             }, dashboard);
             dashboard.editable = true;

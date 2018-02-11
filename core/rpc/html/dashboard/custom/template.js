@@ -41,7 +41,7 @@ function Dashboard(dashboard, edition, agocontrol)
         return out;
     });
 
-    self.rowNumber = ko.computed(function()
+    self.rowNumber = ko.pureComputed(function()
     {
         if( typeof(Storage)!=='undefined' )
         {
@@ -59,8 +59,8 @@ function Dashboard(dashboard, edition, agocontrol)
         return out;
     });
 
-    self.devicesPerPage = ko.computed(function() {
-        var out = self.colNumber() * self.rowNumber();
+    self.devicesPerPage = ko.pureComputed(function() {
+        return self.colNumber() * self.rowNumber();
     });
 
     //====================================================
@@ -286,7 +286,7 @@ function Dashboard(dashboard, edition, agocontrol)
     };
 
     //sub filter options
-    self.subFilterOptions = ko.computed(function()
+    self.subFilterOptions = ko.pureComputed(function()
     {
         var out = [];
         function compare(a,b) {
@@ -356,7 +356,7 @@ function Dashboard(dashboard, edition, agocontrol)
     //DASHBOARD
 
     //build rooms list
-    self.rooms = ko.computed(function()
+    self.rooms = ko.pureComputed(function()
     {
         var output = [];
         for( var i=0; i<self.agocontrol.rooms().length; i++ )
@@ -368,7 +368,7 @@ function Dashboard(dashboard, edition, agocontrol)
     });
 
     //build device types
-    self.deviceTypes = ko.computed(function()
+    self.deviceTypes = ko.pureComputed(function()
     {
         var output = [];
         for( var i=0; i<self.agocontrol.devices().length; i++ )

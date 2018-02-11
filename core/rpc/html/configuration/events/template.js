@@ -11,7 +11,7 @@ function EventsConfig(agocontrol)
     self.openEvent = null;
     self.current_id = 0;
     self.map = {};
-    self.events = ko.computed(function() {
+    self.events = ko.pureComputed(function() {
         //get only events
         var events = self.agocontrol.devices().filter(function(d) {
             return d.devicetype=='event';

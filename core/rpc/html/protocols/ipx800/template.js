@@ -18,7 +18,7 @@ function ipxConfig(agocontrol)
     self.selectedDigitalPin1 = ko.observable();
     self.selectedDigitalType = ko.observable();
     self.selectedBoard = ko.observable();
-    self.selectedBoardUuid = ko.computed(function() {
+    self.selectedBoardUuid = ko.pureComputed(function() {
         if( self.selectedBoard() )
         {
             return self.selectedBoard().uuid;
