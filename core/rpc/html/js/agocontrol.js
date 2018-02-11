@@ -428,40 +428,24 @@ Agocontrol.prototype = {
         //TODO for now refresh all inventory
         self.getInventory()
             .then(function(result) {
+                // XXX: actually deos not update inventory, only devices.
                 var devs = self.cleanInventory(result.data.devices);
                 for( var uuid in devs )
                 {
-                    if (devs[uuid].room !== undefined && devs[uuid].room)
+                    var dev = devs[uuid];
+                    self._fixDeviceRoomInfo(dev);
+
+                    var existingDevice = self.findDevice(uuid);
+                    if(existingDevice)
                     {
-                        devs[uuid].roomUID = devs[uuid].room;
-                        var room = self.findRoom(devs[uuid].room);
-                        if (room)
-                            devs[uuid].room = room.name;
-                        else
-                            devs[uuid].room = "";
+                        // device already exists in devices array. Update its content
+                        existingDevice.update(dev, uuid);
                     }
                     else
                     {
-                        devs[uuid].room = "";
-                    }
-
-                    var found = false;
-                    var existingDevices = self.devices();
-                    for ( var i=0; i< existingDevices.length; i++)
-                    {
-                        if( existingDevices[i].uuid===uuid )
-                        {
-                            // device already exists in devices array. Update its content
-                            existingDevices[i].update(devs[uuid], uuid);
-                            found = true;
-                            break;
-                        }
-                    }
-                    if( !found )
-                    {
                         //add new device
-                        self.devices.push(new device(self, devs[uuid], uuid));
-                        self.inventory.devices[uuid] = devs[uuid];
+                        self.devices.push(new device(self, dev, uuid));
+                        self.inventory.devices[uuid] = dev;
                     }
                 }
             });
@@ -568,7 +552,7 @@ Agocontrol.prototype = {
         this.variables.push(variable);
     },
 
-    //handle inventory
+    //handle initial inventory call
     handleInventory: function(result)
     {
         var self = this;
@@ -600,29 +584,7 @@ Agocontrol.prototype = {
         var devs = self.cleanInventory(inv.devices);
         for( var uuid in devs )
         {
-            //update device room infos
-            if( devs[uuid].room && devs[uuid].room.length>0 )
-            {
-                var r = self.findRoom(devs[uuid].room);
-                if( r )
-                {
-                    //save room uuid in roomUID field instead of room field
-                    devs[uuid].roomUID = devs[uuid].room;
-                    //and put room name in room field
-                    devs[uuid].room = r.name;
-                }
-                else
-                {
-                    //room not found, maybe it has been deleted
-                    devs[uuid].roomUID = null;
-                    devs[uuid].room = '';
-                }
-            }
-            else
-            {
-                //only add new field
-                devs[uuid].roomUID = null;
-            }
+            self._fixDeviceRoomInfo(devs[uuid]);
             self.devices.push(new device(self, devs[uuid], uuid));
         }
 
@@ -631,6 +593,19 @@ Agocontrol.prototype = {
 
         // Devices loaded, we now have systemController property set..via device
         self.updateProcessList();
+    },
+
+    _fixDeviceRoomInfo : function(dev) {
+        if (dev.room !== undefined && dev.room) {
+            dev.roomUID = dev.room;
+            var room = this.findRoom(dev.room);
+            if (room) {
+                dev.room = room.name;
+                return;
+            }
+        }
+        dev.roomUID = null;
+        dev.room = "";
     },
 
     // Handle dashboard-part of inventory
@@ -885,7 +860,8 @@ Agocontrol.prototype = {
     //handle event
     handleEvent: function(requestSucceed, response)
     {
-        var self = this;
+        var self = this,
+            result = response.result
 
         if(!requestSucceed )
             return;
@@ -893,50 +869,64 @@ Agocontrol.prototype = {
         //send event to other handlers
         for( var i=0; i<self.eventHandlers.length; i++ )
         {
-            self.eventHandlers[i](response.result);
+            self.eventHandlers[i](result);
         }
 
         //remove device from inventory
-        if( response.result.event=="event.device.remove" )
+        if( result.event=="event.device.remove" )
         {
             //remove thumb request if device is multigraph
             for( var i=0; i<self.multigraphThumbs.length; i++ )
             {
-                if( self.multigraphThumbs[i].uuid===response.result.uuid )
+                if( self.multigraphThumbs[i].uuid===result.uuid )
                 {
                     self.multigraphThumbs[i].removed = true;
                 }
             }
 
             //then remove device from inventory
-            if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid] )
+            if( self.inventory && self.inventory.devices && self.inventory.devices[result.uuid] )
             {
-                delete self.inventory.devices[response.result.uuid];
+                delete self.inventory.devices[result.uuid];
                 self.devices.remove(function(item) {
-                    return item.uuid===response.result.uuid;
+                    return item.uuid===result.uuid;
                 });
             }
             else
             {
-                console.warn('Unable to delete device "'+response.result.uuid+'" because it wasn\'t found in inventory');
+                console.warn('Unable to delete device "'+result.uuid+'" because it wasn\'t found in inventory');
             }
 
             return;
         }
 
         //update device infos if necessary
-        if(response.result.event=="event.device.announce" )
+        if(result.event=="event.device.announce" )
         {
-            if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid]===undefined )
-            {
-                //brand new device, refresh all inventory
+            var uuid = result.uuid;
+            if( self.inventory && self.inventory.devices && self.inventory.devices[uuid]===undefined ) {
+                // brand new device. Create a basic entry in which a potential 'devicenamechange' can work with
+                // Clone and remove event
+                var dev = Object.assign({}, result);
+                delete dev['event'];
+
+                // Will not have a room yet, but sets blank info..
+                self._fixDeviceRoomInfo(dev);
+
+                var existingDevice = self.findDevice(uuid);
+                if (!existingDevice) {
+                    self.devices.push(new device(self, dev, uuid));
+                    self.inventory.devices[uuid] = dev;
+                }
+
+                // But then refresh all inventory to ensure we have all details..
                 self.refreshDevices();
                 /*self.getInventory()
                     .then(function(result) {
                         var tmpDevices = self.cleanInventory(result.data.devices);
-                        if( tmpDevices && tmpDevices[response.result.uuid] )
+                        if( tmpDevices && tmpDevices[result.uuid] )
                         {
-                            self.inventory.devices[response.result.uuid] = tmpDevices[response.result.uuid];
+                            self.inventory.devices[result.uuid] = tmpDevices[result.uuid];
                         }
                         else
                         {
@@ -949,70 +939,73 @@ Agocontrol.prototype = {
         }
 
         //update room name
-        if( response.result.event=="event.system.roomnamechanged" )
+        if( result.event=="event.system.roomnamechanged" )
         {
-            var uuid = response.result.uuid;
-            if( self.inventory && self.inventory.rooms && self.inventory.rooms[uuid]!==undefined )
-            {
-                self.inventory.rooms[uuid].name = response.result.name;
+            var uuid = result.uuid;
+            if( self.inventory && self.inventory.rooms && self.inventory.rooms[uuid]!==undefined ) {
+                self.inventory.rooms[uuid].name = result.name;
 
                 // refresh devices with this room
-                for(var devUuid in self.inventory.devices) {
+                for (var devUuid in self.inventory.devices) {
                     var dev = self.inventory.devices[devUuid];
                     if (dev.roomUID !== uuid) continue;
-                    dev.room = response.result.name;
+                    dev.room = result.name;
                 }
-                self.devices.forEach(function(dev) {
-                    if (dev.roomUID !== uuid) return;
-                    dev.room = response.result.name;
-                });
             }
+
+            self.devices.forEach(function(dev) {
+                if (dev.roomUID !== uuid) return;
+                dev.room = result.name;
+            });
 
             return;
         }
 
         //update device name
-        if( response.result.event=="event.system.devicenamechanged" )
+        if( result.event=="event.system.devicenamechanged" )
         {
-            if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid]!==undefined )
+            var uuid = result.uuid;
+            if(!self.inventory) return;
+            if(self.inventory.devices && self.inventory.devices[uuid]!==undefined ) {
+                self.inventory.devices[uuid].name = result.name;
+            }
+
+            var dev = self.findDevice(uuid);
+            if( dev!==null )
             {
-                self.inventory.devices[response.result.uuid].name = response.result.name;
-                var dev = self.findDevice(response.result.uuid);
-                if( dev!==null )
-                {
-                    dev.name(response.result.name);
-                }
+                dev.name(result.name);
             }
 
             return;
         }
 
         //handle stale event
-        if(response.result.event=="event.device.stale" )
+        if(result.event=="event.device.stale" )
         {
-            if( self.inventory && self.inventory.devices && self.inventory.devices[response.result.uuid]!==undefined )
+            if( self.inventory && self.inventory.devices && self.inventory.devices[result.uuid]!==undefined )
             {
-                self.inventory.devices[response.result.uuid].stale = response.result.stale;
-                var dev = self.findDevice(response.result.uuid);
-                if( dev!==null )
-                {
-                    dev.stale(response.result.stale);
-                }
+                self.inventory.devices[result.uuid].stale = result.stale;
+            }
+
+            var dev = self.findDevice(result.uuid);
+            if( dev!==null )
+            {
+                dev.stale(result.stale);
             }
 
             return;
         }
 
         //update dashboard name
-        if(response.result.event=="event.system.floorplannamechanged" )
+        if(result.event=="event.system.floorplannamechanged" )
         {
             for( var i=0; i<self.dashboards().length; i++ )
             {
                 var dashboard = self.dashboards()[i];
-                if( dashboard.uuid && dashboard.uuid===response.result.uuid )
+                if( dashboard.uuid && dashboard.uuid===result.uuid )
                 {
-                    dashboard.name(response.result.name);
-                    dashboard.ucName(response.result.name);
+                    dashboard.name(result.name);
+                    dashboard.ucName(result.name);
                     break;
                 }
             }
@@ -1020,15 +1013,15 @@ Agocontrol.prototype = {
             return;
         }
 
-        var dev = self.findDevice(response.result.uuid);
+        var dev = self.findDevice(result.uuid);
         if(dev) {
             //update media infos
-            if(response.result.event=="event.device.mediainfos" )
+            if(result.event=="event.device.mediainfos" )
             {
                 if( dev.updateMediaInfos )
                 {
                     //update device media infos
-                    dev.updateMediaInfos(response.result);
+                    dev.updateMediaInfos(result);
                 }
             }
 
@@ -1036,40 +1029,40 @@ Agocontrol.prototype = {
             dev.timeStamp(datetimeToString(new Date()));
 
             // update device level
-            if( response.result.level !== undefined)
+            if( result.level !== undefined)
             {
                 // update custom device member
-                if (response.result.event.indexOf('event.device') != -1 && response.result.event.indexOf('changed') != -1)
+                if (result.event.indexOf('event.device') != -1 && result.event.indexOf('changed') != -1)
                 {
                     // event that update device member
-                    var member = response.result.event.replace('event.device.', '').replace('changed', '');
+                    var member = result.event.replace('event.device.', '').replace('changed', '');
                     if (dev[member] !== undefined)
                     {
-                        dev[member](response.result.level);
+                        dev[member](result.level);
                     }
                 }
                 // Binary sensor has its own event
-                else if (response.result.event == "event.security.sensortriggered")
+                else if (result.event == "event.security.sensortriggered")
                 {
                     if (dev['state'] !== undefined)
                     {
-                        dev['state'](response.result.level);
+                        dev['state'](result.level);
                     }
                 }
             }
 
             //update device stale
-            if( response.result.event=="event.device.stale" && response.result.stale!==undefined )
+            if( result.event=="event.device.stale" && result.stale!==undefined )
             {
-                dev['stale'](response.result.stale);
+                dev['stale'](result.stale);
             }
 
             //update quantity
-            if (response.result.quantity)
+            if (result.quantity)
             {
                 var values = dev.values();
                 //We have no values so reload from inventory
-                if (values[response.result.quantity] === undefined)
+                if (values[result.quantity] === undefined)
                 {
                     self.getInventory()
                         .then(function(result) {
@@ -1087,20 +1080,20 @@ Agocontrol.prototype = {
                     return;
                 }
 
-                if( response.result.level !== undefined )
+                if( result.level !== undefined )
                 {
-                   if( response.result.quantity==='forecast' && typeof response.result.level=="string" )
+                   if( result.quantity==='forecast' && typeof result.level=="string" )
                     {
                         //update forecast value for barometer sensor only if string specified
-                        dev.forecast(response.result.level);
+                        dev.forecast(result.level);
                     }
                     //save new level
-                    values[response.result.quantity].level = response.result.level;
+                    values[result.quantity].level = result.level;
                 }
-                else if( response.result.latitude!==undefined && response.result.longitude!==undefined )
+                else if( result.latitude!==undefined && result.longitude!==undefined )
                 {
-                    values[response.result.quantity].latitude = response.result.latitude;
-                    values[response.result.quantity].longitude = response.result.longitude;
+                    values[result.quantity].latitude = result.latitude;
+                    values[result.quantity].longitude = result.longitude;
                 }
 
                 dev.values(values);
