@@ -112,6 +112,7 @@ agocontrol::AgoConnection::AgoConnection(const std::string& interfacename)
 
     filterCommands = true; // only pass commands for child devices to handler by default
     instance = interfacename;
+    uuidMap = Json::Value(Json::ValueType::objectValue);
 
     uuidMapFile = getConfigPath("uuidmap");
     uuidMapFile /= (interfacename + ".json");
@@ -191,7 +192,7 @@ void agocontrol::AgoConnection::run() {
                     // no subject, this is a command
                     std::string internalid = uuidToInternalId(content["uuid"].asString());
                     // lets see if this is for one of our devices
-                    bool isOurDevice = (internalid.size() > 0) && (deviceMap.find(internalIdToUuid(internalid)) != deviceMap.end());
+                    bool isOurDevice = (internalid.size() > 0) && (deviceMap.isMember(internalIdToUuid(internalid)));
                     //  only handle if a command handler is set. In addition it needs to be one of our device when the filter is enabled
                     if ( ( isOurDevice || (!(filterCommands))) && !commandHandler.empty()) {
 
@@ -376,13 +377,13 @@ bool agocontrol::AgoConnection::addDevice(const std::string& internalId, const s
         uuidMap[generateUuid()] = internalId;
         storeUuidMap();
     }
-    Variant::Map device;
+    Json::Value device(Json::ValueType::objectValue);
     device["devicetype"] = deviceType;
     device["internalid"] = internalId;
     device["stale"] = 0;
 
     // XXX: This is not read by agoresolver currently
-    qpid::types::Variant::Map parameters; //specific parameters map
+    Json::Value parameters(Json::ValueType::objectValue); //specific parameters map
     device["parameters"] = parameters;
 
     deviceMap[internalIdToUuid(internalId)] = device;
@@ -391,10 +392,10 @@ bool agocontrol::AgoConnection::addDevice(const std::string& internalId, const s
 }
 
 bool agocontrol::AgoConnection::removeDevice(const std::string& internalId) {
-    if (internalIdToUuid(internalId).size()!=0) {
+    const std::string &uuid = internalIdToUuid(internalId);
+    if (uuid.size() != 0) {
         emitDeviceRemove(internalId);
-        Variant::Map::const_iterator it = deviceMap.find(internalIdToUuid(internalId));
-        if (it != deviceMap.end()) deviceMap.erase(it->first);
+        deviceMap.removeMember(uuid);
         // deviceMap[internalIdToUuid(internalId)] = device;
         return true;
     } else return false;
@@ -405,10 +406,10 @@ bool agocontrol::AgoConnection::removeDevice(const std::string& internalId) {
  */
 bool agocontrol::AgoConnection::suspendDevice(const std::string& internalId)
 {
-    std::string uuid = internalIdToUuid(internalId);
-    if( uuid.length()>0 && !deviceMap[uuid].isVoid() )
+    const std::string &uuid = internalIdToUuid(internalId);
+    if( uuid.length() > 0 && deviceMap.isMember(uuid))
     {
-        deviceMap[internalIdToUuid(internalId)].asMap()["stale"] = 1;
+        deviceMap[uuid]["stale"] = 1;
         return emitDeviceStale(uuid, 1);
     }
     return false;
@@ -420,22 +421,24 @@ bool agocontrol::AgoConnection::suspendDevice(const std::string& internalId)
 bool agocontrol::AgoConnection::resumeDevice(const std::string& internalId)
 {
     std::string uuid = internalIdToUuid(internalId);
-    if( uuid.length()>0 && !deviceMap[uuid].isVoid() )
+    if(uuid.length() > 0 && deviceMap.isMember(uuid))
     {
-        deviceMap[internalIdToUuid(internalId)].asMap()["stale"] = 0;
+        deviceMap[uuid]["stale"] = 0;
         return emitDeviceStale(uuid, 0);
     }
     return false;
 }
 
 std::string agocontrol::AgoConnection::uuidToInternalId(const std::string& uuid) {
-    return uuidMap[uuid].asString();
+    if(uuidMap.isMember(uuid))
+        return uuidMap[uuid].asString();
+    return std::string();
 }
 
 std::string agocontrol::AgoConnection::internalIdToUuid(const std::string& internalId) {
-    for (Variant::Map::const_iterator it = uuidMap.begin(); it != uuidMap.end(); ++it) {
-        if (it->second.asString() == internalId)
-            return it->first;
+    for (auto it = uuidMap.begin(); it != uuidMap.end(); ++it) {
+        if (it->asString() == internalId)
+            return it.name();
     }
     return std::string();
 }
@@ -445,13 +448,11 @@ std::string agocontrol::AgoConnection::internalIdToUuid(const std::string& inter
  */
 void agocontrol::AgoConnection::reportDevices()
 {
-    for (Variant::Map::const_iterator it = deviceMap.begin(); it != deviceMap.end(); ++it)
+    for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it)
     {
-        Variant::Map device;
-
-        device = it->second.asMap();
+        Json::Value device = *it;
         // do not announce stale devices
-        if( device["stale"].asInt8()==0 )
+        if( device["stale"] == 0 )
         {
             emitDeviceDiscover(device["internalid"].asString(), device["devicetype"].asString());
         }
@@ -459,12 +460,23 @@ void agocontrol::AgoConnection::reportDevices()
 }
 
 bool agocontrol::AgoConnection::storeUuidMap() {
-    variantMapToJSONFile(uuidMap, uuidMapFile);
+    writeJsonFile(uuidMap, uuidMapFile);
     return true;
 }
 
 bool agocontrol::AgoConnection::loadUuidMap() {
-    return jsonFileToVariantMap(uuidMap, uuidMapFile);
+    boost::system::error_code ignore;
+    if(!fs::exists(uuidMapFile, ignore) || ignore)
+        return false;
+
+    if(readJsonFile(uuidMap, uuidMapFile)) {
+        if (uuidMap.type() == Json::ValueType::objectValue)
+            return true;
+
+        AGO_ERROR() << "Invalid contents in " << uuidMapFile;
+    }
+
+    return false;
 }
 
 bool agocontrol::AgoConnection::addHandler(qpid::types::Variant::Map (*handler)(qpid::types::Variant::Map)) {
@@ -600,11 +612,11 @@ bool agocontrol::AgoConnection::emitEvent(const std::string& internalId, const s
 
 std::string agocontrol::AgoConnection::getDeviceType(const std::string& internalId) {
     std::string uuid = internalIdToUuid(internalId);
-    if (uuid.size() > 0) {
-        Variant::Map device = deviceMap[internalIdToUuid(internalId)].asMap();
-        return device["devicetype"];
-    } else return "";
-
+    if (uuid.size() > 0 && deviceMap.isMember(uuid)) {
+        Json::Value device = deviceMap[uuid];
+        return device["devicetype"].asString();
+    }
+    return std::string();
 }
 
 /**
@@ -615,10 +627,10 @@ int agocontrol::AgoConnection::isDeviceStale(const std::string& internalId)
     std::string uuid = internalIdToUuid(internalId);
     if (uuid.size() > 0)
     {
-        if( !deviceMap[internalIdToUuid(internalId)].isVoid() )
+        if(deviceMap.isMember(uuid))
         {
-            Variant::Map device = deviceMap[internalIdToUuid(internalId)].asMap();
-            return device["stale"].asInt8();
+            Json::Value device = deviceMap[uuid];
+            return device["stale"].asInt();
         }
         else
         {

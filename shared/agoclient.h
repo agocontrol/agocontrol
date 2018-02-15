@@ -57,8 +57,8 @@ namespace agocontrol {
         qpid::messaging::Sender sender;
         qpid::messaging::Receiver receiver;
         qpid::messaging::Session session;
-        qpid::types::Variant::Map deviceMap; // this holds the internal device list
-        qpid::types::Variant::Map uuidMap; // this holds the permanent uuid to internal id mapping
+        Json::Value deviceMap; // this holds the internal device list
+        Json::Value uuidMap; // this holds the permanent uuid to internal id mapping
         bool shutdownSignaled;
         bool storeUuidMap(); // stores the map on disk
         bool loadUuidMap(); // loads it
