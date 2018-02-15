@@ -89,6 +89,70 @@ add_custom_target(translations DEPENDS ${OUT_FILES})
 add_dependencies(agorpc translations)
 
 
+# These JS files are loaded on main page. Build a merged file so we can load quicker...
+# Poor mans minifying...
+set(BASE_JS_FILES
+    libs/jquery-1.11.1.min.js libs/jquery-ui.min.js libs/jquery.blockUI.min.js libs/jquery.jeditable.min.js
+    libs/d3.v3.min.js
+    libs/agonotifications.js lang.js
+    libs/knockout-3.4.2.js libs/koExternalTemplateEngine_all.js libs/knockout.agoGrid.1.0.js
+    libs/bluebird.min.js libs/bootstrap.min.js libs/bootstrap-switch.min.js
+    libs/bootstrap-slider.min.js libs/bootstrap-colorpicker.min.js
+    libs/select2.full.min.js libs/head.load.min.js libs/sammy.min.js
+    libs/jquery.datetimepicker.min.js
+    agocontrol.js
+    device.js
+    details.js
+    uihelpers.js
+    plugins.js
+    app.js
+    libs/jquery.slimscroll.min.js
+    libs/bootstrap-switch.min.js
+    libs/adminLTE.min.js
+)
+
+foreach(infile ${BASE_JS_FILES})
+    set (BASE_JS_FULL_FILES ${BASE_JS_FULL_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/html/js/${infile})
+endforeach()
+
+set(BASE_JS_OUTFILE ${CMAKE_CURRENT_BINARY_DIR}/html/js/merged.js)
+add_custom_command(
+        OUTPUT ${BASE_JS_OUTFILE}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mergesrc.sh ${BASE_JS_FULL_FILES}
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/mergesrc.sh ${BASE_JS_OUTFILE} ${BASE_JS_FULL_FILES})
+
+add_custom_target(merged_js DEPENDS ${BASE_JS_OUTFILE})
+add_dependencies(agorpc merged_js)
+
+# Same ugly merging for CSS files
+set(BASE_CSS_FILES
+    fonts.css
+    bootstrap.min.css
+    agocontrol.css
+    bootstrap-switch.min.css
+    bootstrap-slider.min.css
+    bootstrap-colorpicker.min.css
+    select2.min.css
+    font-awesome.min.css
+    entypo-embedded.css
+    jquery.datetimepicker.css
+    adminLTE.min.css
+    adminLTE.skins.min.css
+)
+
+foreach(infile ${BASE_CSS_FILES})
+    set (BASE_CSS_FULL_FILES ${BASE_CSS_FULL_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/html/css/${infile})
+endforeach()
+
+set(BASE_CSS_OUTFILE ${CMAKE_CURRENT_BINARY_DIR}/html/css/merged.css)
+add_custom_command(
+        OUTPUT ${BASE_CSS_OUTFILE}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mergesrc.sh ${BASE_CSS_FULL_FILES}
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/mergesrc.sh ${BASE_CSS_OUTFILE} ${BASE_CSS_FULL_FILES})
+
+add_custom_target(merged_css DEPENDS ${BASE_CSS_OUTFILE})
+add_dependencies(agorpc merged_css)
+
 install(
    CODE "
    file(GLOB CGI_SCRIPTS ${CMAKE_CURRENT_BINARY_DIR}/html/cgi-bin/*.cgi)
