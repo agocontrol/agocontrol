@@ -5,6 +5,25 @@
 #include <json/value.h>
 #include <qpid/messaging/Message.h>
 
+#include "build_config.h"
+
+/**
+ * Handles differences in libjsoncpp 0.x and 1.x
+ *
+ * In 0.x the ValueIterator class has const char * memberName() const
+ * In 1.x the above is deprecated and produces compiler warnings/errors.
+ * It instead has std::string name() const, which we prefer.
+ *
+ * Another Iterator difference is that the -> operator does not exist,
+ * so code must take care to do (*it) instead of it->
+ *
+ */
+#if JSONCPP_VERSION_MAJOR == 0
+#define JSON_ITERATOR_MEMBER_NAME(it) (std::string((it).memberName()))
+#else
+#define JSON_ITERATOR_MEMBER_NAME(it) ((it).name())
+#endif
+
 namespace agocontrol {
 
     /// convert a Variant::Map to JSON representation.

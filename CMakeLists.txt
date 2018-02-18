@@ -49,15 +49,6 @@ ELSE (FREEBSD)
 	set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
 ENDIF (FREEBSD)
 
-
-# configure a header file to pass some of the CMake settings
-# to the source code
-configure_file (
-    "${PROJECT_SOURCE_DIR}/version.h.in"
-    "${PROJECT_BINARY_DIR}/version.h"
-    @ONLY
-)
- 
 set_property( DIRECTORY
 	APPEND PROPERTY
 	COMPILE_OPTIONS
@@ -111,6 +102,10 @@ set (JSONCPP_INCLUDE_DIR "${LOCALDIR}/include/jsoncpp")
 find_package (JsonCpp REQUIRED)
 if (JSONCPP_FOUND)
 	include_directories(${JSONCPP_INCLUDE_DIRS})
+	# Extract first digit
+	string (SUBSTRING "${JSONCPP_VERSION}" 0 1 JSONCPP_VERSION_MAJOR)
+else()
+	message(FATAL_ERROR "Could not find jsoncpp")
 endif (JSONCPP_FOUND)
 
 find_package(CppDb REQUIRED)
@@ -159,6 +154,15 @@ set (ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${BINDIR}")
 
+
+
+# configure a header file to pass some of the CMake settings
+# to the source code
+configure_file (
+		"${PROJECT_SOURCE_DIR}/build_config.h.in"
+		"${PROJECT_BINARY_DIR}/build_config.h"
+		@ONLY
+)
 
 # add sub directories
 OPTION(BUILD_SHARED "Build the agoclient shared library" ON)

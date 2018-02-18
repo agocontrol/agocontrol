@@ -39,7 +39,7 @@
 #include <boost/asio/deadline_timer.hpp>
 
 #include "agoapp.h"
-#include "version.h"
+#include "build_config.h"
 
 #ifndef SCHEMADIR
 #define SCHEMADIR "schema.d"
