@@ -437,8 +437,8 @@ std::string agocontrol::AgoConnection::uuidToInternalId(const std::string& uuid)
 
 std::string agocontrol::AgoConnection::internalIdToUuid(const std::string& internalId) {
     for (auto it = uuidMap.begin(); it != uuidMap.end(); ++it) {
-        if (it->asString() == internalId)
-            return it.name();
+        if ((*it).asString() == internalId)
+            return it.memberName();
     }
     return std::string();
 }
