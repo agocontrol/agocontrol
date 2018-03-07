@@ -25,7 +25,7 @@ typedef std::string var;
 template <typename tag> struct binop;
 template <typename tag> struct unop;
 
-typedef boost::variant<var, 
+typedef boost::variant<var,
         boost::recursive_wrapper<unop <op_not> >, 
         boost::recursive_wrapper<binop<op_and> >,
         boost::recursive_wrapper<binop<op_or> >
