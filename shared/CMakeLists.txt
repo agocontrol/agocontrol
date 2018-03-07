@@ -10,6 +10,7 @@ set(LIBAGOCLIENT_SOURCE_FILES
 	agoclient.cpp
 	agoproto.cpp
 	agojson.cpp
+	jsoncpp/jsoncpp.cpp
 	agolog.cpp
 	agoapp.cpp
 	agoconfig.cpp

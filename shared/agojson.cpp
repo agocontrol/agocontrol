@@ -4,9 +4,6 @@
 
 #include <assert.h>
 
-#include <json/reader.h>
-#include <json/writer.h>
-
 #include "agojson.h"
 #include "agolog.h"
 
@@ -193,27 +190,16 @@ bool agocontrol::readJsonFile(Json::Value& root, const boost::filesystem::path &
         f.exceptions(std::ios_base::failbit | std::ios_base::badbit);
         f.open(filename, std::ifstream::binary);
 
-#if JSONCPP_VERSION_MAJOR >= 1
         Json::CharReaderBuilder builder;
         std::string errors;
         if (!Json::parseFromStream(builder, f, &root, &errors)) {
             AGO_ERROR() << "Failed to parse " << filename << ": " << errors;
             return false;
         }
-#else
-        // jsoncpp 0.6
-        Json::Reader reader;
-        if(!reader.parse(f, root)) {
-            AGO_ERROR() << "Failed to parse " << filename << ": " << reader.getFormattedErrorMessages();
-            return false;
-        }
-#endif
         return true;
-#if JSONCPP_VERSION_MAJOR >= 1
     } catch (const Json::RuntimeError& ex) {
         AGO_ERROR() << "Failed to parse " << filename << ": " << ex.what();
         return false;
-#endif
     } catch (const std::ios_base::failure& ex) {
         AGO_ERROR() << "Failed to read " << filename << ": " << std::strerror(errno);
         return false;
@@ -226,16 +212,10 @@ bool agocontrol::writeJsonFile(const Json::Value& root, const boost::filesystem:
         f.exceptions ( std::ios_base::failbit | std::ios_base::badbit );
         f.open(filename, std::ifstream::binary);
 
-#if JSONCPP_VERSION_MAJOR >= 1
         Json::StreamWriterBuilder builder;
         builder.settings_["indentation"] = "";
         std::unique_ptr<Json::StreamWriter> writer (builder.newStreamWriter());
         writer->write(root, &f);
-#else
-        // jsoncpp 0.6
-        Json::FastWriter writer;
-        f << writer.write(root);
-#endif
         return true;
     } catch (const std::ios_base::failure& ex) {
         AGO_ERROR() << "Failed to write " << filename << ": " << std::strerror(errno);

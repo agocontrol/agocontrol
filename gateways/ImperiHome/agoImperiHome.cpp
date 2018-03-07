@@ -11,13 +11,9 @@
 
 #include <qpid/messaging/Message.h>
 
-#include <json/reader.h>
-#include <json/writer.h>
-
 #include <boost/foreach.hpp>
 #include <boost/tokenizer.hpp>
 
-#include "agoapp.h"
 #include "agoapp.h"
 #include "agohttp/agohttp.h"
 

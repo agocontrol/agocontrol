@@ -18,9 +18,6 @@
 
 #include <qpid/messaging/Message.h>
 
-#include <json/reader.h>
-#include <json/writer.h>
-
 #include <boost/foreach.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/preprocessor/stringize.hpp>
@@ -471,10 +468,13 @@ bool AgoRpc::handleJsonRpcRequests(boost::shared_ptr<JsonRpcReqRep> reqRep) {
 boost::shared_ptr<JsonRpcReqRep> AgoRpc::jsonrpc(struct mg_connection *conn, struct http_message *hm)
 {
     boost::shared_ptr<JsonRpcReqRep> reqRep(new JsonRpcReqRep(this));
-    Json::Reader reader;
-    if ( !reader.parse(hm->body.p, hm->body.p + hm->body.len, reqRep->jsonrpcRequest, false) ) {
+    Json::CharReaderBuilder builder;
+    std::string errors;
+    std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+    if ( !reader->parse(hm->body.p, hm->body.p + hm->body.len, &reqRep->jsonrpcRequest, &errors) ) {
         reqRep->jsonResponse = Json::Value(Json::objectValue);
-        reqRep->responseReady = jsonrpcErrorResponse(reqRep->jsonResponse, JSONRPC_PARSE_ERROR, "Failed to parse JSON request");
+        AGO_WARNING() << "Failed to parse JSON: " << errors;
+        reqRep->responseReady = jsonrpcErrorResponse(reqRep->jsonResponse, JSONRPC_PARSE_ERROR, "Failed to parse JSON request:" + errors);
     } else {
         reqRep->responseReady = handleJsonRpcRequests(reqRep);
     }

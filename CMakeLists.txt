@@ -87,26 +87,13 @@ include_directories("${PROJECT_BINARY_DIR}")
 include_directories("${PROJECT_BINARY_DIR}/shared")
 include_directories("${PROJECT_SOURCE_DIR}/shared")
 
+# We have an amalgamated version of jsoncpp, ensure we can include <json/json.h>
+include_directories("${PROJECT_SOURCE_DIR}/shared/jsoncpp")
+
 # fix augeas bug
 include_directories("${LOCALDIR}/include/libxml2")
 
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-
-# JSONCpp is used by all components (via agoclient.h)
-# Note that jsoncpp is usually installed under .../include/jsoncpp, not directly into
-# include. But this is not always true, i.e. Brew on Mac does not install it there.
-# Do not include 'jsoncpp/' in C++ include directives!
-set (JSONCPP_ROOT_DIR "${LOCALDIR}/lib")
-set (JSONCPP_INCLUDE_DIR "${LOCALDIR}/include/jsoncpp")
-
-find_package (JsonCpp REQUIRED)
-if (JSONCPP_FOUND)
-	include_directories(${JSONCPP_INCLUDE_DIRS})
-	# Extract first digit
-	string (SUBSTRING "${JSONCPP_VERSION}" 0 1 JSONCPP_VERSION_MAJOR)
-else()
-	message(FATAL_ERROR "Could not find jsoncpp")
-endif (JSONCPP_FOUND)
 
 find_package(CppDb REQUIRED)
 if (CPPDB_FOUND)

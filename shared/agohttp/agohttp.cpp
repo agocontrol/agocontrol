@@ -4,9 +4,6 @@
 #include "agolog.h"
 #include "agohttp.h"
 
-#include <json/reader.h>
-#include <json/writer.h>
-
 #define MONGOOSE_POLLING_INTERVAL 1000 //in ms, minimum mongoose poll interval
 
 #define AGO_MG_F_NO_KEEPALIVE MG_F_USER_1
@@ -155,18 +152,12 @@ void HttpReqJsonRep::onTimeout() {
 }
 
 void HttpReqJsonRep::writeResponseData(struct mg_connection *conn) {
-#if JSONCPP_VERSION_MAJOR >= 1
     Json::StreamWriterBuilder builder;
     builder.settings_["indentation"] = "";
     std::unique_ptr<Json::StreamWriter> writer (builder.newStreamWriter());
     std::stringstream response;
     writer->write(jsonResponse, &response);
     const std::string& data(response.str());
-#else
-    // Legacy json 0.6
-    Json::FastWriter writer;
-    const std::string data(writer.write(jsonResponse));
-#endif
 
     int status = getResponseCode();
     AGO_TRACE() << "Writing " << this << " " << status << " response: " << data; //(data.length() > 10000 ? data.substr(0, 1000) : data);

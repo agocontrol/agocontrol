@@ -16,14 +16,13 @@
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
-#include <json/writer.h>
-#include <json/reader.h>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <rrd.h>
 #include "base64.h"
 
 #include "agoapp.h"
+#include "agojson.h"
 
 #ifndef DBFILE
 #define DBFILE "datalogger.db"

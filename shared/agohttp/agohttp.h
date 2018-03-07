@@ -6,7 +6,7 @@
 #include <boost/thread.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/thread/mutex.hpp>
-#include <json/value.h>
+#include <json/json.h>
 
 #include "mongoose.h"
 
