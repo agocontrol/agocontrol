@@ -443,8 +443,8 @@ bool setConfigSectionOption(const std::string& section, const std::string& optio
     return true;
 }
 
-qpid::types::Variant::Map getConfigTree() {
-    qpid::types::Variant::Map tree;
+Json::Value getConfigTree() {
+    Json::Value tree(Json::objectValue);
     if (augeas==NULL) augeas_init();
     if (augeas == NULL) {
         AGO_ERROR() << "cannot initialize augeas";
@@ -477,13 +477,13 @@ qpid::types::Variant::Map getConfigTree() {
             std::string option = elements[2];
             AGO_TRACE() << "File: " << file << " Section: " << section << " Option: " << option;
 
-            qpid::types::Variant::Map fileMap;
-            qpid::types::Variant::Map sectionMap;
-            if (!(tree[file].isVoid())) {
-                fileMap = tree[file].asMap();
+            Json::Value fileMap;
+            Json::Value sectionMap;
+            if (tree.isMember(file)) {
+                fileMap = tree[file];
             }
-            if (!(fileMap[section].isVoid())) {
-                sectionMap = fileMap[section].asMap();
+            if (fileMap.isMember(section)) {
+                sectionMap = fileMap[section];
             }
             sectionMap[option] = val;
             fileMap[section] = sectionMap;

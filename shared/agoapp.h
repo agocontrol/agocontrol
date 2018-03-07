@@ -1,7 +1,6 @@
 #ifndef AGOAPP_H
 #define AGOAPP_H
 
-#include "agoclient.h"
 #include <memory>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -10,6 +9,7 @@
 #include <boost/program_options/variables_map.hpp>
 
 #include "agoclient.h"
+#include "agojson.h"  // Not directly used, but used by all apps.
 
 /**
  * Provides boilerplate code for writing an AGO application.
@@ -145,12 +145,12 @@ namespace agocontrol {
         void addEventHandler();
 
         /* Command handler registered with the agoConncetion; override! */
-        virtual qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
-            return qpid::types::Variant::Map();
+        virtual Json::Value commandHandler(const Json::Value& content) {
+            return Json::Value();
         }
 
         /* Event handler registered with the agoConncetion; override! */
-        virtual void eventHandler(const std::string& subject , qpid::types::Variant::Map content) {}
+        virtual void eventHandler(const std::string& subject , const Json::Value& content) {}
 
         /**
          * This is called from a separate thread when the app is

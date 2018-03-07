@@ -5,7 +5,7 @@
 
 #include <boost/filesystem.hpp>
 
-#include <qpid/messaging/Message.h>
+#include <json/json.h>
 
 
 namespace agocontrol {
@@ -123,7 +123,7 @@ namespace agocontrol {
     std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const char* defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
     std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const std::string& defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
     boost::filesystem::path getConfigSectionOption(const ConfigNameList& section, const std::string& option, const boost::filesystem::path& defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
-    qpid::types::Variant::Map getConfigTree();
+    Json::Value getConfigTree();
 
     /**
      * Write a config option to the configuration subsystem.

@@ -9,24 +9,18 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <qpid/messaging/Connection.h>
-#include <qpid/messaging/Message.h>
-#include <qpid/messaging/Receiver.h>
-#include <qpid/messaging/Sender.h>
-#include <qpid/messaging/Session.h>
-#include <qpid/messaging/Address.h>
-
 #include <boost/filesystem.hpp>
 #include <boost/function.hpp>
+#include <json/json.h>
 
 #include "agolog.h"
 #include "agoconfig.h"
-#include "agojson.h"
 #include "agoproto.h"
 
+#include <chrono>
 #include <uuid/uuid.h>
-namespace agocontrol {
 
+namespace agocontrol {
     bool nameval(const std::string& in, std::string& name, std::string& value);
 
     /// string replace helper.
@@ -51,12 +45,12 @@ namespace agocontrol {
     std::string double2str(double f);
 
     /// ago control client connection class.
+    class AgoConnectionImpl;
+
     class AgoConnection {
     protected:
-        qpid::messaging::Connection connection;
-        qpid::messaging::Sender sender;
-        qpid::messaging::Receiver receiver;
-        qpid::messaging::Session session;
+        std::unique_ptr<AgoConnectionImpl> impl;
+
         Json::Value deviceMap; // this holds the internal device list
         Json::Value uuidMap; // this holds the permanent uuid to internal id mapping
         bool shutdownSignaled;
@@ -66,8 +60,8 @@ namespace agocontrol {
         std::string instance;
         void reportDevices();
         bool filterCommands;
-        boost::function< qpid::types::Variant::Map (qpid::types::Variant::Map) > commandHandler;
-        boost::function< void (const std::string&, qpid::types::Variant::Map) > eventHandler;
+        boost::function< Json::Value (const Json::Value&) > commandHandler;
+        boost::function< void (const std::string&, const Json::Value&) > eventHandler;
         bool emitDeviceAnnounce(const std::string& internalId, const std::string& deviceType, const std::string& initialName);
         bool emitDeviceDiscover(const std::string& internalId, const std::string& deviceType);
         bool emitDeviceRemove(const std::string& internalId);
@@ -87,28 +81,28 @@ namespace agocontrol {
         bool emitDeviceStale(const std::string& uuid, const int stale);
 
         // C-style function pointers
-        bool addHandler(qpid::types::Variant::Map (*handler)(qpid::types::Variant::Map));
-        bool addEventHandler(void (*eventHandler)(const std::string&, qpid::types::Variant::Map));
+        bool addHandler(Json::Value (*handler)(const Json::Value&));
+        bool addEventHandler(void (*eventHandler)(const std::string&, const Json::Value&));
 
         // C++-style function pointers, permits class references
-        bool addHandler(boost::function<qpid::types::Variant::Map (qpid::types::Variant::Map)> handler);
-        bool addEventHandler(boost::function<void (const std::string&, qpid::types::Variant::Map)> eventHandler);
+        bool addHandler(boost::function<Json::Value (const Json::Value&)> handler);
+        bool addEventHandler(boost::function<void (const std::string&, const Json::Value&)> eventHandler);
 
         bool setFilter(bool filter);
-        bool sendMessage(const std::string& subject, qpid::types::Variant::Map content);
-        bool sendMessage(qpid::types::Variant::Map content);
+        bool sendMessage(const std::string& subject, const Json::Value& content);
+        bool sendMessage(const Json::Value& content);
 
-        AgoResponse sendRequest(const qpid::types::Variant::Map& content);
-        AgoResponse sendRequest(const std::string& subject, const qpid::types::Variant::Map& content);
-        AgoResponse sendRequest(const std::string& subject, const qpid::types::Variant::Map& content, qpid::messaging::Duration timeout);
+        AgoResponse sendRequest(const Json::Value& content);
+        AgoResponse sendRequest(const std::string& subject, const Json::Value& content);
+        AgoResponse sendRequest(const std::string& subject, const Json::Value& content, std::chrono::milliseconds timeout);
 
         bool emitEvent(const std::string& internalId, const std::string& eventType, const std::string& level, const std::string& units);
         bool emitEvent(const std::string& internalId, const std::string& eventType, double level, const std::string& units);
         bool emitEvent(const std::string& internalId, const std::string& eventType, int level, const std::string& units);
-        bool emitEvent(const std::string& internalId, const std::string& eventType, qpid::types::Variant::Map content);
-        qpid::types::Variant::Map getInventory();
+        bool emitEvent(const std::string& internalId, const std::string& eventType, const Json::Value& content);
+        Json::Value getInventory();
         std::string getAgocontroller();
-        bool setGlobalVariable(const std::string& variable, const qpid::types::Variant& value);
+        bool setGlobalVariable(const std::string& variable, const Json::Value& value);
         std::string uuidToInternalId(const std::string& uuid); // lookup in map
         std::string internalIdToUuid(const std::string& internalId); // lookup in map
     };

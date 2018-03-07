@@ -1,4 +1,3 @@
-#include <qpid/messaging/Message.h>
 #include <boost/foreach.hpp>
 
 #include "agolog.h"
