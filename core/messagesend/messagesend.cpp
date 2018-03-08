@@ -3,14 +3,11 @@
  */
 
 #include <stdlib.h> 
-#include <stdio.h>
-#include <errno.h>
 
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
 #include <vector>
-#include <ctime>
 
 #include "agoclient.h"
 
@@ -24,10 +21,10 @@ int main(int argc, char **argv) {
         std::cout << "Usage example: " << argv[0] << " uuid=ca9424e6-406d-4144-8931-584046eaaa34 command=setlevel level=50" << std::endl;
         return -1;
     }
-    AgoConnection agoConnection = AgoConnection("messagesend");		
+    AgoConnection agoConnection("messagesend");
     agoConnection.start();
 
-    qpid::types::Variant::Map content;
+    Json::Value content;
     std::string subject;
     subject = "";
     for (int i=1;i<argc;i++) {
@@ -36,7 +33,7 @@ int main(int argc, char **argv) {
             if (name == "subject") {
                 subject = value;
             } else {
-                content[name]=qpid::types::Variant(value);
+                content[name]=Json::Value(value);
             }
         }
     }
