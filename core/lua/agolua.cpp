@@ -27,7 +27,6 @@
 namespace fs = ::boost::filesystem;
 
 using namespace agocontrol;
-using namespace qpid::types;
 
 #ifdef __FreeBSD__
 #include "lua52/lua.hpp"
@@ -49,36 +48,35 @@ enum DebugMsgType {
 
 class AgoLua: public AgoApp {
 private:
-    qpid::types::Variant::Map inventory;
-    qpid::types::Variant::Map scriptsInfos;
+    Json::Value inventory;
+    Json::Value scriptsInfos;
     boost::regex exprAll;
     boost::regex exprEvent;
     std::string agocontroller;
     int filterByEvents;
     fs::path scriptdir;
-    qpid::types::Variant::Map scriptContexts;
+    Json::Value scriptContexts;
     boost::mutex mutexInventory;
     boost::mutex mutexScriptInfos;
     boost::mutex mutexScriptContexts;
     int64_t lastInventoryUpdate;
 
     fs::path construct_script_name(fs::path input) ;
-    void pushTableFromMap(lua_State *L, const qpid::types::Variant::Map& content) ;
-    void pushTableFromList(lua_State *L, const qpid::types::Variant::List& list);
-    void pullTableToMap(lua_State *L, qpid::types::Variant::Map& table);
-    void pullTableToList(lua_State *L, qpid::types::Variant::List& list);
+    void pushTableFromJson(lua_State *L, const Json::Value& content) ;
+    void pullTableToMap(lua_State *L, Json::Value& table);
+    void pullTableToList(lua_State *L, Json::Value& list);
 
     void updateInventory();
-    void searchEvents(const fs::path& scriptPath, qpid::types::Variant::List* foundEvents) ;
+    void searchEvents(const fs::path& scriptPath, Json::Value& foundEvents) ;
     void purgeScripts() ;
-    void initScript(lua_State* L, qpid::types::Variant::Map& content, const std::string& script, qpid::types::Variant::Map& context, bool debug);
-    void finalizeScript(lua_State* L, qpid::types::Variant::Map& content, const std::string& script, qpid::types::Variant::Map& context);
-    void debugScript(qpid::types::Variant::Map content, const std::string script);
-    void executeScript(qpid::types::Variant::Map content, const fs::path &script);
-    bool canExecuteScript(qpid::types::Variant::Map content, const fs::path &script);
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
-    bool enableScript(const std::string& script, uint8_t enabled);
+    void initScript(lua_State* L, Json::Value& content, const std::string& script, Json::Value& context, bool debug);
+    void finalizeScript(lua_State* L, Json::Value& content, const std::string& script, Json::Value& context);
+    void debugScript(Json::Value content, const std::string script);
+    void executeScript(Json::Value content, const fs::path &script);
+    bool canExecuteScript(const Json::Value& content, const fs::path &script);
+    Json::Value commandHandler(const Json::Value& content) ;
+    void eventHandler(const std::string& subject , const Json::Value& content) ;
+    bool enableScript(const std::string& script, bool enabled);
 
     void setupApp();
 
@@ -153,110 +151,62 @@ static std::string get_file_contents(const fs::path &filename)
 }
 
 /**
- * Push lua table from qpid map
+ * Push lua table from Json object
  */
-void AgoLua::pushTableFromMap(lua_State *L, const qpid::types::Variant::Map& content)
+void AgoLua::pushTableFromJson(lua_State *L, const Json::Value& content)
 {
     lua_createtable(L, 0, 0);
-    for (qpid::types::Variant::Map::const_iterator it=content.begin(); it!=content.end(); it++)
+    for (auto it = content.begin(); it != content.end(); it++)
     {
-        std::string key = it->first;
-        switch (it->second.getType())
+        std::string key = it.name();
+        switch (it->type())
         {
-            case qpid::types::VAR_INT8:
-                AGO_TRACE() << "Push '" << key << "' as INT8";
+            case Json::intValue:
+                AGO_TRACE() << "Push '" << key << "' as int";
                 lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asInt8());
+                lua_pushnumber(L,it->asInt());
                 lua_settable(L, -3);
                 break;
-            case qpid::types::VAR_INT16:
-                AGO_TRACE() << "Push '" << key << "' as INT16";
+            case Json::uintValue:
+                AGO_TRACE() << "Push '" << key << "' as uint";
                 lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asInt16());
+                lua_pushnumber(L,it->asUInt());
                 lua_settable(L, -3);
                 break;
-            case qpid::types::VAR_INT32:
-                AGO_TRACE() << "Push '" << key << "' as INT32";
+            case Json::realValue:
+                AGO_TRACE() << "Push '" << key << "' as double";
                 lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asInt32());
+                lua_pushnumber(L,it->asDouble());
                 lua_settable(L, -3);
                 break;
-            case qpid::types::VAR_INT64:
-                AGO_TRACE() << "Push '" << key << "' as INT64";
+            case Json::stringValue:
+                AGO_TRACE() << "Push '" << key << "' as string";
                 lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asInt64());
+                lua_pushstring(L,it->asString().c_str());
                 lua_settable(L, -3);
                 break;
-            case qpid::types::VAR_UINT8:
-                AGO_TRACE() << "Push '" << key << "' as UINT8";
+            case Json::objectValue:
+                AGO_TRACE() << "Push '" << key << "' as object";
                 lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asUint8());
+                pushTableFromJson(L,*it);
                 lua_settable(L, -3);
                 break;
-            case qpid::types::VAR_UINT16:
-                AGO_TRACE() << "Push '" << key << "' as UINT16";
+            case Json::booleanValue:
+                AGO_TRACE() << "Push '" << key << "' as bool";
                 lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asUint16());
+                lua_pushboolean(L,it->asBool());
                 lua_settable(L, -3);
                 break;
-            case qpid::types::VAR_UINT32:
-                AGO_TRACE() << "Push '" << key << "' as UINT32";
-                lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asUint32());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_UINT64:
-                AGO_TRACE() << "Push '" << key << "' as UINT64";
-                lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asUint64());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_FLOAT:
-                AGO_TRACE() << "Push '" << key << "' as FLOAT";
-                lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asFloat());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_DOUBLE:
-                AGO_TRACE() << "Push '" << key << "' as DOUBLE";
-                lua_pushstring(L,key.c_str());
-                lua_pushnumber(L,it->second.asDouble());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_STRING:
-                AGO_TRACE() << "Push '" << key << "' as STRING";
-                lua_pushstring(L,key.c_str());
-                lua_pushstring(L,it->second.asString().c_str());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_UUID:
-                AGO_TRACE() << "Push '" << key << "' as UUID";
-                lua_pushstring(L,key.c_str());
-                lua_pushstring(L,it->second.asString().c_str());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_MAP:
-                AGO_TRACE() << "Push '" << key << "' as MAP";
-                lua_pushstring(L,key.c_str());
-                pushTableFromMap(L,it->second.asMap());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_BOOL:
-                AGO_TRACE() << "Push '" << key << "' as BOOL";
-                lua_pushstring(L,key.c_str());
-                lua_pushboolean(L,it->second.asBool());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_VOID:
-                AGO_TRACE() << "Push '" << key << "' as VOID";
+            case Json::nullValue:
+                AGO_TRACE() << "Push '" << key << "' as null";
                 lua_pushstring(L,key.c_str());
                 lua_pushnil(L);
                 lua_settable(L, -3);
                 break;
-            case qpid::types::VAR_LIST:
-                AGO_TRACE() << "Push '" << key << "' as LIST";
+            case Json::arrayValue:
+                AGO_TRACE() << "Push '" << key << "' as array";
                 lua_pushstring(L, key.c_str());
-                pushTableFromList(L, it->second.asList());
+                pushTableFromJson(L, *it);
                 lua_settable(L, -3);
                 break;
             default:
@@ -265,126 +215,12 @@ void AgoLua::pushTableFromMap(lua_State *L, const qpid::types::Variant::Map& con
     }
 } 
 
-/**
- * Push lua table from qpid list
- */
-void AgoLua::pushTableFromList(lua_State *L, const qpid::types::Variant::List& list)
-{
-    int index = 1; //lua table index starts at 1
-    lua_createtable(L, 0, 0);
-    for( qpid::types::Variant::List::const_iterator it=list.begin(); it!=list.end(); it++ )
-    {
-        switch( it->getType() )
-        {
-            case qpid::types::VAR_INT8:
-                AGO_TRACE() << "Push list item '" << it->asInt8() << "' as INT8 at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asInt8());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_INT16:
-                AGO_TRACE() << "Push list item '" << it->asInt16() << "' as INT16 at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asInt16());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_INT32:
-                AGO_TRACE() << "Push list item '" << it->asInt32() << "' as INT32 at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asInt32());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_INT64:
-                AGO_TRACE() << "Push list item '" << it->asInt64() << "' as INT64 at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asInt64());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_UINT8:
-                AGO_TRACE() << "Push list item '" << it->asUint8() << "' as UINT8 at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asUint8());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_UINT16:
-                AGO_TRACE() << "Push list item '" << it->asUint16() << "' as UINT16 at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asUint16());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_UINT32:
-                AGO_TRACE() << "Push list item '" << it->asUint32() << "' as UINT32 at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asUint32());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_UINT64:
-                AGO_TRACE() << "Push list item '"  << it->asUint64() << "' as UINT64 at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L,it->asUint64());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_FLOAT:
-                AGO_TRACE() << "Push list item '" << it->asFloat() << "' as FLOAT at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asFloat());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_DOUBLE:
-                AGO_TRACE() << "Push list item '" << it->asDouble() << "' as DOUBLE at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnumber(L, it->asDouble());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_STRING:
-                AGO_TRACE() << "Push list item '" << it->asString() << "' as STRING at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushstring(L, it->asString().c_str());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_UUID:
-                AGO_TRACE() << "Push list item '" << it->asString() << "' as UUID at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushstring(L,it->asString().c_str());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_MAP:
-                AGO_TRACE() << "Push list item as MAP at #" << index;
-                lua_pushnumber(L, index);
-                pushTableFromMap(L,it->asMap());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_BOOL:
-                AGO_TRACE() << "Push list item '" << it->asBool() << "' as BOOL at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushboolean(L,it->asBool());
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_VOID:
-                AGO_TRACE() << "Push list item as VOID at #" << index;
-                lua_pushnumber(L, index);
-                lua_pushnil(L);
-                lua_settable(L, -3);
-                break;
-            case qpid::types::VAR_LIST:
-                AGO_TRACE() << "Push list item as LIST at #" << index;
-                lua_pushnumber(L, index);
-                pushTableFromList(L, it->asList());
-                lua_settable(L, -3);
-                break;
-            default:
-                AGO_WARNING() << "Push unsupported value type to list. Value dropped from list.";
-        }
-
-        index++;
-    }
-}
 
 /**
  * Fill specified cpp variant map with lua table content
  * Before calling this function you need to call lua_getglobal(<lua obj>, <lua table name>)
  */
-void AgoLua::pullTableToMap(lua_State *L, qpid::types::Variant::Map& table)
+void AgoLua::pullTableToMap(lua_State *L, Json::Value& table)
 {
     lua_pushnil(L);
     while( lua_next(L, -2)!=0 )
@@ -414,7 +250,7 @@ void AgoLua::pullTableToMap(lua_State *L, qpid::types::Variant::Map& table)
         else if( lua_istable(L, -1) )
         {
             AGO_TRACE() << "Pull '" << key << "' as TABLE";
-            qpid::types::Variant::List newList;
+            Json::Value newList(Json::arrayValue);
             pullTableToList(L, newList);
             table[key] = newList;
         }
@@ -423,7 +259,7 @@ void AgoLua::pullTableToMap(lua_State *L, qpid::types::Variant::Map& table)
     }
 }
 
-void AgoLua::pullTableToList(lua_State *L, qpid::types::Variant::List& list)
+void AgoLua::pullTableToList(lua_State *L, Json::Value& list)
 {
     lua_pushnil(L);
     while( lua_next(L, -2)!=0 )
@@ -431,18 +267,18 @@ void AgoLua::pullTableToList(lua_State *L, qpid::types::Variant::List& list)
         if( lua_isstring(L, -1) )
         {
             AGO_TRACE() << "Pull list value as STRING";
-            list.push_back(lua_tostring(L, -1));
+            list.append(lua_tostring(L, -1));
         }
         else if( lua_isnumber(L, -1) )
         {
             AGO_TRACE() << "Pull list value as NUMBER";
-            list.push_back(lua_tonumber(L, -1));
+            list.append(lua_tonumber(L, -1));
         }
         else if( lua_isboolean(L, -1) )
         {
             AGO_TRACE() << "Pull list value as BOOLEAN";
             bool value = lua_toboolean(L, -1);
-            list.push_back(value);
+            list.append(value);
         }
         else if( lua_isnoneornil(L, -1) )
         {
@@ -452,9 +288,9 @@ void AgoLua::pullTableToList(lua_State *L, qpid::types::Variant::List& list)
         else if( lua_istable(L, -1) )
         {
             AGO_TRACE() << "Pull list value as TABLE";
-            qpid::types::Variant::List newList;
+            Json::Value newList(Json::arrayValue);
             pullTableToList(L, newList);
-            list.push_back(newList);
+            list.append(newList);
         }
 
         lua_pop(L, 1);
@@ -466,7 +302,7 @@ void AgoLua::pullTableToList(lua_State *L, qpid::types::Variant::List& list)
  */
 int AgoLua::luaSendMessage(lua_State *L)
 {
-    qpid::types::Variant::Map content;
+    Json::Value content;
     std::string subject;
     // number of input arguments
     int argc = lua_gettop(L);
@@ -489,7 +325,7 @@ int AgoLua::luaSendMessage(lua_State *L)
     //execute sendMessage
     AGO_DEBUG() << "Sending message: " << subject << " " << content;
     AgoResponse response = agoConnection->sendRequest(subject, content);
-    pushTableFromMap(L, response.getResponse());
+    pushTableFromJson(L, response.getResponse());
 
     return 1;
 }
@@ -499,12 +335,14 @@ int AgoLua::luaSendMessage(lua_State *L)
  */
 int AgoLua::luaSetVariable(lua_State *L)
 {
-    qpid::types::Variant::Map content;
+    Json::Value content;
     std::string subject;
 
     //get input arguments
-    content["variable"] = std::string(lua_tostring(L,1));
-    content["value"] = std::string(lua_tostring(L,2));
+    std::string variable(lua_tostring(L,1));
+    std::string value(lua_tostring(L,2));
+    content["variable"] = variable;
+    content["value"] = value;
     content["command"]="setvariable";
     content["uuid"]=agocontroller;
 
@@ -528,14 +366,13 @@ int AgoLua::luaSetVariable(lua_State *L)
     updateInventory();
 
     boost::lock_guard<boost::mutex> lock(mutexInventory);
-    if( inventory.size()>0 && !inventory["devices"].isVoid() && !inventory["variables"].isVoid() )
+    if( inventory.size()>0 && inventory.isMember("devices") && inventory.isMember("variables") )
     {
         //update current inventory to reflect changes without reloading it (too long!!)
-        qpid::types::Variant::Map variables = inventory["variables"].asMap();
-        if( !variables[content["variable"]].isVoid() )
+        Json::Value& variables(inventory["variables"]);
+        if( variables.isMember(variable) )
         {
-            variables[content["variable"]] = content["value"];
-            inventory["variables"] = variables;
+            variables[variable] = value;
             lua_pushnumber(L, 1);
         }
         else
@@ -565,15 +402,15 @@ int AgoLua::luaGetVariable(lua_State *L)
     updateInventory();
 
     boost::lock_guard<boost::mutex> lock(mutexInventory);
-    if( inventory.size()>0 && !inventory["devices"].isVoid() )
+    if( inventory.size()>0 && inventory.isMember("devices") )
     {
         //get variable name
         variableName = std::string(lua_tostring(L,1));
 
-        if( variableName.length()>0 && !inventory["variables"].isVoid() )
+        if( variableName.length()>0 && inventory.isMember("variables") )
         {
-            qpid::types::Variant::Map variables = inventory["variables"].asMap();
-            if( !variables[variableName].isVoid() )
+            const Json::Value& variables(inventory["variables"]);
+            if( variables.isMember(variableName) )
             {
                 lua_pushstring(L, variables[variableName].asString().c_str());
             }
@@ -613,9 +450,9 @@ int AgoLua::luaGetDeviceInventory(lua_State *L)
     updateInventory();
 
     boost::lock_guard<boost::mutex> lock(mutexInventory);
-    if( inventory.size()>0 && !inventory["devices"].isVoid() )
+    if( inventory.isMember("devices") )
     {
-        qpid::types::Variant::Map deviceInventory = inventory["devices"].asMap();
+        const Json::Value& deviceInventory = inventory["devices"];
 
         // number of input arguments
         int argc = lua_gettop(L);
@@ -649,10 +486,10 @@ int AgoLua::luaGetDeviceInventory(lua_State *L)
             AGO_DEBUG() << "Get device inventory: inventory['devices'][" << uuid << "][" << attribute << "]";
         }
 
-        if( !deviceInventory[uuid].isVoid() )
+        if( deviceInventory.isMember(uuid) )
         {
-            qpid::types::Variant::Map attributes = deviceInventory[uuid].asMap();
-            if( !attributes[attribute].isVoid() )
+            const Json::Value& attributes = deviceInventory[uuid];
+            if( attributes.isMember(attribute) )
             {
                 //return main device attribute
                 lua_pushstring(L, attributes[attribute].asString().c_str());
@@ -661,19 +498,18 @@ int AgoLua::luaGetDeviceInventory(lua_State *L)
             {
                 //search attribute in device values
                 bool found = false;
-                if( !attributes["values"].isVoid() )
+                if( attributes.isMember("values") )
                 {
-                    qpid::types::Variant::Map values = attributes["values"].asMap();
-                    for( qpid::types::Variant::Map::iterator it=values.begin(); it!=values.end(); it++ )
+                    const Json::Value& values = attributes["values"];
+                    for( auto it = values.begin(); it!=values.end(); it++ )
                     {
                         //TODO return device value property (quantity, unit, latitude, longitude...)
-                        if( it->first==attribute )
+                        if( it.name()==attribute )
                         {
                             //attribute found, get its subattribute value
-                            qpid::types::Variant::Map value;
-                            if( !it->second.isVoid() )
+                            const Json::Value value = *it;
+                            if( !value.isNull() )
                             {
-                                value = it->second.asMap();
                                 lua_pushstring(L, value[subAttribute].asString().c_str());
                                 found = true;
                                 break;
@@ -714,7 +550,7 @@ int AgoLua::luaGetInventory(lua_State *L)
 
     //then return it
     boost::lock_guard<boost::mutex> lock(mutexInventory);
-    pushTableFromMap(L, inventory);
+    pushTableFromJson(L, inventory);
 
     return 1;
 }
@@ -753,7 +589,7 @@ int AgoLua::luaDebugPause(lua_State* L)
 int AgoLua::luaDebugPrint(lua_State* L)
 {
     //init
-    qpid::types::Variant::Map printResult;
+    Json::Value printResult;
     std::string msg = std::string(lua_tostring(L,1));
 
     AGO_DEBUG() << "Debug script: print " << msg;
@@ -776,17 +612,17 @@ int AgoLua::luaGetDeviceName(lua_State* L)
     updateInventory();
 
     boost::lock_guard<boost::mutex> lock(mutexInventory);
-    if( inventory.size()>0 && !inventory["devices"].isVoid() )
+    if( inventory.isMember("devices") )
     {
         //get uuid
         uuid = std::string(lua_tostring(L,1));
-        if( uuid.length()>0 && !inventory["devices"].isVoid() )
+        if( uuid.length() > 0 && inventory.isMember("devices") )
         {
-            qpid::types::Variant::Map devices = inventory["devices"].asMap();
-            if( !devices[uuid].isVoid() )
+            Json::Value& devices = inventory["devices"];
+            if( devices.isMember(uuid) )
             {
-                qpid::types::Variant::Map device = devices[uuid].asMap();
-                if( !device["name"].isVoid() )
+                Json::Value& device = devices[uuid];
+                if( device.isMember("name") )
                 {
                     lua_pushstring(L, device["name"].asString().c_str());
                 }
@@ -865,10 +701,10 @@ void AgoLua::updateInventory()
 /**
  * Search triggered events in specified script
  * @param scriptPath: script path to parse
- * @return foundEvents: fill map with found script events
+ * @return foundEvents: fill list with found script events
  * @info based on http://www.boost.org/doc/libs/1_31_0/libs/regex/example/snippets/regex_search_example.cpp
  */
-void AgoLua::searchEvents(const fs::path& scriptPath, qpid::types::Variant::List* foundEvents)
+void AgoLua::searchEvents(const fs::path& scriptPath, Json::Value& foundEvents)
 {
     //get script content
     std::string content = get_file_contents(scriptPath);
@@ -899,8 +735,8 @@ void AgoLua::searchEvents(const fs::path& scriptPath, qpid::types::Variant::List
     while(boost::regex_search(start, end, what, exprEvent, flags))
     {
         std::string eventName(what[1]);
-        if(std::find(foundEvents->begin(), foundEvents->end(), eventName) == foundEvents->end())
-            foundEvents->push_back(eventName);
+        if(std::find(foundEvents.begin(), foundEvents.end(), eventName) == foundEvents.end())
+            foundEvents.append(eventName);
 
         // update search position:
         start = what[0].second;
@@ -918,16 +754,16 @@ void AgoLua::purgeScripts()
     boost::lock_guard<boost::mutex> lock(mutexScriptInfos);
 
     //check integrity
-    if( scriptsInfos["scripts"].isVoid() )
+    if( !scriptsInfos.isMember("scripts") )
     {
         AGO_TRACE() << "No 'scripts' section in config file";
         return;
     }
 
     //init
-    qpid::types::Variant::List localScripts;
-    qpid::types::Variant::List configScripts;
-    qpid::types::Variant::Map scripts = scriptsInfos["scripts"].asMap();
+    Json::Value localScripts(Json::arrayValue);
+    Json::Value configScripts(Json::arrayValue);
+    Json::Value& scripts = scriptsInfos["scripts"];
 
     //get list of local scripts
     if( fs::exists(scriptdir) )
@@ -938,7 +774,7 @@ void AgoLua::purgeScripts()
         {
             if( fs::is_regular_file(*it) && it->path().extension().string()==".lua" && it->path().filename().string()!="helper.lua" )
             {
-                localScripts.push_back(it->path().string());
+                localScripts.append(it->path().string());
             }
             ++it;
         }
@@ -946,21 +782,18 @@ void AgoLua::purgeScripts()
     AGO_TRACE() << "Local scripts: " << localScripts;
 
     //get list of config scripts
-    for( qpid::types::Variant::Map::iterator it=scripts.begin(); it!=scripts.end(); it++ )
+    for( auto it = scripts.begin(); it!=scripts.end(); it++ )
     {
-        configScripts.push_back(it->first);
+        configScripts.append(it.name());
     }
     AGO_TRACE() << "Config scripts: " << configScripts;
 
     //purge obsolete infos
-    bool found;
-    for( qpid::types::Variant::List::iterator it=configScripts.begin(); it!=configScripts.end(); it++ )
+    for( auto it=configScripts.begin(); it!=configScripts.end(); it++ )
     {
-        found = false;
-        for( qpid::types::Variant::List::iterator it2=localScripts.begin(); it2!=localScripts.end(); it2++ )
-        {
-            if( it->asString()==it2->asString() )
-            {
+        bool found = false;
+        for(auto it2 = localScripts.begin(); it2 != localScripts.end(); it2++) {
+            if(*it == *it2) {
                 found = true;
                 break;
             }
@@ -968,21 +801,20 @@ void AgoLua::purgeScripts()
 
         if( !found )
         {
-            AGO_DEBUG() << "Remove obsolete script infos '" << it->asString() << "'";
-            scripts.erase(it->asString());
+            AGO_DEBUG() << "Remove obsolete script infos '" << *it << "'";
+            scripts.removeMember(it->asString());
         }
     }
 
     //save modified config file
-    scriptsInfos["scripts"] = scripts;
-    variantMapToJSONFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
-    scriptsInfos = jsonFileToVariantMap(getConfigPath(SCRIPTSINFOSFILE));
+    writeJsonFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
+    readJsonFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
 }
 
 /**
  * Init script execution
  */
-void AgoLua::initScript(lua_State* L, qpid::types::Variant::Map& content, const std::string& script, qpid::types::Variant::Map& context, bool debug)
+void AgoLua::initScript(lua_State* L, Json::Value& content, const std::string& script, Json::Value& context, bool debug)
 {
     //load libs
     const luaL_Reg *lib;
@@ -996,17 +828,14 @@ void AgoLua::initScript(lua_State* L, qpid::types::Variant::Map& content, const 
     {
         //load script context (from local variables)
         boost::lock_guard<boost::mutex> lock(mutexScriptContexts);
-        if( scriptContexts[script].isVoid() )
+        if( !scriptContexts.isMember(script) )
         {
             //no context yet, create empty one
             scriptContexts[script] = context;
         }
         else
         {
-            if( !scriptContexts[script].isVoid() )
-            {
-                context = scriptContexts[script].asMap();
-            }
+            context = scriptContexts[script];
         }
     }
     AGO_TRACE() << "LUA context before:" << context;
@@ -1036,16 +865,16 @@ void AgoLua::initScript(lua_State* L, qpid::types::Variant::Map& content, const 
         LUA_REGISTER_WRAPPER(L, "print", luaDebugPrint);
     }
 
-    pushTableFromMap(L, content);
+    pushTableFromJson(L, content);
     lua_setglobal(L, "content");
-    pushTableFromMap(L, context);
+    pushTableFromJson(L, context);
     lua_setglobal(L, "context");
 }
 
 /**
  * Finalize script execution
  */
-void AgoLua::finalizeScript(lua_State* L, qpid::types::Variant::Map& content, const std::string& script, qpid::types::Variant::Map& context)
+void AgoLua::finalizeScript(lua_State* L, Json::Value& content, const std::string& script, Json::Value& context)
 {
     //handle context value
     lua_getglobal(L, "context");
@@ -1060,11 +889,11 @@ void AgoLua::finalizeScript(lua_State* L, qpid::types::Variant::Map& content, co
 /**
  * Debug script (threaded)
  */
-void AgoLua::debugScript(qpid::types::Variant::Map content, const std::string script)
+void AgoLua::debugScript(Json::Value content, const std::string script)
 {
     //init
-    qpid::types::Variant::Map debugResult;
-    qpid::types::Variant::Map context;
+    Json::Value debugResult;
+    Json::Value context(Json::objectValue);
     lua_State *L;
 
     try
@@ -1118,26 +947,25 @@ void AgoLua::debugScript(qpid::types::Variant::Map content, const std::string sc
  * @param script: script full path
  * @param enable: enable(1) or disabled(0)
  */
-bool AgoLua::enableScript(const std::string& script, uint8_t enabled)
+bool AgoLua::enableScript(const std::string& script, bool enabled)
 {
     boost::lock_guard<boost::mutex> lock(mutexScriptInfos);
 
     //get script infos
-    qpid::types::Variant::Map scripts = scriptsInfos["scripts"].asMap();
-    if( scripts[script].isVoid() )
+    Json::Value& scripts(scriptsInfos["scripts"]);
+    if( !scripts.isMember(script) )
     {
         //no script infos yet, nothing to do here
         AGO_DEBUG() << "enableScript: no script infos found";
+        return false;
     }
     else
     {
         //update enable flag
-        qpid::types::Variant::Map infos = scripts[script].asMap();
+        Json::Value& infos(scripts[script]);
         infos["enabled"] = enabled;
-        scripts[script] = infos;
-        scriptsInfos["scripts"] = scripts;
-        variantMapToJSONFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
-        AGO_DEBUG() << "enableScript: enabled flag for script '" << script << "' updated to " << (int)enabled;
+        writeJsonFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
+        AGO_DEBUG() << "enableScript: enabled flag for script '" << script << "' updated to " << enabled;
     }
 
     return true;
@@ -1147,10 +975,10 @@ bool AgoLua::enableScript(const std::string& script, uint8_t enabled)
  * Execute LUA script (blocking).
  * Called in separate thread.
  */
-void AgoLua::executeScript(qpid::types::Variant::Map content, const fs::path &script)
+void AgoLua::executeScript(Json::Value content, const fs::path &script)
 {
     //init
-    qpid::types::Variant::Map context;
+    Json::Value context(Json::objectValue);
     lua_State *L;
     L = luaL_newstate();
 
@@ -1182,22 +1010,22 @@ void AgoLua::executeScript(qpid::types::Variant::Map content, const fs::path &sc
 /**
  * Return true if script can be executed
  */
-bool AgoLua::canExecuteScript(qpid::types::Variant::Map content, const fs::path &script)
+bool AgoLua::canExecuteScript(const Json::Value& content, const fs::path &script)
 {
     boost::lock_guard<boost::mutex> lock(mutexScriptInfos);
 
     //check integrity
-    if( scriptsInfos["scripts"].isVoid() )
+    if( !scriptsInfos.isMember("scripts") )
     {
         return false;
     }
 
     //check if file modified
-    qpid::types::Variant::Map scripts = scriptsInfos["scripts"].asMap();
-    qpid::types::Variant::Map infos;
+    Json::Value& scripts(scriptsInfos["scripts"]);
+    Json::Value infos;
     std::time_t updated = boost::filesystem::last_write_time(script);
     bool parseScript = false;
-    if( scripts[script.string()].isVoid() )
+    if( !scripts.isMember(script.string()) )
     {
         //force script parsing
         parseScript = true;
@@ -1205,10 +1033,10 @@ bool AgoLua::canExecuteScript(qpid::types::Variant::Map content, const fs::path 
     else
     {
         //script already referenced, check last modified date
-        if( !scripts[script.string()].isVoid() )
+        if( scripts.isMember(script.string()) )
         {
-            infos = scripts[script.string()].asMap();
-            if( infos["updated"].asInt32()!=updated )
+            infos = scripts[script.string()];
+            if( infos["updated"].asInt() != updated )
             {
                 //script modified, parse again content
                 parseScript = true;
@@ -1220,36 +1048,35 @@ bool AgoLua::canExecuteScript(qpid::types::Variant::Map content, const fs::path 
     {
         AGO_DEBUG() << "Update script infos (" << script << ")";
         infos["updated"] = (int32_t)updated;
-        if( infos["enabled"].isVoid() )
-        {
-            //append enabled infos
-            infos["enabled"] = (uint8_t)1;
-        }
-        qpid::types::Variant::List events;
-        searchEvents(script, &events);
+        if( !infos.isMember("enabled") )
+            infos["enabled"] = true;
+
+        Json::Value events(Json::arrayValue);
+        searchEvents(script, events);
         infos["events"] = events;
+
         AGO_DEBUG() << "Script " << script << " uses the following events: " << events;
+
+        // Update info; it's a clone
         scripts[script.string()] = infos;
-        scriptsInfos["scripts"] = scripts;
-        variantMapToJSONFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
+        writeJsonFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
 
         //reset script context if exists
         boost::lock_guard<boost::mutex> lock(mutexScriptContexts);
-        if( !scriptContexts[script.string()].isVoid() )
+        if( scriptContexts.isMember(script.string()) )
         {
-            qpid::types::Variant::Map context = scriptContexts[script.string()].asMap();
+            Json::Value& context(scriptContexts[script.string()]);
             context.clear();
-            scriptContexts[script.string()] = context;
         }
     }
 
     bool executeScript = true;
 
     //check if script is enabled
-    if( !infos["enabled"].isVoid() )
+    if( infos.isMember("enabled") )
     {
-        uint8_t enabled = infos["enabled"].asUint8();
-        if( enabled==0 )
+        bool enabled = infos["enabled"].asBool();
+        if( !enabled )
         {
             AGO_DEBUG() << "Script '" << script << "' disabled by user";
             executeScript = false;
@@ -1262,12 +1089,12 @@ bool AgoLua::canExecuteScript(qpid::types::Variant::Map content, const fs::path 
         executeScript = false;
         if( filterByEvents==1 )
         {
-            qpid::types::Variant::List events = infos["events"].asList();
-            if( events.size()>0 )
+            const Json::Value& events(infos["events"]);
+            if( events.size() > 0 )
             {
-                for( qpid::types::Variant::List::iterator it=events.begin(); it!=events.end(); it++ )
+                for(auto it=events.begin(); it!=events.end(); it++ )
                 {
-                    if( (*it)==content["subject"] )
+                    if( (*it) == content["subject"] )
                     {
                         executeScript = true;
                         break;
@@ -1288,8 +1115,9 @@ bool AgoLua::canExecuteScript(qpid::types::Variant::Map content, const fs::path 
 
         if( !executeScript )
         {
-            AGO_DEBUG() << "Script '" << script << "' disabled by event";
-        }
+            AGO_DEBUG() << "Not executing: '" << script << "' ignores event " << content["subject"];
+        }else
+            AGO_DEBUG() << "Executing: '" << script << "' handles event " << content["subject"];
     }
 
     return executeScript;
@@ -1298,18 +1126,17 @@ bool AgoLua::canExecuteScript(qpid::types::Variant::Map content, const fs::path 
 /**
  * Agocontrol command handler
  */
-qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map content)
+Json::Value AgoLua::commandHandler(const Json::Value& content)
 {
-    qpid::types::Variant::Map returnData;
+    Json::Value returnData;
 
     std::string internalid = content["internalid"].asString();
     if (internalid == "luacontroller")
     {
         if (content["command"]=="getscriptlist")
         {
-            qpid::types::Variant::List scriptlist;
-            qpid::types::Variant::Map scripts = scriptsInfos["scripts"].asMap();
-            qpid::types::Variant::Map infos;
+            Json::Value scriptlist (Json::arrayValue);
+            const Json::Value& scripts(scriptsInfos["scripts"]);
             if (fs::exists(scriptdir))
             {
                 fs::recursive_directory_iterator it(scriptdir);
@@ -1318,30 +1145,21 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
                 {
                     if (fs::is_regular_file(*it) && (it->path().extension().string() == ".lua") && (it->path().filename().string() != "helper.lua"))
                     {
-                        qpid::types::Variant::Map item;
+                        Json::Value item;
                         //get script name
                         fs::path script = construct_script_name(it->path().filename());
                         std::string scriptName = it->path().stem().string();
                         item["name"] = scriptName;
+                        bool enabled = true;
                         //get script infos
-                        if( !scripts[script.string()].isVoid() )
+                        if( scripts.isMember(script.string()) )
                         {
-                            infos = scripts[script.string()].asMap();
-                            if( !infos["enabled"].isVoid() )
-                            {
-                                uint8_t enabled = infos["enabled"].asUint8();
-                                item["enabled"] = enabled;
-                            }
-                            else
-                            {
-                                item["enabled"] = 1;
-                            }
+                            const Json::Value& infos = scripts[script.string()];
+                            if( infos.isMember("enabled") )
+                                enabled = infos["enabled"].asBool();
                         }
-                        else
-                        {
-                            item["enabled"] = 1;
-                        }
-                        scriptlist.push_back(item);
+                        item["enabled"] = enabled;
+                        scriptlist.append(item);
                     }
                     ++it;
                 }
@@ -1351,12 +1169,12 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
         }
         else if (content["command"] == "getscript")
         {
-            checkMsgParameter(content, "name", VAR_STRING);
+            checkMsgParameter(content, "name", Json::stringValue);
 
             try
             {
                 // if a path is passed, strip it for security reasons
-                fs::path input(content["name"]);
+                fs::path input(content["name"].asString());
                 fs::path script = construct_script_name(input.stem());
                 std::string scriptcontent = get_file_contents(script);
                 AGO_DEBUG() << "Reading script " << script;
@@ -1372,11 +1190,11 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
         }
         else if (content["command"] == "setscript" )
         {
-            checkMsgParameter(content, "name", VAR_STRING);
+            checkMsgParameter(content, "name", Json::stringValue);
 
             try {
                 // if a path is passed, strip it for security reasons
-                fs::path input(content["name"]);
+                fs::path input(content["name"].asString());
                 fs::path script = construct_script_name(input.stem());
 
                 std::ofstream file;
@@ -1397,12 +1215,12 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
         }
         else if (content["command"] == "delscript")
         {
-            checkMsgParameter(content, "name", VAR_STRING);
+            checkMsgParameter(content, "name", Json::stringValue);
 
             try
             {
                 // if a path is passed, strip it for security reasons
-                fs::path input(content["name"]);
+                fs::path input(content["name"].asString());
                 fs::path target = construct_script_name(input.stem());
                 if (fs::remove (target))
                 {
@@ -1421,16 +1239,16 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
         }
         else if (content["command"] == "renscript")
         {
-            checkMsgParameter(content, "oldname", VAR_STRING);
-            checkMsgParameter(content, "newname", VAR_STRING);
+            checkMsgParameter(content, "oldname", Json::stringValue);
+            checkMsgParameter(content, "newname", Json::stringValue);
         
             try
             {
                 // if a path is passed, strip it for security reasons
-                fs::path input(content["oldname"]);
+                fs::path input(content["oldname"].asString());
                 fs::path source = construct_script_name(input.stem());
 
-                fs::path output(content["newname"]);
+                fs::path output(content["newname"].asString());
                 fs::path target = construct_script_name(output.stem());
 
                 //check if destination file already exists
@@ -1454,11 +1272,11 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
         else if( content["command"]=="debugscript" )
         {
             AGO_DEBUG() << "debug received: " << content;
-            checkMsgParameter(content, "script", VAR_STRING);
-            checkMsgParameter(content, "data", VAR_MAP);
+            checkMsgParameter(content, "script", Json::stringValue);
+            checkMsgParameter(content, "data", Json::objectValue);
 
             std::string script = content["script"].asString();
-            qpid::types::Variant::Map data = content["data"].asMap();
+            const Json::Value& data(content["data"]);
             AGO_DEBUG() << "Debug script: script=" << script << " content=" << data;
 
             boost::thread t( boost::bind(&AgoLua::debugScript, this, data, script) );
@@ -1470,11 +1288,11 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
         else if (content["command"] == "uploadfile")
         {
             //import script
-            checkMsgParameter(content, "filepath", VAR_STRING);
-            checkMsgParameter(content, "filename", VAR_STRING);
+            checkMsgParameter(content, "filepath", Json::stringValue);
+            checkMsgParameter(content, "filename", Json::stringValue);
 
             //check file
-            fs::path source(content["filepath"]);
+            fs::path source(content["filepath"].asString());
             if( fs::is_regular_file(status(source)) && source.extension().string()==".lua")
             {
                 try
@@ -1520,7 +1338,7 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
         {
             //export script
             AGO_DEBUG() << "download file command received: " << content;
-            checkMsgParameter(content, "filename", VAR_STRING);
+            checkMsgParameter(content, "filename", Json::stringValue);
 
             std::string file = "blockly_" + content["filename"].asString();
             fs::path target = construct_script_name(file);
@@ -1552,12 +1370,12 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
         {
             //enable/disable script
             AGO_DEBUG() << "enable/disable script command received: " << content;
-            checkMsgParameter(content, "enabled", VAR_UINT8);
-            checkMsgParameter(content, "name", VAR_STRING);
+            checkMsgParameter(content, "enabled", Json::booleanValue);
+            checkMsgParameter(content, "name", Json::stringValue);
 
-            fs::path input(content["name"]);
+            fs::path input(content["name"].asString());
             fs::path script = construct_script_name(input.stem());
-            uint8_t enabled = content["enabled"].asUint8();
+            bool enabled = content["enabled"].asBool();
             if( enableScript(script.string(), enabled) )
             {
                 return responseSuccess();
@@ -1607,7 +1425,7 @@ qpid::types::Variant::Map AgoLua::commandHandler(qpid::types::Variant::Map conte
 /**
  * Agocontrol event handler
  */
-void AgoLua::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
+void AgoLua::eventHandler(const std::string& subject , const Json::Value& content)
 {
     if( subject=="event.device.announce" || subject=="event.device.discover" )
     {
@@ -1617,16 +1435,17 @@ void AgoLua::eventHandler(const std::string& subject , qpid::types::Variant::Map
     {
         //daily script infos purge
         if( subject=="event.environment.timechanged" &&
-            !content["minute"].isVoid() && content["minute"].asInt8()==0 && 
-            !content["hour"].isVoid() && content["hour"].asInt8()==0 )
+            content.isMember("minute") && content["minute"].asInt()==0 &&
+            content.isMember("hour") && content["hour"].asInt()==0 )
         {
             AGO_DEBUG() << "Purge obsolete scripts";
             purgeScripts();
         }
 
-        //execute scripts
-        content["subject"] = subject;
-        commandHandler(content);
+        // execute scripts
+        Json::Value content_ = content;
+        content_["subject"] = subject;
+        commandHandler(content_);
     }
 }
 
@@ -1641,12 +1460,12 @@ void AgoLua::setupApp()
     scriptdir = ensureDirExists(getConfigPath(LUA_SCRIPT_DIR));
 
     //load script infos file
-    scriptsInfos = jsonFileToVariantMap(getConfigPath(SCRIPTSINFOSFILE));
-    if (scriptsInfos["scripts"].isVoid())
+    readJsonFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
+    if (!scriptsInfos.isMember("scripts"))
     {
-        qpid::types::Variant::Map scripts;
+        Json::Value scripts(Json::objectValue);
         scriptsInfos["scripts"] = scripts;
-        variantMapToJSONFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
+        writeJsonFile(scriptsInfos, getConfigPath(SCRIPTSINFOSFILE));
     }
 
     agoConnection->addDevice("luacontroller", "luacontroller");
