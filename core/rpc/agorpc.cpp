@@ -16,8 +16,6 @@
 #include <map>
 #include <string>
 
-#include <qpid/messaging/Message.h>
-
 #include <boost/foreach.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/preprocessor/stringize.hpp>
@@ -28,6 +26,7 @@
 #include <boost/tokenizer.hpp>
 
 #include "agoapp.h"
+
 #include "agohttp/agohttp.h"
 
 #define GETEVENT_DEFAULT_TIMEOUT_SECONDS 28 // long-polling getevent
@@ -59,7 +58,7 @@ using namespace agocontrol::agohttp;
 // struct and map for json-rpc event subscriptions
 struct Subscriber
 {
-    std::deque<qpid::types::Variant::Map> queue;
+    std::deque<Json::Value> queue;
     time_t lastAccess;
 };
 
@@ -108,7 +107,7 @@ public:
     AgoRpc *appInstance;
 
     struct http_message* hm_req;
-    qpid::types::Variant::Map request;
+    Json::Value request;
     std::string error;
 
     fs::path filepath;
@@ -122,6 +121,7 @@ class FileUploadReqRep : public HttpReqJsonRep {
 public:
     FileUploadReqRep(AgoRpc* _appInstance, struct http_message* _hm_req)
         : appInstance(_appInstance)
+        , requests(Json::arrayValue)
     {
     }
 
@@ -130,7 +130,7 @@ public:
 
     AgoRpc *appInstance;
 
-    qpid::types::Variant::List requests;
+    Json::Value requests;
     void onTimeout();
 };
 
@@ -154,7 +154,7 @@ private:
     boost::shared_ptr<HttpReqRep> uploadFiles(struct mg_connection *conn, struct http_message *hm);
     void uploadFile_thread(boost::shared_ptr<FileUploadReqRep> reqRep);
 
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
+    void eventHandler(const std::string& subject , const Json::Value& content) ;
 
     void jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mutex> &lock, const Json::Value& params, Json::Value& responseRoot);
     void jsonrpc_thread(boost::shared_ptr<JsonRpcReqRep> conn);
@@ -192,25 +192,25 @@ void AgoRpc::jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mu
     // prepare message
     const Json::Value& content = params["content"];
     const Json::Value& subject = params["subject"];
-    qpid::types::Variant::Map command = jsonToVariantMap(content);
 
     const Json::Value& replytimeout = params["replytimeout"];
-    qpid::messaging::Duration timeout = qpid::messaging::Duration::SECOND * 3;
+    std::chrono::milliseconds timeout(3000);
     if (replytimeout.isNumeric()) {
-        timeout = qpid::messaging::Duration(replytimeout.asDouble() * 1000);
+        timeout = std::chrono::milliseconds((long) (replytimeout.asFloat() * 1000.0));
     }
+
     //send message and handle response
-    AGO_TRACE() << "JsonRPC Request on " << reqRep << ": " << command << "(timeout=" << timeout.getMilliseconds() << " : << "<<replytimeout<< ")";
+    AGO_TRACE() << "JsonRPC Request on " << reqRep << ": " << content << "(timeout=" << timeout.count() << "ms : << "<<replytimeout<< ")";
 
     agocontrol::AgoResponse response;
     {
         // ReqRep must not be locked when blocking in another thread
         boost::reverse_lock<boost::unique_lock<boost::mutex>> unlock(lock);
-        response = agoConnection->sendRequest(subject.asString(), command, timeout);
+        response = agoConnection->sendRequest(subject.asString(), content, timeout);
     }
 
     AGO_TRACE() << "JsonRPC Response: " << response.getResponse();
-    variantMapToJson(response.getResponse(), responseRoot);
+    responseRoot.swap(response.getResponse());
 }
 
 
@@ -264,16 +264,14 @@ bool AgoRpc::getEventsFor(JsonRpcReqRep* reqRep, bool isTimeout) {
     }
 
     if(!(it->second.queue.empty())) {
-        qpid::types::Variant::Map event = it->second.queue.front();
+        Json::Value event(std::move(it->second.queue.front()));
         it->second.queue.pop_front();
         lock.unlock();
 
         AGO_TRACE() << "getEventsFor " << reqRep <<": found event";
 
         // Write event
-        reqRep->jsonResponse["result"] = Json::Value(Json::objectValue);
-        // TODO: use Json swap method when event is JSON to avoid cloning
-        variantMapToJson(event, reqRep->jsonResponse["result"]);
+        reqRep->jsonResponse["result"].swap(event);
         return true;
     }
 
@@ -372,7 +370,7 @@ bool AgoRpc::handleJsonRpcRequest(JsonRpcReqRep *reqRep, const Json::Value &requ
         if (subscriptionId == "")
             return jsonrpcErrorResponse(responseRoot, JSONRPC_INTERNAL_ERROR, "Failed to generate UUID");
 
-        std::deque<qpid::types::Variant::Map> empty;
+        std::deque<Json::Value> empty;
         Subscriber subscriber;
         subscriber.lastAccess=time(0);
         subscriber.queue = empty;
@@ -522,7 +520,7 @@ boost::shared_ptr<HttpReqRep> AgoRpc::uploadFiles(struct mg_connection *conn, st
 
             // at same index as in jsonrcpResponse, we have our request
             // this is the actual message sent to device
-            qpid::types::Variant::Map request;
+            Json::Value request;
             request["uuid"] = std::string(uuid);
             request["command"] = "uploadfile";
 
@@ -563,7 +561,7 @@ boost::shared_ptr<HttpReqRep> AgoRpc::uploadFiles(struct mg_connection *conn, st
                 }
             }
 
-            reqRep->requests.push_back(request);
+            reqRep->requests.append(request);
             reqRep->jsonResponse["files"].append(response);
         }
         else
@@ -586,9 +584,9 @@ boost::shared_ptr<HttpReqRep> AgoRpc::uploadFiles(struct mg_connection *conn, st
 
 void AgoRpc::uploadFile_thread(boost::shared_ptr<FileUploadReqRep> reqRep) {
     int i=0;
-    BOOST_FOREACH(qpid::types::Variant &request_, reqRep->requests) {
-        qpid::types::Variant::Map &request(request_.asMap());
-        std::string tempfile(request["filepath"]);
+    for(auto it = reqRep->requests.begin(); it != reqRep->requests.end(); it++) {
+        Json::Value &request(*it);
+        std::string tempfile(request["filepath"].asString());
         AgoResponse r = agoConnection->sendRequest(request);
         if(r.isError())
             AGO_ERROR() << "Uploading file \"" << tempfile << "\" failed: " << r.getMessage();
@@ -597,7 +595,7 @@ void AgoRpc::uploadFile_thread(boost::shared_ptr<FileUploadReqRep> reqRep) {
 
         boost::unique_lock<boost::mutex> lock(reqRep->mutex);
         // Copy full remote result 1:1, adds result or error.
-        variantMapToJson(r.getResponse(), reqRep->jsonResponse["files"][i++]);
+        reqRep->jsonResponse["files"][i++].swap(r.getResponse());
 
         // delete file (it should be processed by sendcommand)
         //XXX: maybe a purge process could be interesting to implement
@@ -642,7 +640,7 @@ boost::shared_ptr<HttpReqRep> AgoRpc::downloadFile(struct mg_connection *conn, s
     if( mg_get_http_var(&hm->query_string, "uuid", param, sizeof(param)) > 0 )
         reqRep->request["uuid"] = std::string(param);
 
-    if( reqRep->request["filename"].isVoid() || reqRep->request["uuid"].isVoid() )
+    if( !reqRep->request.isMember("filename") || !reqRep->request.isMember("uuid") )
     {
         //missing parameters!
         AGO_ERROR() << "Download file, missing parameters. Nothing done";
@@ -667,14 +665,14 @@ void AgoRpc::downloadFile_thread(boost::shared_ptr<FileDownloadReqRep> reqRep) {
     boost::unique_lock<boost::mutex> lock(reqRep->mutex);
     if( r.isOk() )
     {
-        qpid::types::Variant::Map responseMap = r.getData();
+        const Json::Value& response(r.getData());
 
         //command sent successfully
-        if( !responseMap["filepath"].isVoid() && responseMap["filepath"].asString().length()>0 )
+        if( response.isMember("filepath") && response["filepath"].asString().length()>0 )
         {
             // 404??
             // all seems valid
-            reqRep->filepath = fs::path(responseMap["filepath"].asString());
+            reqRep->filepath = fs::path(response["filepath"].asString());
             AGO_DEBUG() << "Downloading file " << reqRep->filepath;
             reqRep->setResponseCode(200);
         }
@@ -729,19 +727,19 @@ void FileDownloadReqRep::onTimeout() {
 /**
  * Agoclient event handler
  */
-void AgoRpc::eventHandler(const std::string& subject , qpid::types::Variant::Map content) {
+void AgoRpc::eventHandler(const std::string& subject, const Json::Value& content_) {
     // don't flood clients with unneeded events
     if (subject == "event.environment.timechanged" || subject == "event.device.discover") {
         return;
     }
 
-    //remove empty command from content
-    qpid::types::Variant::Map::iterator it = content.find("command");
-    if (it != content.end() && content["command"].isVoid()) {
-        content.erase("command");
-    }
+    // Create clone which we can mutate.
+    Json::Value content(content_);
 
-    //prepare event content
+    // remove (empty) command from content
+    content.removeMember("command");
+
+    // prepare event content
     content["event"] = subject;
     if (subject.find("event.environment.") != std::string::npos && subject.find("changed") != std::string::npos) {
         std::string quantity = subject;
