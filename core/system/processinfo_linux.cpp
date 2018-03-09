@@ -42,11 +42,11 @@ static uint32_t getCpuTotalTime()
  * Calculates the elapsed CPU percentage between 2 measuring points.
  * CPU usage calculation extracted from https://github.com/fho/code_snippets/blob/master/c/getusage.c
  */
-static void getCpuPercentage(qpid::types::Variant::Map& current, qpid::types::Variant::Map& last, double* ucpu, double* scpu)
+static void getCpuPercentage(Json::Value& current, Json::Value& last, double* ucpu, double* scpu)
 {
-    uint32_t totalTimeDiff = current["cpuTotalTime"].asUint32() - last["cpuTotalTime"].asUint32();
-    *ucpu = 100 * (double)(((current["utime"].asUint64() + current["cutime"].asUint64()) - (last["utime"].asUint64() + last["cutime"].asUint64())) / (double)totalTimeDiff);
-    *scpu = 100 * (double)(((current["stime"].asUint64() + current["cstime"].asUint64()) - (last["stime"].asUint64() + last["cstime"].asUint64())) / (double)totalTimeDiff);
+    uint32_t totalTimeDiff = current["cpuTotalTime"].asUInt() - last["cpuTotalTime"].asUInt();
+    *ucpu = 100 * (double)(((current["utime"].asUInt64() + current["cutime"].asUInt64()) - (last["utime"].asUInt64() + last["cutime"].asUInt64())) / (double)totalTimeDiff);
+    *scpu = 100 * (double)(((current["stime"].asUInt64() + current["cstime"].asUInt64()) - (last["stime"].asUInt64() + last["cstime"].asUInt64())) / (double)totalTimeDiff);
     //fix wrong cpu usage if process restarted
     if( *ucpu<0 )
     {
@@ -75,11 +75,11 @@ void AgoSystem::getProcessInfo()
 #else
         std::string procName = std::string(proc_info.cmd);
 #endif
-        if( processes.find(procName)!=processes.end()  )
+        if(processes.isMember(procName))
         {
-            qpid::types::Variant::Map stats = processes[procName].asMap();
-            qpid::types::Variant::Map cs = stats["currentStats"].asMap();
-            qpid::types::Variant::Map ls = stats["lastStats"].asMap();
+            Json::Value stats = processes[procName];
+            Json::Value cs = stats["currentStats"];
+            Json::Value ls = stats["lastStats"];
 
             //update current stats
 #ifdef FREEPROC_EXISTS
@@ -99,7 +99,7 @@ void AgoSystem::getProcessInfo()
 #endif
             cs["cpuTotalTime"] = (uint32_t)getCpuTotalTime();
             double ucpu=0, scpu=0;
-            if( ls["utime"].asUint64()!=0 )
+            if( ls["utime"].asUInt64()!=0 )
             {
                 getCpuPercentage(cs, ls, &ucpu, &scpu);
             }

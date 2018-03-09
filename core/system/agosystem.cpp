@@ -1,7 +1,6 @@
 #include <exception>
 #include <boost/algorithm/string/predicate.hpp>
 #include "agosystem.h"
-using namespace qpid::types;
 namespace fs = ::boost::filesystem;
 
 const char* PROCESS_BLACKLIST[] = {"agoclient.py", "agosystem", "agodrain", "agologger.py"};
@@ -16,20 +15,20 @@ const int MONITOR_INTERVAL = 5; //time between 2 monitoring (in seconds)
 /**
  * Print process infos (debug purpose only, no map checking)
  */
-void AgoSystem::printProcess(qpid::types::Variant::Map process)
+void AgoSystem::printProcess(const Json::Value& process)
 {
     AGO_DEBUG() << "running=" << process["running"];
     AGO_DEBUG() << "current stats:";
-    qpid::types::Variant::Map cs = process["currentStats"].asMap();
+    const Json::Value& cs = process["currentStats"];
 #ifndef FREEBSD
     AGO_DEBUG() << " utime=" << cs["utime"] << " cutime=" << cs["cutime"] << " stime=" << cs["stime"] << " cstime=" << cs["cstime"] << " cpuTotalTime=" << cs["cpuTotalTime"] << " ucpu=" << cs["ucpu"] << " scpu=" << cs["scpu"];
     AGO_DEBUG() << "last stats:";
-    qpid::types::Variant::Map ls = process["lastStats"].asMap();
+    const Json::Value& ls = process["lastStats"];
     AGO_DEBUG() << " utime=" << ls["utime"] << " cutime=" << ls["cutime"] << " stime=" << ls["stime"] << " cstime=" << ls["cstime"] << " cpuTotalTime=" << ls["cpuTotalTime"] << " ucpu=" << ls["ucpu"] << " scpu=" << cs["scpu"];
 #else
     AGO_DEBUG() << " ucpu=" << cs["ucpu"];
     AGO_DEBUG() << "last stats:";
-    qpid::types::Variant::Map ls = process["lastStats"].asMap();
+    const Json::Value& ls = process["lastStats"];
     AGO_DEBUG() << " ucpu=" << ls["ucpu"];
 #endif
 }
@@ -37,37 +36,34 @@ void AgoSystem::printProcess(qpid::types::Variant::Map process)
 /**
  * Fill monitored processes stats
  */
-void AgoSystem::fillProcessesStats(qpid::types::Variant::Map& processes)
+void AgoSystem::fillProcessesStats(Json::Value& processes)
 {
     //lock processes
     processesMutex.lock();
 
     //init
-    qpid::types::Variant::List monitored = config["monitored"].asList();
+    const Json::Value& monitored = config["monitored"];
 
     //update running flag (set to disabled)
-    for( qpid::types::Variant::Map::iterator it=processes.begin(); it!=processes.end(); it++ )
+    for( auto it = processes.begin(); it!=processes.end(); it++ )
     {
         //get stats
-        qpid::types::Variant::Map stats = it->second.asMap();
+        Json::Value& stats = *it;
 
         //update running state
         stats["running"] = false;
 
         //update monitored state
         int flag = false;
-        for( qpid::types::Variant::List::iterator it1=monitored.begin(); it1!=monitored.end(); it1++ )
+        for(auto it1 = monitored.begin(); it1!=monitored.end(); it1++ )
         {
-            if( (*it1).asString()==it->first )
+            if( (*it1).asString() == it.name() )
             {
                 flag = true;
                 break;
             }
         }
         stats["monitored"] = flag;
-
-        //save stats
-        processes[it->first] = stats;
     }
 
     // get processes statistics, platform dependent
@@ -80,24 +76,24 @@ void AgoSystem::fillProcessesStats(qpid::types::Variant::Map& processes)
 /**
  * Check processes states and launch alarms if needed
  */
-void AgoSystem::checkProcessesStates(qpid::types::Variant::Map& processes)
+void AgoSystem::checkProcessesStates(Json::Value& processes)
 {
     //lock processes
     processesMutex.lock();
 
-    for( qpid::types::Variant::Map::iterator it=processes.begin(); it!=processes.end(); it++ )
+    for( auto it = processes.begin(); it!=processes.end(); it++ )
     {
         //get process stats
-        qpid::types::Variant::Map stats = it->second.asMap();
+        Json::Value& stats = *it;
 
         //check if process is running
-        if( !stats["running"].isVoid() && !stats["monitored"].isVoid() )
+        if( stats.isMember("running") && stats.isMember("monitored") )
         {
             if( stats["running"].asBool()==false )
             {
                 //process is not running
                 //reset current stats
-                qpid::types::Variant::Map current = stats["currentStats"].asMap();
+                Json::Value& current = stats["currentStats"];
 #ifndef FREEBSD
                 current["utime"] = 0;
                 current["cutime"] = 0;
@@ -109,10 +105,9 @@ void AgoSystem::checkProcessesStates(qpid::types::Variant::Map& processes)
                 current["rss"] = 0;
                 current["ucpu"] = 0;
                 current["scpu"] = 0;
-                stats["currentStats"] = current;
 
                 //and reset last stats
-                qpid::types::Variant::Map last = stats["lastStats"].asMap();
+                Json::Value& last = stats["lastStats"];
 #ifndef FREEBSD
                 last["utime"] = 0;
                 last["cutime"] = 0;
@@ -124,15 +119,14 @@ void AgoSystem::checkProcessesStates(qpid::types::Variant::Map& processes)
                 last["rss"] = 0;
                 last["ucpu"] = 0;
                 last["scpu"] = 0;
-                stats["lastStats"] = last;
 
                 if( stats["monitored"].asBool()==true && stats["alarmDead"].asBool()==false )
                 {
                     //process is monitored, send alarm
-                    qpid::types::Variant::Map content;
-                    content["process"] = it->first;
+                    Json::Value content;
+                    content["process"] = it.name();
                     agoConnection->emitEvent("systemcontroller", "event.monitoring.processdead", content);
-                    AGO_INFO() << "Process '" << it->first << "' is not running";
+                    AGO_INFO() << "Process '" << it.name() << "' is not running";
                     stats["alarmDead"] = true;
                 }
             }
@@ -146,16 +140,16 @@ void AgoSystem::checkProcessesStates(qpid::types::Variant::Map& processes)
         int64_t memoryThreshold = config["memoryThreshold"].asInt64() * 1000000;
         if( memoryThreshold>0 )
         {
-            qpid::types::Variant::Map cs = stats["currentStats"].asMap();
+            Json::Value& cs = stats["currentStats"];
             if( cs["rss"].asInt64()>=memoryThreshold )
             {
                 if( stats["alarmMemory"].asBool()==false )
                 {
                     //process has reached memory threshold, send alarm
-                    qpid::types::Variant::Map content;
-                    content["process"] = it->first;
+                    Json::Value content;
+                    content["process"] = it.name();
                     agoConnection->emitEvent("systemcontroller", "event.monitoring.memoryoverhead", content);
-                    AGO_INFO() << "Memory overhead detected for '" << it->first << "'";
+                    AGO_INFO() << "Memory overhead detected for '" << it.name() << "'";
                     stats["alarmMemory"] = true;
                 }
             }
@@ -164,9 +158,6 @@ void AgoSystem::checkProcessesStates(qpid::types::Variant::Map& processes)
                 stats["alarmMemory"] = false;
             }
         }
-
-        //save process stats
-        processes[it->first] = stats;
     }
 
     //unlock processes
@@ -176,11 +167,11 @@ void AgoSystem::checkProcessesStates(qpid::types::Variant::Map& processes)
 /**
  * Create list with specified process name. Used to debug.
  */
-qpid::types::Variant::Map AgoSystem::getAgoProcessListDebug(std::string procName)
+Json::Value AgoSystem::getAgoProcessListDebug(std::string procName)
 {
-    qpid::types::Variant::Map output;
-    qpid::types::Variant::Map stats;
-    qpid::types::Variant::Map currentStats;
+    Json::Value output;
+    Json::Value stats;
+    Json::Value currentStats;
     currentStats["utime"] = (uint64_t)0;
     currentStats["cutime"] = (uint64_t)0;
     currentStats["stime"] = (uint64_t)0;
@@ -191,7 +182,7 @@ qpid::types::Variant::Map AgoSystem::getAgoProcessListDebug(std::string procName
     currentStats["ucpu"] = (uint32_t)0;
     currentStats["scpu"] = (uint32_t)0;
     stats["currentStats"] = currentStats;
-    qpid::types::Variant::Map lastStats;
+    Json::Value lastStats;
     lastStats["utime"] = (uint64_t)0;
     lastStats["cutime"] = (uint64_t)0;
     lastStats["stime"] = (uint64_t)0;
@@ -210,11 +201,11 @@ qpid::types::Variant::Map AgoSystem::getAgoProcessListDebug(std::string procName
 /**
  * Get process structure
  */
-qpid::types::Variant::Map AgoSystem::getProcessStructure()
+Json::Value AgoSystem::getProcessStructure()
 {
-    qpid::types::Variant::Map stats;
+    Json::Value stats;
 
-    qpid::types::Variant::Map currentStats;
+    Json::Value currentStats;
 #ifndef FREEBSD
     currentStats["utime"] = (uint64_t)0;
     currentStats["cutime"] = (uint64_t)0;
@@ -228,7 +219,7 @@ qpid::types::Variant::Map AgoSystem::getProcessStructure()
     currentStats["scpu"] = (uint32_t)0;
     stats["currentStats"] = currentStats;
 
-    qpid::types::Variant::Map lastStats;
+    Json::Value lastStats;
 #ifndef FREEBSD
     lastStats["utime"] = (uint64_t)0;
     lastStats["cutime"] = (uint64_t)0;
@@ -269,10 +260,10 @@ bool AgoSystem::isProcessBlackListed(const std::string processName)
 /**
  * Get ago process list
  */
-qpid::types::Variant::Map AgoSystem::getAgoProcessList()
+Json::Value AgoSystem::getAgoProcessList()
 {
     //init
-    qpid::types::Variant::Map output;
+    Json::Value output;
     AGO_TRACE() << "Monitored processes:";
     if( fs::exists(BIN_DIR) )
     {
@@ -286,7 +277,7 @@ qpid::types::Variant::Map AgoSystem::getAgoProcessList()
                 //check if process black listed
                 if( !isProcessBlackListed(it->path().filename().string()) )
                 {
-                    qpid::types::Variant::Map stats = getProcessStructure();
+                    Json::Value stats = getProcessStructure();
                     output[it->path().filename().string()] = stats;
                     AGO_TRACE() << " - " << it->path().filename().string();
                 }
@@ -301,7 +292,7 @@ qpid::types::Variant::Map AgoSystem::getAgoProcessList()
     else
     {
         // Temp dummy
-        qpid::types::Variant::Map stats = getProcessStructure();
+        Json::Value stats = getProcessStructure();
         output["agoresolver"] = stats;
 
         stats = getProcessStructure();
@@ -317,7 +308,7 @@ qpid::types::Variant::Map AgoSystem::getAgoProcessList()
     }
 
     //append qpid
-    qpid::types::Variant::Map stats = getProcessStructure();
+    Json::Value stats = getProcessStructure();
     output["qpidd"] = stats;
     AGO_TRACE() << " - qpidd";
 
@@ -327,24 +318,24 @@ qpid::types::Variant::Map AgoSystem::getAgoProcessList()
 /**
  * Refresh agocontrol process list
  */
-void AgoSystem::refreshAgoProcessList(qpid::types::Variant::Map& processes)
+void AgoSystem::refreshAgoProcessList(Json::Value& processes)
 {
     //first of all get process list
-    qpid::types::Variant::Map newProcesses = getAgoProcessList();
+    Json::Value newProcesses = getAgoProcessList();
 
     //lock processes
     processesMutex.lock();
 
     //then synchronise maps
     bool found = false;
-    for( qpid::types::Variant::Map::iterator it=newProcesses.begin(); it!=newProcesses.end(); it++ )
+    for( auto it = newProcesses.begin(); it!=newProcesses.end(); it++ )
     {
         found = false;
 
         //iterate over current process list
-        for( qpid::types::Variant::Map::iterator it2=processes.begin(); it2!=processes.end(); it2++ )
+        for(auto it2 = processes.begin(); it2!=processes.end(); it2++ )
         {
-            if( it->first==it2->first )
+            if( it.name() == it2.name() )
             {
                 //process found
                 found = true;
@@ -352,12 +343,12 @@ void AgoSystem::refreshAgoProcessList(qpid::types::Variant::Map& processes)
             }
         }
 
-        if( !found && !isProcessBlackListed(it->first) )
+        if( !found && !isProcessBlackListed(it.name()) )
         {
             //add new entry
-            qpid::types::Variant::Map stats = getProcessStructure();
-            processes[it->first] = stats;
-            AGO_DEBUG() << "New process detected and added [" << it->first << "]";
+            Json::Value stats = getProcessStructure();
+            processes[it.name()] = stats;
+            AGO_DEBUG() << "New process detected and added [" << it.name() << "]";
         }
     }
 
@@ -368,9 +359,9 @@ void AgoSystem::refreshAgoProcessList(qpid::types::Variant::Map& processes)
 /**
  * Command handler
  */
-qpid::types::Variant::Map AgoSystem::commandHandler(qpid::types::Variant::Map content)
+Json::Value AgoSystem::commandHandler(const Json::Value& content)
 {
-    qpid::types::Variant::Map responseData;
+    Json::Value responseData;
     std::string internalid = content["internalid"].asString();
     AGO_DEBUG() << "Command received:" << content;
     if (internalid == "systemcontroller")
@@ -388,19 +379,19 @@ qpid::types::Variant::Map AgoSystem::commandHandler(qpid::types::Variant::Map co
         }
         else if( content["command"]=="setmonitoredprocesses" )
         {
-            checkMsgParameter(content, "processes", VAR_LIST);
+            checkMsgParameter(content, "processes", Json::arrayValue);
 
-            qpid::types::Variant::List monitored = content["processes"].asList();
+            Json::Value monitored = content["processes"];
             //and save list to config file
             config["monitored"] = monitored;
-            if(!variantMapToJSONFile(config, getConfigPath(SYSTEMMAPFILE)))
+            if(!writeJsonFile(config, getConfigPath(SYSTEMMAPFILE)))
                 return responseFailed("Failed to write map file");
 
             return responseSuccess();
         }
         else if( content["command"]=="setmemorythreshold" )
         {
-            checkMsgParameter(content, "threshold", VAR_INT64);
+            checkMsgParameter(content, "threshold", Json::intValue);
 
             int64_t threshold = content["threshold"].asInt64();
             if( threshold < 0 )
@@ -409,7 +400,7 @@ qpid::types::Variant::Map AgoSystem::commandHandler(qpid::types::Variant::Map co
             }
 
             config["memoryThreshold"] = threshold;
-            if(!variantMapToJSONFile(config, getConfigPath(SYSTEMMAPFILE)))
+            if(!writeJsonFile(config, getConfigPath(SYSTEMMAPFILE)))
                 return responseFailed("Failed to write map file");
 
             return responseSuccess();
@@ -469,19 +460,19 @@ void AgoSystem::monitorProcesses()
 void AgoSystem::setupApp()
 {
     //open conf file
-    config = jsonFileToVariantMap(getConfigPath(SYSTEMMAPFILE));
+    readJsonFile(config, getConfigPath(SYSTEMMAPFILE));
     //add missing config parameters
-    if( config["monitored"].isVoid() )
+    if( config.isMember("monitored") )
     {
-        qpid::types::Variant::List monitored;
+        Json::Value monitored;
         config["monitored"] = monitored;
-        variantMapToJSONFile(config, getConfigPath(SYSTEMMAPFILE));
+        writeJsonFile(config, getConfigPath(SYSTEMMAPFILE));
     }
 
-    if( config["memoryThreshold"].isVoid() )
+    if( config.isMember("memoryThreshold") )
     {
         config["memoryThreshold"] = 0;
-        variantMapToJSONFile(config, getConfigPath(SYSTEMMAPFILE));
+        writeJsonFile(config, getConfigPath(SYSTEMMAPFILE));
     }
 
     //launch monitoring thread

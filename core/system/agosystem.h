@@ -6,27 +6,27 @@ using namespace agocontrol;
 
 class AgoSystem: public AgoApp {
 private:
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
+    Json::Value commandHandler(const Json::Value& content) ;
 
-    qpid::types::Variant::Map getAgoProcessList();
-    qpid::types::Variant::Map getAgoProcessListDebug(std::string procName);
+    Json::Value getAgoProcessList();
+    Json::Value getAgoProcessListDebug(std::string procName);
 
     // Implemented in processinfo_<platform>.cpp
     void getProcessInfo();
 
-    void fillProcessesStats(qpid::types::Variant::Map& processes);
-    void checkProcessesStates(qpid::types::Variant::Map& processes);
-    void printProcess(qpid::types::Variant::Map process);
+    void fillProcessesStats(Json::Value& processes);
+    void checkProcessesStates(Json::Value& processes);
+    void printProcess(const Json::Value& process);
     void monitorProcesses();
-    qpid::types::Variant::Map getProcessStructure();
+    Json::Value getProcessStructure();
     bool isProcessBlackListed(const std::string processName);
-    void refreshAgoProcessList(qpid::types::Variant::Map& processes);
+    void refreshAgoProcessList(Json::Value& processes);
 
     void setupApp();
 
     boost::mutex processesMutex;
-    qpid::types::Variant::Map processes;
-    qpid::types::Variant::Map config;
+    Json::Value processes;
+    Json::Value config;
 public:
     AGOAPP_CONSTRUCTOR(AgoSystem);
 };
