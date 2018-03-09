@@ -19,8 +19,6 @@
 #define SECURITYMAPFILE "maps/securitymap.json"
 #endif
 
-using namespace qpid::messaging;
-using namespace qpid::types;
 using namespace agocontrol;
 namespace pt = boost::posix_time;
 
@@ -49,12 +47,12 @@ private:
     boost::thread securityThread;
     bool isSecurityThreadRunning;
     bool wantSecurityThreadRunning;
-    qpid::types::Variant::Map securitymap;
-    qpid::types::Variant::Map inventory;
+    Json::Value securitymap;
+    Json::Value inventory;
     std::string alertControllerUuid;
     bool isAlarmActivated;
     CurrentAlarm currentAlarm;
-    qpid::types::Variant::Map alertGateways;
+    Json::Value alertGateways;
     boost::mutex mutexAlertGateways;
     boost::mutex mutexContacts;
     std::string email;
@@ -65,14 +63,14 @@ private:
     void enableAlarm(std::string zone, std::string housemode, int16_t delay);
     void disableAlarm(std::string zone, std::string housemode);
     void triggerAlarms(std::string zone, std::string housemode);
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
+    void eventHandler(const std::string& subject, const Json::Value& content);
     TriggerStatus triggerZone(std::string zone, std::string housemode);
-    void getHousemodeItems(std::string zone, std::string housemode, ItemType type, qpid::types::Variant::List* items);
+    void getHousemodeItems(std::string zone, std::string housemode, ItemType type, Json::Value* itemsList);
     bool changeHousemode(std::string housemode);
     void refreshAlertGateways();
     void refreshDefaultContact();
-    void sendAlarm(std::string zone, std::string uuid, std::string message, qpid::types::Variant::Map* content);
+    void sendAlarm(std::string zone, std::string uuid, std::string message, Json::Value& content);
 
     void setupApp() ;
 
@@ -111,33 +109,33 @@ bool AgoSecurity::setPin(std::string pin)
 /**
  * Return list of alarms or devices for specified housemode/zone
  */
-void AgoSecurity::getHousemodeItems(std::string zone, std::string housemode, ItemType type, qpid::types::Variant::List* items)
+void AgoSecurity::getHousemodeItems(std::string zone, std::string housemode, ItemType type, Json::Value* itemsList)
 {
-    if( items!=NULL )
+    if( itemsList!=NULL )
     {
-        if( !securitymap["config"].isVoid() )
+        if( securitymap.isMember("config") )
         {
-            qpid::types::Variant::Map config = securitymap["config"].asMap();
-            for( qpid::types::Variant::Map::iterator it1=config.begin(); it1!=config.end(); it1++ )
+            const Json::Value& config = securitymap["config"];
+            for(auto it1 = config.begin(); it1!=config.end(); it1++ )
             {
                 //check housemode
-                if( it1->first==housemode )
+                if( it1.name() == housemode )
                 {
                     //specified housemode found
-                    qpid::types::Variant::List zones = it1->second.asList();
-                    for( qpid::types::Variant::List::iterator it2=zones.begin(); it2!=zones.end(); it2++ )
+                    const Json::Value& zoneList = *it1;
+                    for(auto it2 = zoneList.begin(); it2!=zoneList.end(); it2++ )
                     {
                         //check zone
-                        qpid::types::Variant::Map zoneMap = it2->asMap();
+                        const Json::Value& zoneMap = *it2;
                         std::string zoneName = zoneMap["zone"].asString();
                         if( zoneName==zone )
                         {
                             //specified zone found, fill output list
                             if( type==Alarm )
                             {
-                                if( !zoneMap["alarms"].isVoid() )
+                                if( zoneMap.isMember("alarms") )
                                 {
-                                    *items = zoneMap["alarms"].asList();
+                                    *itemsList = zoneMap["alarms"];
                                 }
                                 else
                                 {
@@ -147,9 +145,9 @@ void AgoSecurity::getHousemodeItems(std::string zone, std::string housemode, Ite
                             }
                             else
                             {
-                                if( !zoneMap["devices"].isVoid() )
+                                if( zoneMap.isMember("devices") )
                                 {
-                                    *items = zoneMap["devices"].asList();
+                                    *itemsList = zoneMap["devices"];
                                 }
                                 else
                                 {
@@ -184,12 +182,12 @@ bool AgoSecurity::changeHousemode(std::string housemode)
     agoConnection->setGlobalVariable("housemode", housemode);
 
     //send event that housemode changed
-    Variant::Map eventcontent;
+    Json::Value eventcontent;
     eventcontent["housemode"]= housemode;
     agoConnection->emitEvent("securitycontroller", "event.security.housemodechanged", eventcontent);
 
     //finally save changes to config file
-    return variantMapToJSONFile(securitymap, getConfigPath(SECURITYMAPFILE));
+    return writeJsonFile(securitymap, getConfigPath(SECURITYMAPFILE));
 }
 
 /**
@@ -199,8 +197,8 @@ bool AgoSecurity::changeHousemode(std::string housemode)
 void AgoSecurity::enableAlarm(std::string zone, std::string housemode, int16_t delay)
 {
     //init
-    Variant::Map content;
-    Variant::Map countdownstartedeventcontent;
+    Json::Value content;
+    Json::Value countdownstartedeventcontent;
     countdownstartedeventcontent["delay"] = delay;
     countdownstartedeventcontent["zone"] = zone;
 
@@ -214,7 +212,7 @@ void AgoSecurity::enableAlarm(std::string zone, std::string housemode, int16_t d
         AGO_INFO() << "Alarm triggered: zone=" << zone << " housemode=" << housemode << " delay=" << delay;
         while (wantSecurityThreadRunning && delay-- > 0)
         {
-            Variant::Map countdowneventcontent;
+            Json::Value countdowneventcontent;
             countdowneventcontent["delay"] = delay;
             countdowneventcontent["zone"] = zone;
             AGO_TRACE() << "enableAlarm: countdown=" << delay;
@@ -237,7 +235,7 @@ void AgoSecurity::enableAlarm(std::string zone, std::string housemode, int16_t d
 
         //finally change housemode to default one
         //this is implemented to toggle automatically to another housemode that disable alarm (but it's not mandatory)
-        if( !securitymap["defaultHousemode"].isVoid() )
+        if( securitymap.isMember("defaultHousemode") )
         {
             if( !changeHousemode(securitymap["defaultHousemode"].asString()) )
             {
@@ -261,8 +259,8 @@ void AgoSecurity::enableAlarm(std::string zone, std::string housemode, int16_t d
 void AgoSecurity::disableAlarm(std::string zone, std::string housemode)
 {
     AGO_INFO() << "Disabling alarm";
-    Variant::Map content;
-    qpid::types::Variant::List alarms;
+    Json::Value content(Json::objectValue);
+    Json::Value alarms(Json::arrayValue);
 
     //first of all update flags
     isAlarmActivated = false;
@@ -272,7 +270,7 @@ void AgoSecurity::disableAlarm(std::string zone, std::string housemode)
 
     //change housemode to default one
     //this is implemented to toggle automatically to another housemode that disable alarm (but it's not mandatory)
-    if( !securitymap["defaultHousemode"].isVoid() )
+    if( securitymap.isMember("defaultHousemode") )
     {
         if( !changeHousemode(securitymap["defaultHousemode"].asString()) )
         {
@@ -286,14 +284,14 @@ void AgoSecurity::disableAlarm(std::string zone, std::string housemode)
 
     //then stop alarms
     getHousemodeItems(zone, housemode, Alarm, &alarms);
-    for( qpid::types::Variant::List::iterator it=alarms.begin(); it!=alarms.end(); it++ )
+    for( auto it = alarms.begin(); it!=alarms.end(); it++ )
     {
-        qpid::types::Variant::Map content;
-        std::string uuid = *it;
+        Json::Value content;
+        std::string uuid = it->asString();
 
         //get message to send
         std::string message = "";
-        if( !securitymap["disarmedMessage"].isVoid() )
+        if( securitymap.isMember("disarmedMessage") )
         {
             message = securitymap["disarmedMessage"].asString();
         }
@@ -303,7 +301,7 @@ void AgoSecurity::disableAlarm(std::string zone, std::string housemode)
         }
 
         //send event
-        sendAlarm(zone, uuid, message, &content);
+        sendAlarm(zone, uuid, message, content);
         AGO_DEBUG() << "cancelAlarm: disable alarm uuid='" << uuid << "' " << content;
     }
 }
@@ -314,18 +312,18 @@ void AgoSecurity::disableAlarm(std::string zone, std::string housemode)
 void AgoSecurity::triggerAlarms(std::string zone, std::string housemode)
 {
     //get alarms
-    qpid::types::Variant::List alarms;
+    Json::Value alarms;
     getHousemodeItems(zone, housemode, Alarm, &alarms);
 
     //send event for each alarm
-    for( qpid::types::Variant::List::iterator it=alarms.begin(); it!=alarms.end(); it++ )
+    for( auto it = alarms.begin(); it!=alarms.end(); it++ )
     {
-        qpid::types::Variant::Map content;
-        std::string uuid = *it;
+        Json::Value content;
+        std::string uuid = it->asString();
 
         //get message to send
         std::string message = "";
-        if( !securitymap["armedMessage"].isVoid() )
+        if( securitymap.isMember("armedMessage") )
         {
             message = securitymap["armedMessage"].asString();
         }
@@ -335,7 +333,7 @@ void AgoSecurity::triggerAlarms(std::string zone, std::string housemode)
         }
 
         //send event
-        sendAlarm(zone, uuid, message, &content);
+        sendAlarm(zone, uuid, message, content);
         AGO_DEBUG() << "triggerAlarms: trigger device uuid='" << uuid << "' " << content;
     }
 }
@@ -345,25 +343,25 @@ void AgoSecurity::triggerAlarms(std::string zone, std::string housemode)
  */
 TriggerStatus AgoSecurity::triggerZone(std::string zone, std::string housemode)
 {
-    if( !securitymap["config"].isVoid() )
+    if( securitymap.isMember("config") )
     {
-        qpid::types::Variant::Map config = securitymap["config"].asMap();
+        const Json::Value& config = securitymap["config"];
         AGO_TRACE() << " -> config=" << config;
-        for( qpid::types::Variant::Map::iterator it1=config.begin(); it1!=config.end(); it1++ )
+        for(auto it1 = config.begin(); it1!=config.end(); it1++ )
         {
             //check housemode
-            AGO_TRACE() << " -> check housemode: " << it1->first << "==" << housemode;
-            if( it1->first==housemode )
+            AGO_TRACE() << " -> check housemode: " << it1.name() << "==" << housemode;
+            if( it1.name() == housemode )
             {
                 //specified housemode found
-                qpid::types::Variant::List zones = it1->second.asList();
+                const Json::Value& zones(*it1);
                 AGO_TRACE() << " -> zones: " << zones;
-                for( qpid::types::Variant::List::iterator it2=zones.begin(); it2!=zones.end(); it2++ )
+                for(auto it2 = zones.begin(); it2!=zones.end(); it2++ )
                 {
                     //check zone
-                    qpid::types::Variant::Map zoneMap = it2->asMap();
+                    const Json::Value& zoneMap(*it2);
                     std::string zoneName = zoneMap["zone"].asString();
-                    int16_t delay = zoneMap["delay"].asInt16();
+                    int16_t delay = zoneMap["delay"].asInt();
                     //check delay (if <0 it means inactive) and if it's current zone
                     AGO_TRACE() << " -> check zone: " << zoneName << "==" << zone << " delay=" << delay;
                     if( zoneName==zone )
@@ -428,7 +426,7 @@ TriggerStatus AgoSecurity::triggerZone(std::string zone, std::string housemode)
 /**
  * Send an alarm
  */
-void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string message, qpid::types::Variant::Map* content)
+void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string message, Json::Value& content)
 {
     bool found = false;
     bool send = true;
@@ -437,22 +435,22 @@ void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string mess
     {
        boost::lock_guard<boost::mutex> lock(mutexAlertGateways);
        boost::unique_lock<boost::mutex> contacts_lock(mutexContacts, boost::defer_lock_t());
-       for( qpid::types::Variant::Map::iterator it=alertGateways.begin(); it!=alertGateways.end(); it++ )
+       for( auto it = alertGateways.begin(); it != alertGateways.end(); it++ )
        {
-          if( it->first==uuid )
+          if( it.name() == uuid )
           {
              //gateway found
              found = true;
-             std::string gatewayType = it->second.asString();
+             std::string gatewayType = it->asString();
              if( gatewayType=="smsgateway" )
              {
                 contacts_lock.lock();
                 if( phone.size()>0 )
                 {
-                   (*content)["command"] = "sendsms";
-                   (*content)["uuid"] = uuid;
-                   (*content)["to"] = phone;
-                   (*content)["text"] = message + "[" + zone + "]";
+                   content["command"] = "sendsms";
+                   content["uuid"] = uuid;
+                   content["to"] = phone;
+                   content["text"] = message + "[" + zone + "]";
                 }
                 else
                 {
@@ -465,11 +463,11 @@ void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string mess
                 contacts_lock.lock();
                 if( phone.size()>0 )
                 {
-                   (*content)["command"] = "sendmail";
-                   (*content)["uuid"] = uuid;
-                   (*content)["to"] = email;
-                   (*content)["subject"] = "Agocontrol security";
-                   (*content)["body"] = message + "[" + zone + "]";
+                   content["command"] = "sendmail";
+                   content["uuid"] = uuid;
+                   content["to"] = email;
+                   content["subject"] = "Agocontrol security";
+                   content["body"] = message + "[" + zone + "]";
                 }
                 else
                 {
@@ -479,15 +477,15 @@ void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string mess
              }
              else if( gatewayType=="twittergateway" )
              {
-                (*content)["command"] = "sendtweet";
-                (*content)["uuid"] = uuid;
-                (*content)["tweet"] = message + "[" + zone + "]";
+                content["command"] = "sendtweet";
+                content["uuid"] = uuid;
+                content["tweet"] = message + "[" + zone + "]";
              }
              else if( gatewayType=="pushgateway" )
              {
-                (*content)["command"] = "sendpush";
-                (*content)["uuid"] = uuid;
-                (*content)["message"] = message + "[" + zone + "]";
+                content["command"] = "sendpush";
+                content["uuid"] = uuid;
+                content["message"] = message + "[" + zone + "]";
              }
           }
        }
@@ -496,13 +494,13 @@ void AgoSecurity::sendAlarm(std::string zone, std::string uuid, std::string mess
     if( !found )
     {
         //switch type device
-        (*content)["command"] = "on";
-        (*content)["uuid"] = uuid;
+        content["command"] = "on";
+        content["uuid"] = uuid;
     }
 
     if( send )
     {
-        agoConnection->sendMessage(*content);
+        agoConnection->sendMessage(content);
     }
     AGO_TRACE() << "sendAlarm() END";
 }
@@ -535,31 +533,31 @@ void AgoSecurity::refreshDefaultContact()
 void AgoSecurity::refreshAlertGateways()
 {
     //get alert controller uuid
-    qpid::types::Variant::Map inventory = agoConnection->getInventory();
-    qpid::types::Variant::List gatewayTypes;
+    Json::Value inventory = agoConnection->getInventory();
+    Json::Value gatewayTypes;
     
     if( inventory.size()>0 )
     {
         //get usernotification category devicetypes
-        if( !inventory["schema"].isVoid() )
+        if( inventory.isMember("schema") )
         {
-            qpid::types::Variant::Map schema = inventory["schema"].asMap();
-            if( !schema["categories"].isVoid() )
+            const Json::Value& schema = inventory["schema"];
+            if( schema.isMember("categories") )
             {
-                qpid::types::Variant::Map categories = schema["categories"].asMap();
-                if( !categories["usernotification"].isVoid() )
+                const Json::Value& categories = schema["categories"];
+                if( categories.isMember("usernotification") )
                 {
-                    qpid::types::Variant::Map usernotification = categories["usernotification"].asMap();
-                    if( !usernotification["devicetypes"].isVoid() )
+                    const Json::Value& usernotification = categories["usernotification"];
+                    if( usernotification.isMember("devicetypes") )
                     {
-                        gatewayTypes = usernotification["devicetypes"].asList();
+                        gatewayTypes = usernotification["devicetypes"];
                     }
                 }
             }
         }
 
         //get available alert gateway uuids
-        if( !inventory["devices"].isVoid() )
+        if( inventory.isMember("devices") )
         {
             boost::lock_guard<boost::mutex> lock(mutexAlertGateways);
 
@@ -567,16 +565,16 @@ void AgoSecurity::refreshAlertGateways()
             alertGateways.clear();
 
             //fill with fresh data
-            qpid::types::Variant::Map devices = inventory["devices"].asMap();
-            for( qpid::types::Variant::Map::iterator it1=devices.begin(); it1!=devices.end(); it1++ )
+            const Json::Value& devices = inventory["devices"];
+            for(auto it1 = devices.begin(); it1!=devices.end(); it1++ )
             {
-                std::string uuid = it1->first;
-                if( !it1->second.isVoid() )
+                std::string uuid = it1.name();
+                if( !it1->isNull() )
                 {
-                    qpid::types::Variant::Map deviceInfos = it1->second.asMap();
-                    for( qpid::types::Variant::List::iterator it2=gatewayTypes.begin(); it2!=gatewayTypes.end(); it2++ )
+                    const Json::Value& deviceInfos(*it1);
+                    for(auto it2 = gatewayTypes.begin(); it2!=gatewayTypes.end(); it2++ )
                     {
-                        if( !deviceInfos["devicetype"].isVoid() && deviceInfos["devicetype"].asString()==(*it2) )
+                        if( deviceInfos.isMember("devicetype") && deviceInfos["devicetype"].asString() == (it2->asString()) )
                         {
                             AGO_TRACE() << "Found alert " << (*it2) << " with uuid " << uuid << " [name=" << deviceInfos["name"].asString() << "]";
                             alertGateways[uuid] = (*it2);
@@ -592,11 +590,11 @@ void AgoSecurity::refreshAlertGateways()
 /**
  * Event handler
  */
-void AgoSecurity::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
+void AgoSecurity::eventHandler(const std::string& subject, const Json::Value& content)
 {
     bool alarmTriggered = false;
-    std::string housemode = "";
-    if( securitymap["config"].isVoid() )
+    std::string housemode;
+    if( securitymap.isMember("config") )
     {
         //nothing configured, exit right now
         AGO_DEBUG() << "no config";
@@ -606,7 +604,7 @@ void AgoSecurity::eventHandler(const std::string& subject , qpid::types::Variant
     if( subject=="event.device.statechanged" || subject=="event.security.sensortriggered" )
     {
         //get current housemode
-        if( !securitymap["housemode"].isVoid() )
+        if( securitymap.isMember("housemode") )
         {
             housemode = securitymap["housemode"].asString();
         }
@@ -619,7 +617,7 @@ void AgoSecurity::eventHandler(const std::string& subject , qpid::types::Variant
 
         AGO_TRACE() << "event received: " << subject << " - " << content;
         //get device uuid
-        if( !content["uuid"].isVoid() && !content["level"].isVoid() )
+        if( content.isMember("uuid") && content.isMember("level") )
         {
             std::string uuid = content["uuid"].asString();
             int64_t level = content["level"].asInt64();
@@ -638,25 +636,25 @@ void AgoSecurity::eventHandler(const std::string& subject , qpid::types::Variant
             }
 
             //device stated changed, check if it's a monitored one
-            qpid::types::Variant::Map config = securitymap["config"].asMap();
-            for( qpid::types::Variant::Map::iterator it1=config.begin(); it1!=config.end(); it1++ )
+            const Json::Value& config = securitymap["config"];
+            for(auto it1 = config.begin(); it1!=config.end(); it1++ )
             {
                 //check housemode
-                std::string hm = it1->first;
+                std::string hm = it1.name();
                 //AGO_TRACE() << " - housemode=" << housemode;
                 if( hm==housemode )
                 {
-                    qpid::types::Variant::List zones = it1->second.asList();
-                    for( qpid::types::Variant::List::iterator it2=zones.begin(); it2!=zones.end(); it2++ )
+                    const Json::Value& zones = *it1;
+                    for(auto it2 = zones.begin(); it2!=zones.end(); it2++ )
                     {
-                        qpid::types::Variant::Map zoneMap = it2->asMap();
+                        const Json::Value& zoneMap(*it2);
                         std::string zoneName = zoneMap["zone"].asString();
                         //AGO_TRACE() << "   - zone=" << zoneName;
-                        qpid::types::Variant::List devices = zoneMap["devices"].asList();
-                        for( qpid::types::Variant::List::iterator it3=devices.begin(); it3!=devices.end(); it3++ )
+                        Json::Value devices = zoneMap["devices"];
+                        for(auto it3 = devices.begin(); it3!=devices.end(); it3++ )
                         {
                             //AGO_TRACE() << "     - device=" << *it3;
-                            if( (*it3)==uuid )
+                            if( it3->asString() == uuid )
                             {
                                 //zone is triggered
                                 AGO_DEBUG() << "housemode[" << housemode << "] is triggered in zone[" << zoneName << "] by device [" << uuid << "]";
@@ -688,10 +686,10 @@ void AgoSecurity::eventHandler(const std::string& subject , qpid::types::Variant
             AGO_DEBUG() << "No uuid for event.device.statechanged " << content;
         }
     }
-    else if( subject=="event.environment.timechanged" && !content["minute"].isVoid() && !content["hour"].isVoid() )
+    else if( subject=="event.environment.timechanged" && content.isMember("minute") && content.isMember("hour") )
     {
         //refresh gateway list every 5 minutes
-        if( content["minute"].asInt8()%5==0 )
+        if( content["minute"].asInt()%5==0 )
         {
             AGO_DEBUG() << "Timechanged: get inventory";
             refreshAlertGateways();
@@ -703,18 +701,18 @@ void AgoSecurity::eventHandler(const std::string& subject , qpid::types::Variant
 /**
  * Command handler
  */
-qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map content)
+Json::Value AgoSecurity::commandHandler(const Json::Value& content)
 {
     AGO_TRACE() << "handling command: " << content;
-    qpid::types::Variant::Map returnData;
+    Json::Value returnData;
 
     std::string internalid = content["internalid"].asString();
     if (internalid == "securitycontroller")
     {
         if (content["command"] == "sethousemode")
         {
-            checkMsgParameter(content, "housemode", VAR_STRING);
-            checkMsgParameter(content, "pin", VAR_STRING);
+            checkMsgParameter(content, "housemode", Json::stringValue);
+            checkMsgParameter(content, "pin", Json::stringValue);
 
             if (checkPin(content["pin"].asString()))
             {
@@ -737,7 +735,7 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "gethousemode")
         {
-            if (!(securitymap["housemode"].isVoid()))
+            if (securitymap.isMember("housemode"))
             {
                 returnData["housemode"]= securitymap["housemode"];
                 return responseSuccess(returnData);
@@ -750,10 +748,10 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "triggerzone")
         {
-            checkMsgParameter(content, "zone", VAR_STRING);
+            checkMsgParameter(content, "zone", Json::stringValue);
 
             std::string zone = content["zone"].asString();
-            std::string housemode = securitymap["housemode"];
+            std::string housemode = securitymap["housemode"].asString();
             TriggerStatus status = triggerZone(zone, housemode);
 
             switch(status)
@@ -786,7 +784,7 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "cancelalarm")
         {
-            checkMsgParameter(content, "pin", VAR_STRING);
+            checkMsgParameter(content, "pin", Json::stringValue);
 
             if (checkPin(content["pin"].asString()))
             {
@@ -831,32 +829,32 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
         }
         else if( content["command"]=="getconfig" )
         {
-            if( !securitymap["config"].isVoid() )
+            if( securitymap.isMember("config") )
             {
-                returnData["config"] = securitymap["config"].asMap();
+                returnData["config"] = securitymap["config"];
             }
             else
             {
-                qpid::types::Variant::Map empty;
+                Json::Value empty;
                 securitymap["config"] = empty;
             }
             returnData["armedMessage"] = "";
-            if( !securitymap["armedMessage"].isVoid() )
+            if( securitymap.isMember("armedMessage") )
             {
                 returnData["armedMessage"] = securitymap["armedMessage"].asString();
             }
             returnData["disarmedMessage"] = "";
-            if( !securitymap["disarmedMessage"].isVoid() )
+            if( securitymap.isMember("disarmedMessage") )
             {
                 returnData["disarmedMessage"] = securitymap["disarmedMessage"].asString();
             }
             returnData["defaultHousemode"] = "";
-            if( !securitymap["defaultHousemode"].isVoid() )
+            if( securitymap.isMember("defaultHousemode") )
             {
                 returnData["defaultHousemode"] = securitymap["defaultHousemode"].asString();
             }
             returnData["housemode"] = "";
-            if( !securitymap["housemode"].isVoid() )
+            if( securitymap.isMember("housemode") )
             {
                 returnData["housemode"] = securitymap["housemode"].asString();
             }
@@ -864,20 +862,20 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
         }
         else if( content["command"]=="setconfig" )
         {
-            checkMsgParameter(content, "config", VAR_MAP);
-            checkMsgParameter(content, "armedMessage", VAR_STRING, true);
-            checkMsgParameter(content, "disarmedMessage", VAR_STRING, true);
-            checkMsgParameter(content, "defaultHousemode", VAR_STRING);
-            checkMsgParameter(content, "pin", VAR_STRING);
+            checkMsgParameter(content, "config", Json::objectValue);
+            checkMsgParameter(content, "armedMessage", Json::stringValue, true);
+            checkMsgParameter(content, "disarmedMessage", Json::stringValue, true);
+            checkMsgParameter(content, "defaultHousemode", Json::stringValue);
+            checkMsgParameter(content, "pin", Json::stringValue);
 
             if( checkPin(content["pin"].asString()) )
             {
-                qpid::types::Variant::Map newconfig = content["config"].asMap();
+                Json::Value newconfig = content["config"];
                 securitymap["config"] = newconfig;
                 securitymap["armedMessage"] = content["armedMessage"].asString();
                 securitymap["disarmedMessage"] = content["disarmedMessage"].asString();
                 securitymap["defaultHousemode"] = content["defaultHousemode"].asString();
-                if (variantMapToJSONFile(securitymap, getConfigPath(SECURITYMAPFILE)))
+                if (writeJsonFile(securitymap, getConfigPath(SECURITYMAPFILE)))
                 {
                     return responseSuccess();
                 }
@@ -896,7 +894,7 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
         }
         else if( content["command"]=="checkpin" )
         {
-            checkMsgParameter(content, "pin", VAR_STRING);
+            checkMsgParameter(content, "pin", Json::stringValue);
             if( checkPin(content["pin"].asString() ) )
             {
                 return responseSuccess();
@@ -909,8 +907,8 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
         }
         else if( content["command"]=="setpin" )
         {
-            checkMsgParameter(content, "pin", VAR_STRING);
-            checkMsgParameter(content, "newpin", VAR_STRING);
+            checkMsgParameter(content, "pin", Json::stringValue);
+            checkMsgParameter(content, "newpin", Json::stringValue);
             //check pin
             if (checkPin(content["pin"].asString()))
             {
@@ -947,10 +945,10 @@ qpid::types::Variant::Map AgoSecurity::commandHandler(qpid::types::Variant::Map 
 void AgoSecurity::setupApp()
 {
     //load config
-    securitymap = jsonFileToVariantMap(getConfigPath(SECURITYMAPFILE));
+    readJsonFile(securitymap, getConfigPath(SECURITYMAPFILE));
 
     AGO_TRACE() << "Loaded securitymap: " << securitymap;
-    std::string housemode = securitymap["housemode"];
+    std::string housemode = securitymap["housemode"].asString();
     AGO_DEBUG() << "Current house mode: " << housemode;
     agoConnection->setGlobalVariable("housemode", housemode);
 
