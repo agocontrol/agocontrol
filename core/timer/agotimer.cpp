@@ -17,8 +17,6 @@
 #include "sunrise.h"
 #include "agoapp.h"
 
-using namespace qpid::messaging;
-using namespace qpid::types;
 using namespace agocontrol;
 
 namespace pt = boost::posix_time;
@@ -105,17 +103,16 @@ void AgoTimer::clocktimer(const boost::system::error_code& error) {
     if(!error) {
         AGO_DEBUG() << "Distributing clock: " << pt::to_simple_string(now_local);
 
-        Variant::Map content;
-        content["minute"]=t.minutes();
-        content["second"]=t.seconds();
-        content["hour"]=t.hours();
+        Json::Value content;
+        content["minute"] = (uint32_t)t.minutes();
+        content["second"] = (uint32_t)t.seconds();
+        content["hour"] = (uint32_t)t.hours();
 
-
-        content["month"] = d.month();
-        content["day"]= d.day();
-        content["year"]= d.year();
-        content["weekday"]= d.day_of_week().as_number() == 0 ? 7 : d.day_of_week().as_number();
-        content["yday"]=d.day_of_year();
+        content["month"] = (uint32_t)d.month();
+        content["day"] = (uint32_t)d.day();
+        content["year"] = (uint32_t)d.year();
+        content["weekday"] = d.day_of_week().as_number() == 0 ? 7 : d.day_of_week().as_number();
+        content["yday"] = (uint32_t)d.day_of_year();
 
         agoConnection->sendMessage("event.environment.timechanged", content);
     }
@@ -222,11 +219,11 @@ void AgoTimer::suntimer(const boost::system::error_code& error, sunstate_t new_s
         return;
     }
 
-    Variant::Map empty;
+    Json::Value empty(Json::objectValue);
 
     // first, update variable with current state
     // Boolean, isDaytime = true if upcoming state is Sunset
-    Variant isDaytime = (sun.next_state == SUNSET);
+    Json::Value isDaytime = (sun.next_state == SUNSET);
 
     AGO_TRACE() << "Setting isDaytime = " << isDaytime;
     agoConnection->setGlobalVariable("isDaytime", isDaytime);
