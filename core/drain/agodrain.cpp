@@ -9,19 +9,16 @@
 #include <qpid/messaging/Session.h>
 #include <qpid/messaging/Address.h>
 
-using namespace qpid::types;
-using namespace qpid::messaging;
-
 #include "agoapp.h"
 using namespace agocontrol;
 
 class AgoDrain : public AgoApp {
 private:
     // qpid session and sender/receiver
-    Receiver receiver;
-    Sender sender;
-    Session session;
-    Connection *connection;
+    qpid::messaging::Receiver receiver;
+    qpid::messaging::Sender sender;
+    qpid::messaging::Session session;
+    qpid::messaging::Connection *connection;
 
     // Override, we do not use a AgoConnection in drain
     void setupAgoConnection() { }
@@ -37,14 +34,14 @@ public:
 int AgoDrain::appMain() {
     std::string broker;
 
-    Variant::Map connectionOptions;
+    qpid::types::Variant::Map connectionOptions;
     broker = getConfigSectionOption("system", "broker", "localhost:5672");
     connectionOptions["username"] = getConfigSectionOption("system", "username", "agocontrol");
     connectionOptions["password"] = getConfigSectionOption("system", "password", "letmein");
 
     connectionOptions["reconnect"] = "true";
 
-    connection = new Connection(broker, connectionOptions);
+    connection = new qpid::messaging::Connection(broker, connectionOptions);
 
     try {
         connection->open(); 
@@ -61,11 +58,11 @@ int AgoDrain::appMain() {
 
     while (!isExitSignaled()) {
         try{
-            Message message = receiver.fetch(Duration::SECOND * 3);
+            qpid::messaging::Message message = receiver.fetch(qpid::messaging::Duration::SECOND * 3);
             std::cout << "Message(properties=" << message.getProperties() << ", content='" ;
             if (message.getContentType() == "amqp/map") {
-                Variant::Map map;
-                decode(message, map);
+                qpid::types::Variant::Map map;
+                qpid::messaging::decode(message, map);
                 std::cout << map;
             } else {
                 std::cout << message.getContent();
@@ -73,7 +70,7 @@ int AgoDrain::appMain() {
             std::cout << "')" << std::endl;
             session.acknowledge(message);
 
-        } catch(const NoMessageAvailable& error) {
+        } catch(const qpid::messaging::NoMessageAvailable& error) {
 
         } catch(const std::exception& error) {
             std::cerr << error.what() << std::endl;
