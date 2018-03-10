@@ -149,6 +149,7 @@ namespace agocontrol {
      *  Please refer to the error log for failure indication.
      */
     bool setConfigSectionOption(const std::string& section, const std::string& option, const std::string& value, const std::string& app = {});
+    bool setConfigSectionOption(const std::string& section, const std::string& option, const char* value, const std::string& app = {});
     bool setConfigSectionOption(const std::string& section, const std::string& option, float value, const std::string& app = {});
     bool setConfigSectionOption(const std::string& section, const std::string& option, int value, const std::string& app = {});
     bool setConfigSectionOption(const std::string& section, const std::string& option, bool value, const std::string& app = {});

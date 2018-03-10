@@ -320,7 +320,7 @@ fs::path getConfigSectionOption(const ConfigNameList& section, const std::string
 }
 
 std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const char* defaultValue, const ConfigNameList &app) {
-    return getConfigSectionOption(section, option, std::string(defaultValue), app);
+    return getConfigSectionOption(section, option, std::string(defaultValue != nullptr ? defaultValue : ""), app);
 }
 
 std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const std::string& defaultValue, const ConfigNameList &app) {
@@ -377,6 +377,12 @@ bool setConfigSectionOption(const std::string& section, const std::string& optio
     return setConfigSectionOption(section, option, stringvalue.str(), app);
 }
 
+bool setConfigSectionOption(const std::string& section, const std::string& option, const char* value, const std::string& app) {
+    // Only reason for having a const char* over std::string is to avoid implicit conversion of value to bool
+    if(value == nullptr)
+        throw std::runtime_error("null value sent to setConfigSectionOption("+section+", "+option+", nullptr, "+app+")");
+    return setConfigSectionOption(section, option, std::string(value), app);
+}
 
 
 

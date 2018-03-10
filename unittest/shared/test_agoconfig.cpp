@@ -97,11 +97,11 @@ void TestAgoConfig::tearDown() {
 
 void TestAgoConfig::testBasicGet() {
     ASSERT_NOSTR( getConfigSectionOption("test", "key", ""));
-    ASSERT_NOSTR(getConfigSectionOption("test", "key", NULL));
+    ASSERT_NOSTR(getConfigSectionOption("test", "key", nullptr));
     ASSERT_STR("fallback", getConfigSectionOption("test", "key", "fallback"));
 
-    ASSERT_STR("localhost", getConfigSectionOption("system", "broker", NULL));
-    ASSERT_STR("value", getConfigSectionOption("test", "existing_key", NULL));
+    ASSERT_STR("localhost", getConfigSectionOption("system", "broker", nullptr));
+    ASSERT_STR("value", getConfigSectionOption("test", "existing_key", nullptr));
 }
 
 void TestAgoConfig::testFallbackGet() {
@@ -114,13 +114,13 @@ void TestAgoConfig::testFallbackGet() {
     ASSERT_STR("fallback", getConfigSectionOption(section, "nonexisting", "fallback"));
 
     // Overriden in test.conf
-    ASSERT_STR("testpwd", getConfigSectionOption(section, "password", NULL));
+    ASSERT_STR("testpwd", getConfigSectionOption(section, "password", nullptr));
 
     // from system.conf
-    ASSERT_STR("localhost", getConfigSectionOption(section, "broker", NULL));
+    ASSERT_STR("localhost", getConfigSectionOption(section, "broker", nullptr));
 
     // From test.conf
-    ASSERT_STR("value", getConfigSectionOption(section, "existing_key", NULL));
+    ASSERT_STR("value", getConfigSectionOption(section, "existing_key", nullptr));
 }
 
 void TestAgoConfig::testSimulatedAppGet() {
@@ -135,34 +135,34 @@ void TestAgoConfig::testSimulatedAppGet() {
     ASSERT_STR("fallback", getConfigSectionOption(section, "nonexisting", "fallback", app));
 
     // Overriden in test.conf
-    ASSERT_STR("testpwd", getConfigSectionOption(section, "password", NULL, app));
+    ASSERT_STR("testpwd", getConfigSectionOption(section, "password", nullptr, app));
 
     // from system.conf; will not be found since we only look in app test
-    ASSERT_NOSTR(getConfigSectionOption(section, "broker", NULL, app));
+    ASSERT_NOSTR(getConfigSectionOption(section, "broker", nullptr, app));
 
     // From test.conf
-    ASSERT_STR("value", getConfigSectionOption(section, "existing_key", NULL, app));
+    ASSERT_STR("value", getConfigSectionOption(section, "existing_key", nullptr, app));
 
     // Add system to app, and make sure we now can read broker
     app.add("system");
-    ASSERT_STR("localhost", getConfigSectionOption(section, "broker", NULL));
+    ASSERT_STR("localhost", getConfigSectionOption(section, "broker", nullptr));
 }
 
 void TestAgoConfig::testBasicSet() {
-    ASSERT_STR("value", getConfigSectionOption("test", "existing_key", NULL));
-    ASSERT_NOSTR(getConfigSectionOption("test", "new_key", NULL));
+    ASSERT_STR("value", getConfigSectionOption("test", "existing_key", nullptr));
+    ASSERT_NOSTR(getConfigSectionOption("test", "new_key", nullptr));
 
     CPPUNIT_ASSERT(setConfigSectionOption("test", "new_key", "val"));
-    ASSERT_STR("val", getConfigSectionOption("test", "new_key", NULL));
+    ASSERT_STR("val", getConfigSectionOption("test", "new_key", nullptr));
 
-    // Test blank app, should be same as NULL
+    // Test blank app, should be same as nullptr
     CPPUNIT_ASSERT(setConfigSectionOption("test", "new_key", "val2", ""));
-    ASSERT_STR("val2", getConfigSectionOption("test", "new_key", NULL));
+    ASSERT_STR("val2", getConfigSectionOption("test", "new_key", nullptr));
 
     // New file
-    ASSERT_NOSTR(getConfigSectionOption("test", "new_key", NULL, "new_file"));
+    ASSERT_NOSTR(getConfigSectionOption("test", "new_key", nullptr, "new_file"));
     CPPUNIT_ASSERT(setConfigSectionOption("test", "new_key", "val", "new_file"));
-    ASSERT_STR("val", getConfigSectionOption("test", "new_key", NULL, "new_file"));
+    ASSERT_STR("val", getConfigSectionOption("test", "new_key", nullptr, "new_file"));
 }
 
 void TestAgoConfig::testSetError() {
@@ -170,9 +170,8 @@ void TestAgoConfig::testSetError() {
     // In augeas 1.3.0 it segfaults, we've got workarounds to avoid that.
     // https://github.com/hercules-team/augeas/issues/178
     if(getuid() == 0) {
-        // TODO: Fix builders so they dont run as root, then change to CPPUNIT_FAIL instead.
-        //CPPUNIT_FAIL("You cannot run this test as. Also, do not develop as root!");
-        std::cerr << "You cannot run this test as. Also, do not develop as root!" << std::endl;
+        // This test is inneffective when run as root, but some envs such as docker build env is root.
+        std::cerr << "IGNORED: You cannot run this test as root. Also, do not develop as root!";
         return;
     }
 
@@ -180,42 +179,42 @@ void TestAgoConfig::testSetError() {
 
     CPPUNIT_ASSERT(! setConfigSectionOption("test", "new_key", "val"));
 
-    ASSERT_NOSTR(getConfigSectionOption("test", "new_key", NULL));
+    ASSERT_NOSTR(getConfigSectionOption("test", "new_key", nullptr));
 
     CPPUNIT_ASSERT(! setConfigSectionOption("test", "new_key", "val", "//bad/path"));
 }
 
 void TestAgoConfig::testAppGet() {
     DummyUnitTestApp app;
-    ASSERT_STR("value", app.getConfigOption("existing_key", NULL));
-    ASSERT_NOSTR(app.getConfigOption("nonexisting_key", NULL));
+    ASSERT_STR("value", app.getConfigOption("existing_key", nullptr));
+    ASSERT_NOSTR(app.getConfigOption("nonexisting_key", nullptr));
 
     // This should go directly to system.conf, only
-    ASSERT_STR("localhost", app.getConfigOption("broker", NULL, "system"));
-    ASSERT_NOSTR(app.getConfigOption("nonexisting_key", NULL, "system"));
-    ASSERT_NOSTR(app.getConfigOption("existing_key", NULL, "system"));
+    ASSERT_STR("localhost", app.getConfigOption("broker", nullptr, "system"));
+    ASSERT_NOSTR(app.getConfigOption("nonexisting_key", nullptr, "system"));
+    ASSERT_NOSTR(app.getConfigOption("existing_key", nullptr, "system"));
 
     // This shall fall back on system.conf
-    ASSERT_STR("localhost", app.getConfigOption("broker", NULL, ExtraConfigNameList("system")));
-    ASSERT_NOSTR(app.getConfigOption("nonexisting_key", NULL, ExtraConfigNameList("system")));
-    ASSERT_STR("value", app.getConfigOption("existing_key", NULL, ExtraConfigNameList("system")));
+    ASSERT_STR("localhost", app.getConfigOption("broker", nullptr, ExtraConfigNameList("system")));
+    ASSERT_NOSTR(app.getConfigOption("nonexisting_key", nullptr, ExtraConfigNameList("system")));
+    ASSERT_STR("value", app.getConfigOption("existing_key", nullptr, ExtraConfigNameList("system")));
 }
 
 void TestAgoConfig::testAppSet() {
     DummyUnitTestApp app;
-    ASSERT_NOSTR(app.getConfigOption("nonexisting_key", NULL));
+    ASSERT_NOSTR(app.getConfigOption("nonexisting_key", nullptr));
     CPPUNIT_ASSERT(app.setConfigOption("nonexisting_key", "val"));
-    ASSERT_STR("val", app.getConfigOption("nonexisting_key", NULL));
+    ASSERT_STR("val", app.getConfigOption("nonexisting_key", nullptr));
 
     // This should go directly to system.conf
-    ASSERT_STR("localhost", app.getConfigOption("broker", NULL, "system"));
+    ASSERT_STR("localhost", app.getConfigOption("broker", nullptr, "system"));
     CPPUNIT_ASSERT(app.setConfigOption("broker", "remotehost", "system"));
-    ASSERT_STR("remotehost", app.getConfigOption("broker", NULL, "system"));
+    ASSERT_STR("remotehost", app.getConfigOption("broker", nullptr, "system"));
 
     // Make sure we can set custom app + section
-    ASSERT_NOSTR(app.getConfigOption("broker", NULL, "section", "system"));
+    ASSERT_NOSTR(app.getConfigOption("broker", nullptr, "section", "system"));
     CPPUNIT_ASSERT(app.setConfigOption("broker", "remotehost", "section", "system"));
-    ASSERT_STR("remotehost", app.getConfigOption("broker", NULL, "section", "system"));
+    ASSERT_STR("remotehost", app.getConfigOption("broker", nullptr, "section", "system"));
 }
 
 }; /* namespace agocontrol */

@@ -204,7 +204,7 @@ namespace agocontrol {
         std::string getConfigOption(const std::string& option, const char* defaultValue, const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
             ConfigNameList section_(section, appConfigSection);
             ConfigNameList app_(app, section_);
-            return getConfigSectionOption(section_, option, std::string(defaultValue), app_);
+            return getConfigSectionOption(section_, option, std::string(defaultValue != nullptr ? defaultValue : ""), app_);
         }
         std::string getConfigOption(const std::string& option, const std::string& defaultValue, const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
             ConfigNameList section_(section, appConfigSection);
@@ -241,6 +241,12 @@ namespace agocontrol {
          *  Please refer to the error log for failure indication.
          */
         bool setConfigOption(const std::string& option, const std::string& value, const std::string& section={}, const std::string& app={}) {
+            return setConfigSectionOption(section.empty() ? appConfigSection : section, option, value, app.empty() ? section : app);
+        }
+        bool setConfigOption(const std::string& option, const char* value, const std::string& section={}, const std::string& app={}) {
+            // Only reason for having a const char* over std::string is to avoid implicit conversion of value to bool
+            if(value == nullptr)
+                throw std::runtime_error("null value sent to setConfigOption("+option+", nullptr, "+section+", "+app+")");
             return setConfigSectionOption(section.empty() ? appConfigSection : section, option, value, app.empty() ? section : app);
         }
         bool setConfigOption(const std::string& option, float value, const std::string& section={}, const std::string& app={}) {
