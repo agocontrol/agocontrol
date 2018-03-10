@@ -26,7 +26,6 @@
 
 using namespace agocontrol;
 using namespace boost::system; 
-using namespace qpid::types;
 namespace fs = ::boost::filesystem;
 
 enum valid_type
@@ -64,26 +63,26 @@ class AgoMySensors: public AgoApp
         boost::thread* readThread;
         boost::thread* checkStaleThread;
         std::string units;
-        qpid::types::Variant::Map devicemap;
+        Json::Value devicemap;
         std::string gateway_protocol_version;
         serialib serialPort;
         std::string serialDevice;
         int staleThreshold;
         int bNetworkRelay;
         int bStale;
-        qpid::types::Variant::Map arduinoNodes;
+        Json::Value arduinoNodes;
 
         //functions
         void setupApp();
         void cleanupApp();
         std::string timestampToStr(const time_t* timestamp);
-        void printDeviceInfos(std::string internalid, qpid::types::Variant::Map infos);
+        void printDeviceInfos(std::string internalid, const Json::Value& infos);
         int getFreeId();
-        void setDeviceInfos(std::string internalid, qpid::types::Variant::Map* infos);
-        qpid::types::Variant::Map getDeviceInfos(std::string internalid);
+        void setDeviceInfos(std::string internalid, const Json::Value& infos);
+        Json::Value getDeviceInfos(std::string internalid);
         std::string prettyPrint(std::string message, std::string protocol);
         bool deleteDevice(std::string internalid);
-        void addDevice(std::string internalid, std::string devicetype, qpid::types::Variant::Map devices, qpid::types::Variant::Map infos, std::string protocol);
+        void addDevice(std::string internalid, std::string devicetype, Json::Value& infos, std::string protocol);
         bool openSerialPort(std::string device);
         void closeSerialPort();
         bool checkInternalid(std::string internalid);
@@ -92,24 +91,26 @@ class AgoMySensors: public AgoApp
         void sendcommandV15(std::string internalid, int messageType, int ack, int subType, std::string payload);
         void sendcommandV14(std::string internalid, int messageType, int ack, int subType, std::string payload);
         void sendcommandV13(std::string internalid, int messageType, int subType, std::string payload);
-        qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command);
+        Json::Value commandHandler(const Json::Value& content);
         std::string readLine(bool* error);
         void newDevice(std::string internalid, std::string devicetype, std::string protocol);
-        void processMessageV20(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos);
-        void processMessageV15(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos);
-        void processMessageV14(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos);
-        void processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos);
+        void processMessageV20(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, Json::Value infos);
+        void processMessageV15(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, Json::Value infos);
+        void processMessageV14(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, Json::Value infos);
+        void processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, Json::Value infos);
         void receiveFunction();
         void checkStaleFunction();
-        bool splitInternalLogMessage(std::string payload, qpid::types::Variant::Map& items);
+        bool splitInternalLogMessage(std::string payload, Json::Value& items);
 
     public:
         AGOAPP_CONSTRUCTOR_HEAD(AgoMySensors),
             units("M"),
+            devicemap(Json::objectValue),
             serialDevice(""),
             staleThreshold(86400),
             bNetworkRelay(false),
-            bStale(true)
+            bStale(true),
+            arduinoNodes(Json::objectValue)
             {}
         
 };
@@ -136,23 +137,23 @@ std::string AgoMySensors::timestampToStr(const time_t* timestamp)
 /**
  * Make readable device infos
  */
-void AgoMySensors::printDeviceInfos(std::string internalid, qpid::types::Variant::Map infos)
+void AgoMySensors::printDeviceInfos(std::string internalid, const Json::Value& infos)
 {
     std::stringstream result;
     result << "Infos of device internalid '" << internalid << "'";
-    if( !infos["protocol"].isVoid() )
+    if( infos.isMember("protocol") )
         result << " - protocol=" << infos["protocol"];
-    if( !infos["type"].isVoid() )
+    if( infos.isMember("type") )
         result << " - type=" << infos["type"];
-    if( !infos["value"].isVoid() )
+    if( infos.isMember("value") )
         result << " - value=" << infos["value"];
-    if( !infos["counter_sent"].isVoid() )
+    if( !infos.isMember("counter_sent") )
         result << " - counter_sent=" << infos["counter_sent"];
-    if( !infos["counter_received"].isVoid() )
+    if( !infos.isMember("counter_received") )
         result << " - counter_received=" << infos["counter_received"];
-    if( !infos["counter_failed"].isVoid() )
+    if( infos.isMember("counter_failed") )
         result << " - counter_failed=" << infos["counter_failed"];
-    if( !infos["last_timestamp"].isVoid() )
+    if( infos.isMember("last_timestamp") )
         result << " - last_timestamp=" << infos["last_timestamp"];
     AGO_TRACE() << result.str();
 }
@@ -164,23 +165,23 @@ void AgoMySensors::printDeviceInfos(std::string internalid, qpid::types::Variant
 int AgoMySensors::getFreeId()
 {
     int freeId = 0;
-    qpid::types::Variant::List existingIds;
+    Json::Value existingIds(Json::arrayValue);
 
     pthread_mutex_lock(&devicemapMutex);
-    if( !devicemap["devices"].isVoid() )
+    if( devicemap.isMember("devices") )
     {
         //get list of existing ids
-        qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-        for( qpid::types::Variant::Map::const_iterator it = devices.begin(); it != devices.end(); it++ )
+        Json::Value devices = devicemap["devices"];
+        for( auto it = devices.begin(); it != devices.end(); it++ )
         {
-            std::string internalid = it->first;
+            std::string internalid = it.name();
             //format <int>/<int>
             std::vector<std::string> splits;
             boost::split(splits, internalid, boost::is_any_of("/"));
             if( splits.size()==2 && splits[0].length()>0 && splits[1].length()>0 )
             {
                 int nodeId = atoi(splits[0].c_str());
-                existingIds.push_back(nodeId);
+                existingIds.append(nodeId);
             }
             else
             {
@@ -194,9 +195,9 @@ int AgoMySensors::getFreeId()
         for( int i=1; i<255; i++ )
         {
             found = false;
-            for( qpid::types::Variant::List::iterator it=existingIds.begin(); it!=existingIds.end(); it++ )
+            for( Json::Value::iterator it=existingIds.begin(); it!=existingIds.end(); it++ )
             {
-                if( it->asInt32()==i )
+                if( it->asInt()==i )
                 {
                     found = true;
                     break;
@@ -220,18 +221,18 @@ int AgoMySensors::getFreeId()
 /**
  * Save specified device infos
  */
-void AgoMySensors::setDeviceInfos(std::string internalid, qpid::types::Variant::Map* infos)
+void AgoMySensors::setDeviceInfos(std::string internalid, const Json::Value& infos)
 {
     pthread_mutex_lock(&devicemapMutex);
-    if( infos!=NULL && infos->size()>0 )
+    if( !infos.isNull() && !infos.empty() )
     {
-        if( !devicemap["devices"].isVoid() )
+        if( devicemap.isMember("devices") )
         {
             AGO_TRACE() << "Device [" << internalid << "] infos updated";
-            qpid::types::Variant::Map device = devicemap["devices"].asMap();
-            device[internalid] = (*infos);
-            devicemap["devices"] = device;
-            variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
+            Json::Value& devices = devicemap["devices"];
+            devices[internalid] = infos;
+
+            writeJsonFile(devicemap, getConfigPath(DEVICEMAPFILE));
         }
     }
     else
@@ -244,29 +245,23 @@ void AgoMySensors::setDeviceInfos(std::string internalid, qpid::types::Variant::
 /**
  * Get infos of specified device
  */
-qpid::types::Variant::Map AgoMySensors::getDeviceInfos(std::string internalid)
+Json::Value AgoMySensors::getDeviceInfos(std::string internalid)
 {
-    qpid::types::Variant::Map out;
-    bool save = false;
+    Json::Value out;
 
-    if( !devicemap["devices"].isVoid() )
+    if( devicemap.isMember("devices") )
     {
-        qpid::types::Variant::Map devices = devicemap["devices"].asMap();
+        Json::Value& devices = devicemap["devices"];
 
-        if( !devices[internalid].isVoid() )
+        if( devices.isMember(internalid) )
         {
-            out = devices[internalid].asMap();
+            out = devices[internalid];
 
             //check field existence
-            if( out["protocol"].isVoid() ) 
+            if( !out.isMember("protocol") )
             {
                 out["protocol"] = DEFAULT_PROTOCOL;
-                save = true;
-            }
-
-            if( save )
-            {
-                setDeviceInfos(internalid, &out);
+                setDeviceInfos(internalid, out);
             }
         }
     }
@@ -283,7 +278,7 @@ std::string AgoMySensors::prettyPrint(std::string message, std::string protocol)
     std::string ack = "";
     std::stringstream result;
     std::string internalid = "";
-    qpid::types::Variant::Map infos;
+    Json::Value infos;
 
     std::vector<std::string> items = split(message, ';');
     if ( items.size()<4 || items.size()>6 )
@@ -488,21 +483,20 @@ bool AgoMySensors::deleteDevice(std::string internalid)
     //init
     bool result = false;
 
-    if( !devicemap["devices"].isVoid() )
+    if( devicemap.isMember("devices") )
     {
-        qpid::types::Variant::Map devices = devicemap["devices"].asMap();
+        Json::Value& devices = devicemap["devices"];
 
         //check if device exists
-        if( !devices[internalid].isVoid() )
+        if( devices.isMember(internalid) )
         {
             //remove device from uuidmap
             if( agoConnection->removeDevice(internalid) )
             {
                 //clear all infos
                 pthread_mutex_lock(&devicemapMutex);
-                devices.erase(internalid);
-                devicemap["devices"] = devices;
-                variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
+                devices.removeMember(internalid);
+                writeJsonFile(devicemap, getConfigPath(DEVICEMAPFILE));
                 pthread_mutex_unlock(&devicemapMutex);
 
                 result = true;
@@ -529,7 +523,7 @@ bool AgoMySensors::deleteDevice(std::string internalid)
 /**
  * Save all necessary infos for new device and register it to agocontrol
  */
-void AgoMySensors::addDevice(std::string internalid, std::string devicetype, qpid::types::Variant::Map devices, qpid::types::Variant::Map infos, std::string protocol)
+void AgoMySensors::addDevice(std::string internalid, std::string devicetype, Json::Value& infos, std::string protocol)
 {
     pthread_mutex_lock(&devicemapMutex);
     std::string addStatus = "added";
@@ -537,6 +531,7 @@ void AgoMySensors::addDevice(std::string internalid, std::string devicetype, qpi
     {
         addStatus = "updated";
     }
+
     infos["type"] = devicetype;
     infos["value"] = "0";
     infos["counter_sent"] = 0;
@@ -545,9 +540,12 @@ void AgoMySensors::addDevice(std::string internalid, std::string devicetype, qpi
     infos["last_route"] = "";
     infos["last_timestamp"] = (int)(time(NULL));
     infos["protocol"] = protocol;
+
+    Json::Value& devices = devicemap["devices"];
     devices[internalid] = infos;
-    devicemap["devices"] = devices;
-    variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
+
+    writeJsonFile(devicemap, getConfigPath(DEVICEMAPFILE));
+
     agoConnection->addDevice(internalid, devicetype);
     AGO_TRACE() << "Device [" << internalid << "] " << addStatus;
     pthread_mutex_unlock(&devicemapMutex);
@@ -556,7 +554,7 @@ void AgoMySensors::addDevice(std::string internalid, std::string devicetype, qpi
 /**
  * Split I_LOG_MESSAGE payload
  */
-bool AgoMySensors::splitInternalLogMessage(std::string payload, qpid::types::Variant::Map& items)
+bool AgoMySensors::splitInternalLogMessage(std::string payload, Json::Value& items)
 {
     bool result = true;
 
@@ -829,7 +827,7 @@ void AgoMySensors::sendcommandV20(std::string internalid, int messageType, int a
 {
     std::vector<std::string> items = split(internalid, '/');
     std::stringstream command;
-    qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+    Json::Value infos = getDeviceInfos(internalid);
 
     //prepare command
     int nodeId = atoi(items[0].c_str());
@@ -848,7 +846,7 @@ void AgoMySensors::sendcommandV15(std::string internalid, int messageType, int a
 {
     std::vector<std::string> items = split(internalid, '/');
     std::stringstream command;
-    qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+    Json::Value infos = getDeviceInfos(internalid);
 
     //prepare command
     int nodeId = atoi(items[0].c_str());
@@ -867,7 +865,7 @@ void AgoMySensors::sendcommandV14(std::string internalid, int messageType, int a
 {
     std::vector<std::string> items = split(internalid, '/');
     std::stringstream command;
-    qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+    Json::Value infos = getDeviceInfos(internalid);
 
     //prepare command
     int nodeId = atoi(items[0].c_str());
@@ -886,7 +884,7 @@ void AgoMySensors::sendcommandV13(std::string internalid, int messageType, int s
 {
     std::vector<std::string> items = split(internalid, '/');
     std::stringstream command;
-    qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+    Json::Value infos = getDeviceInfos(internalid);
 
     //prepare command
     int nodeId = atoi(items[0].c_str());
@@ -904,103 +902,191 @@ void AgoMySensors::sendcommandV13(std::string internalid, int messageType, int s
 /**
  * Agocontrol command handler
  */
-qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map command)
+Json::Value AgoMySensors::commandHandler(const Json::Value& content)
 {
-    qpid::types::Variant::Map returnval;
-    qpid::types::Variant::Map infos;
-    std::string deviceType = "";
-    std::string cmd = "";
-    std::string internalid = "";
-    AGO_TRACE() << "CommandHandler" << command;
-    if( command.count("internalid")==1 && command.count("command")==1 )
-    {
-        //get values
-        cmd = command["command"].asString();
-        internalid = command["internalid"].asString();
+    Json::Value returnval;
+    Json::Value infos;
+    std::string deviceType;
+    std::string cmd;
 
-        //switch to specified command
-        if( cmd=="getcounters" )
+    AGO_TRACE() << "CommandHandler" << content;
+    checkMsgParameter(content, "command", Json::stringValue);
+
+    //get values
+    cmd = content["command"].asString();
+
+    //switch to specified command
+    if( cmd=="getcounters" )
+    {
+        //return devices counters
+        returnval["error"] = 0;
+        returnval["msg"] = "";
+        Json::Value counters(Json::objectValue);
+        if( devicemap.isMember("devices") )
         {
-            //return devices counters
-            returnval["error"] = 0;
-            returnval["msg"] = "";
-            qpid::types::Variant::Map counters;
-            if( !devicemap["devices"].isVoid() )
+            const Json::Value& devices = devicemap["devices"];
+            for (auto it = devices.begin(); it != devices.end(); it++)
             {
-                qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-                for (qpid::types::Variant::Map::const_iterator it = devices.begin(); it != devices.end(); it++)
+                Json::Value content = *it;
+                //add device name + device type
+                std::stringstream deviceNameType;
+                deviceNameType << it.name().c_str() << " (";
+                infos = getDeviceInfos(it.name());
+                if( infos.size()>0 && infos.isMember("type") )
                 {
-                    qpid::types::Variant::Map content = it->second.asMap();
-                    //add device name + device type
-                    std::stringstream deviceNameType;
-                    deviceNameType << it->first.c_str() << " (";
-                    infos = getDeviceInfos(it->first);
-                    if( infos.size()>0 && !infos["type"].isVoid() )
-                    {
-                        deviceNameType << infos["type"];
-                    }
-                    else 
-                    {
-                        deviceNameType << "unknown";
-                    }
-                    deviceNameType << ")";
-                    content["device"] = deviceNameType.str();
-                    //add device last datetime
-                    if( !content["last_timestamp"].isVoid() )
-                    {
-                        int64_t timestamp = content["last_timestamp"].asInt64();
-                        content["datetime"] = timestampToStr((time_t*)&timestamp);
-                    }
-                    else
-                    {
-                        content["datetime"] = "?";
-                    }
-                    counters[it->first.c_str()] = content;
+                    deviceNameType << infos["type"];
+                }
+                else
+                {
+                    deviceNameType << "unknown";
+                }
+                deviceNameType << ")";
+                content["device"] = deviceNameType.str();
+                //add device last datetime
+                if( content.isMember("last_timestamp") )
+                {
+                    int64_t timestamp = content["last_timestamp"].asInt64();
+                    content["datetime"] = timestampToStr((time_t*)&timestamp);
+                }
+                else
+                {
+                    content["datetime"] = "?";
+                }
+                counters[it.name()] = content;
+            }
+        }
+        returnval["counters"] = counters;
+    }
+    else if( cmd=="resetallcounters" )
+    {
+        //reset all counters
+        if( devicemap.isMember("devices") )
+        {
+            const Json::Value& devices = devicemap["devices"];
+            for (auto it = devices.begin(); it != devices.end(); it++)
+            {
+                infos = getDeviceInfos(it.name());
+                if( infos.size()>0 )
+                {
+                    infos["counter_received"] = 0;
+                    infos["counter_sent"] = 0;
+                    infos["counter_failed"] = 0;
+                    setDeviceInfos(it.name(), infos);
                 }
             }
-            returnval["counters"] = counters;
         }
-        else if( cmd=="resetallcounters" )
+        returnval["error"] = 0;
+        returnval["msg"] = "";
+    }
+    else if( cmd=="resetcounters" )
+    {
+        //reset counters of specified sensor
+        //command["device"] format: {internalid:<>, type:<>}
+        if( content.isMember("device") )
         {
-            //reset all counters
-            if( !devicemap["devices"].isVoid() )
+            Json::Value device = content["device"];
+            if( device.isMember("internalid") )
             {
-                qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-                for (qpid::types::Variant::Map::iterator it = devices.begin(); it != devices.end(); it++)
+                infos = getDeviceInfos(device["internalid"].asString());
+                if( infos.size()>0 )
                 {
-                    infos = getDeviceInfos(it->first);
-                    if( infos.size()>0 )
-                    {
-                        infos["counter_received"] = 0;
-                        infos["counter_sent"] = 0;
-                        infos["counter_failed"] = 0;
-                        setDeviceInfos(it->first, &infos);
-                    }
+                    infos["counter_received"] = 0;
+                    infos["counter_sent"] = 0;
+                    infos["counter_failed"] = 0;
+                    setDeviceInfos(device["internalid"].asString(), infos);
                 }
             }
             returnval["error"] = 0;
             returnval["msg"] = "";
         }
-        else if( cmd=="resetcounters" )
+        else
         {
-            //reset counters of specified sensor
+            //invalid command format
+            returnval["error"] = 6;
+            returnval["msg"] = "Invalid command received";
+        }
+    }
+    else if( cmd=="getport" )
+    {
+        //get serial port
+        returnval["error"] = 0;
+        returnval["msg"] = "";
+        returnval["port"] = serialDevice;
+    }
+    else if( cmd=="setport" )
+    {
+        //set serial port
+        if( content.isMember("port") ) {
+            //restart communication
+            closeSerialPort();
+            if( !openSerialPort(content["port"].asString()) ) {
+                returnval["error"] = 1;
+                returnval["msg"] = "Unable to open specified port";
+            }
+            else {
+                //everything looks good, save port
+                serialDevice = content["port"].asString();
+                if( !setConfigSectionOption("mysensors", "device", serialDevice.c_str()) ) {
+                    returnval["error"] = 2;
+                    returnval["msg"] = "Unable to save serial port to config file";
+                }
+                else {
+                    returnval["error"] = 0;
+                    returnval["msg"] = "";
+                }
+            }
+        }
+        else {
+            //port is missing
+            returnval["error"] = 3;
+            returnval["msg"] = "No port specified";
+        }
+    }
+    else if( cmd=="getdevices" )
+    {
+        //return list of devices (with device type too!!)
+        returnval["error"] = 0;
+        returnval["msg"] = "";
+        Json::Value devicesList(Json::arrayValue);
+        if( devicemap.isMember("devices") )
+        {
+            Json::Value devices = devicemap["devices"];
+            for (auto it = devices.begin(); it != devices.end(); it++)
+            {
+                infos = getDeviceInfos(it.name());
+                Json::Value item;
+                item["internalid"] = it.name().c_str();
+                if( infos.size()>0 && infos.isMember("type") )
+                {
+                    item["type"] = infos["type"];
+                }
+                else
+                {
+                    item["type"] = "unknown";
+                }
+                devicesList.append(item);
+            }
+        }
+        returnval["devices"] = devicesList;
+    }
+    else if( cmd=="remove" )
+    {
+        //remove specified device
+        if( content.isMember("device") )
+        {
             //command["device"] format: {internalid:<>, type:<>}
-            if( !command["device"].isVoid() )
+            Json::Value device = content["device"];
+            if( device.isMember("internalid") )
             {
-                qpid::types::Variant::Map device = command["device"].asMap();
-                if( !device["internalid"].isVoid() )
+                if( deleteDevice(device["internalid"].asString()) )
                 {
-                    infos = getDeviceInfos(device["internalid"].asString());
-                    if( infos.size()>0 )
-                    {
-                        infos["counter_received"] = 0;
-                        infos["counter_sent"] = 0;
-                        infos["counter_failed"] = 0;
-                        setDeviceInfos(device["internalid"].asString(), &infos);
-                    }
+                    returnval["error"] = 0;
+                    returnval["msg"] = "";
                 }
-                returnval["error"] = 0;
-                returnval["msg"] = "";
+                else {
+                    returnval["error"] = 7;
+                    returnval["msg"] = "Unable to delete sensor";
+                }
             }
             else
             {
@@ -1009,294 +1095,204 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                 returnval["msg"] = "Invalid command received";
             }
         }
-        else if( cmd=="getport" )
+        else
         {
-            //get serial port
-            returnval["error"] = 0;
-            returnval["msg"] = "";
-            returnval["port"] = serialDevice;
+            //device id is missing
+            returnval["error"] = 4;
+            returnval["msg"] = "Device is missing";
         }
-        else if( cmd=="setport" )
-        {
-            //set serial port
-            if( !command["port"].isVoid() ) {
-                //restart communication
-                closeSerialPort();
-                if( !openSerialPort(command["port"].asString()) ) {
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Unable to open specified port";
-                }
-                else {
-                    //everything looks good, save port
-                    serialDevice = command["port"].asString();
-                    if( !setConfigSectionOption("mysensors", "device", serialDevice.c_str()) ) {
-                        returnval["error"] = 2;
-                        returnval["msg"] = "Unable to save serial port to config file";
-                    }
-                    else {
-                        returnval["error"] = 0;
-                        returnval["msg"] = "";
-                    }
-                }
-            }
-            else {
-                //port is missing
-                returnval["error"] = 3;
-                returnval["msg"] = "No port specified";
-            }
-        }
-        else if( cmd=="getdevices" )
-        {
-            //return list of devices (with device type too!!)
-            returnval["error"] = 0;
-            returnval["msg"] = "";
-            qpid::types::Variant::List devicesList;
-            if( !devicemap["devices"].isVoid() )
-            {
-                qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-                for (qpid::types::Variant::Map::const_iterator it = devices.begin(); it != devices.end(); it++)
-                {
-                    infos = getDeviceInfos(it->first);
-                    qpid::types::Variant::Map item;
-                    item["internalid"] = it->first.c_str();
-                    if( infos.size()>0 && !infos["type"].isVoid() )
-                    {
-                        item["type"] = infos["type"];
-                    }
-                    else
-                    {
-                        item["type"] = "unknown";
-                    }
-                    devicesList.push_back(item);
-                }
-            }
-            returnval["devices"] = devicesList;
-        }
-        else if( cmd=="remove" )
-        {
-            //remove specified device
-            if( !command["device"].isVoid() )
-            {
-                //command["device"] format: {internalid:<>, type:<>}
-                qpid::types::Variant::Map device = command["device"].asMap();
-                if( !device["internalid"].isVoid() )
-                {
-                    if( deleteDevice(device["internalid"].asString()) )
-                    {
-                        returnval["error"] = 0;
-                        returnval["msg"] = "";
-                    }
-                    else {
-                        returnval["error"] = 7;
-                        returnval["msg"] = "Unable to delete sensor";
-                    }
-                }
-                else
-                {
-                    //invalid command format
-                    returnval["error"] = 6;
-                    returnval["msg"] = "Invalid command received";
-                }
-            }
-            else
-            {
-                //device id is missing
-                returnval["error"] = 4;
-                returnval["msg"] = "Device is missing";
-            }
-        }
-        else if( cmd=="setcustomvariable" )
-        {
-            if( !command["device"].isVoid() && !command["variable"].isVoid() && !command["value"].isVoid() )
-            {
-                std::string devInternalid = command["device"].asString();
-                std::string customvar = command["variable"].asString();
-                std::string value = command["value"].asString();
+    }
+    else if( cmd=="setcustomvariable" )
+    {
+        checkMsgParameter(content, "internalid", Json::stringValue);
+        checkMsgParameter(content, "device", Json::stringValue);
+        checkMsgParameter(content, "variable", Json::stringValue);
+        checkMsgParameter(content, "value", Json::stringValue);
 
-                //check device
-                qpid::types::Variant::Map infos = getDeviceInfos(devInternalid);
-                if( infos.size()==0 )
+        std::string internalid = content["internalid"].asString();
+        std::string devInternalid = content["device"].asString();
+        std::string customvar = content["variable"].asString();
+        std::string value = content["value"].asString();
+
+        //check device
+        Json::Value infos = getDeviceInfos(devInternalid);
+        if( infos.size()==0 )
+        {
+            //specified device is surely not handled by mysensors
+            returnval["error"] = 1;
+            returnval["msg"] = "Device not handled by this controller";
+        }
+        else
+        {
+            if( customvar=="VAR1" )
+            {
+                //reserved customvar
+                AGO_WARNING() << "Reserved customvar '" << customvar << "'. Nothing processed";
+                returnval["error"] = 1;
+                returnval["msg"] = "Reserved customvar";
+            }
+            else if( customvar=="VAR2" )
+            {
+                if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
                 {
-                    //specified device is surely not handled by mysensors
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Device not handled by this controller";
+                    sendcommandV20(internalid, SET_V20, 1, V_VAR2_V20, value);
+                }
+                else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                {
+                    sendcommandV15(internalid, SET_V15, 1, V_VAR2_V15, value);
+                }
+                else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                {
+                    sendcommandV14(internalid, SET_V14, 1, V_VAR2_V14, value);
                 }
                 else
                 {
-                    if( customvar=="VAR1" )
+                    AGO_WARNING() << "Customvar is supported from protocol v1.4";
+                    returnval["error"] = 1;
+                    returnval["msg"] = "Customvar is supported from protocol v1.4";
+                }
+            }
+            else if( customvar=="VAR3" )
+            {
+                if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
+                {
+                    sendcommandV20(internalid, SET_V20, 1, V_VAR3_V20, value);
+                }
+                else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                {
+                    sendcommandV15(internalid, SET_V15, 1, V_VAR3_V15, value);
+                }
+                else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                {
+                    sendcommandV14(internalid, SET_V14, 1, V_VAR3_V14, value);
+                }
+                else
+                {
+                    AGO_WARNING() << "Customvar is supported from protocol v1.4";
+                    returnval["error"] = 1;
+                    returnval["msg"] = "Customvar is supported from protocol v1.4";
+                }
+            }
+            else if( customvar=="VAR4" )
+            {
+                if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
+                {
+                    sendcommandV20(internalid, SET_V20, 1, V_VAR4_V20, value);
+                }
+                else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                {
+                    sendcommandV15(internalid, SET_V15, 1, V_VAR4_V15, value);
+                }
+                else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                {
+                    sendcommandV14(internalid, SET_V14, 1, V_VAR4_V14, value);
+                }
+                else
+                {
+                    AGO_WARNING() << "Customvar is supported from protocol v1.4";
+                    returnval["error"] = 1;
+                    returnval["msg"] = "Customvar is supported from protocol v1.4";
+                }
+            }
+            else if( customvar=="VAR5" )
+            {
+                if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
+                {
+                    sendcommandV20(internalid, SET_V20, 1, V_VAR5_V20, value);
+                }
+                else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                {
+                    sendcommandV15(internalid, SET_V15, 1, V_VAR5_V15, value);
+                }
+                else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                {
+                    sendcommandV14(internalid, SET_V14, 1, V_VAR5_V14, value);
+                }
+                else
+                {
+                    AGO_WARNING() << "Customvar is supported from protocol v1.4";
+                    returnval["error"] = 1;
+                    returnval["msg"] = "Customvar is supported from protocol v1.4";
+                }
+            }
+            else
+            {
+                //unknown customvar
+                AGO_ERROR() << "Unsupported customvar '" << customvar << "'. Nothing processed";
+                returnval["error"] = 1;
+                returnval["msg"] = "Unsupported specified customvar";
+            }
+        }
+    }
+    else
+    {
+        checkMsgParameter(content, "internalid", Json::stringValue);
+        std::string internalid = content["internalid"].asString();
+
+        //get device infos
+        infos = getDeviceInfos(internalid);
+        //check if device found
+        if( infos.size()>0 )
+        {
+            returnval["error"] = 0;
+            returnval["msg"] = "";
+
+            deviceType = infos["type"].asString();
+            //switch according to specific device type
+            if( deviceType=="switch" )
+            {
+                if( cmd=="off" )
+                {
+                    if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
                     {
-                        //reserved customvar
-                        AGO_WARNING() << "Reserved customvar '" << customvar << "'. Nothing processed";
-                        returnval["error"] = 1;
-                        returnval["msg"] = "Reserved customvar";
+                        sendcommandV20(internalid, SET_V20, 1, V_STATUS_V20, "0");
                     }
-                    else if( customvar=="VAR2" )
+                    else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
                     {
-                        if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
-                        {
-                            sendcommandV20(internalid, SET_V20, 1, V_VAR2_V20, value);
-                        }
-                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
-                        {
-                            sendcommandV15(internalid, SET_V15, 1, V_VAR2_V15, value);
-                        }
-                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
-                        {
-                            sendcommandV14(internalid, SET_V14, 1, V_VAR2_V14, value);
-                        }
-                        else
-                        {
-                            AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                            returnval["error"] = 1;
-                            returnval["msg"] = "Customvar is supported from protocol v1.4";
-                        }
+                        sendcommandV15(internalid, SET_V15, 1, V_STATUS_V15, "0");
                     }
-                    else if( customvar=="VAR3" )
+                    else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
                     {
-                        if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
-                        {
-                            sendcommandV20(internalid, SET_V20, 1, V_VAR3_V20, value);
-                        }
-                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
-                        {
-                            sendcommandV15(internalid, SET_V15, 1, V_VAR3_V15, value);
-                        }
-                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
-                        {
-                            sendcommandV14(internalid, SET_V14, 1, V_VAR3_V14, value);
-                        }
-                        else
-                        {
-                            AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                            returnval["error"] = 1;
-                            returnval["msg"] = "Customvar is supported from protocol v1.4";
-                        }
-                    }
-                    else if( customvar=="VAR4" )
-                    {
-                        if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
-                        {
-                            sendcommandV20(internalid, SET_V20, 1, V_VAR4_V20, value);
-                        }
-                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
-                        {
-                            sendcommandV15(internalid, SET_V15, 1, V_VAR4_V15, value);
-                        }
-                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
-                        {
-                            sendcommandV14(internalid, SET_V14, 1, V_VAR4_V14, value);
-                        }
-                        else
-                        {
-                            AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                            returnval["error"] = 1;
-                            returnval["msg"] = "Customvar is supported from protocol v1.4";
-                        }
-                    }
-                    else if( customvar=="VAR5" )
-                    {
-                        if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
-                        {
-                            sendcommandV20(internalid, SET_V20, 1, V_VAR5_V20, value);
-                        }
-                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
-                        {
-                            sendcommandV15(internalid, SET_V15, 1, V_VAR5_V15, value);
-                        }
-                        else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
-                        {
-                            sendcommandV14(internalid, SET_V14, 1, V_VAR5_V14, value);
-                        }
-                        else
-                        {
-                            AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                            returnval["error"] = 1;
-                            returnval["msg"] = "Customvar is supported from protocol v1.4";
-                        }
+                        sendcommandV14(internalid, SET_V14, 1, V_LIGHT_V14, "0");
                     }
                     else
                     {
-                        //unknown customvar
-                        AGO_ERROR() << "Unsupported customvar '" << customvar << "'. Nothing processed";
-                        returnval["error"] = 1;
-                        returnval["msg"] = "Unsupported specified customvar";
+                        sendcommandV13(internalid, SET_VARIABLE_V13, V_LIGHT_V13, "0");
+                    }
+                }
+                else if( cmd=="on" )
+                {
+                    if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
+                    {
+                        sendcommandV20(internalid, SET_V20, 1, V_STATUS_V20, "1");
+                    }
+                    else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
+                    {
+                        sendcommandV15(internalid, SET_V15, 1, V_STATUS_V15, "1");
+                    }
+                    else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
+                    {
+                        sendcommandV14(internalid, SET_V14, 1, V_LIGHT_V14, "1");
+                    }
+                    else
+                    {
+                        sendcommandV13(internalid, SET_VARIABLE_V13, V_LIGHT_V13, "1");
                     }
                 }
             }
             else
             {
-                //missing parameter
+                //unhandled case
+                AGO_ERROR() << "Unhandled case for device " << internalid << "[" << deviceType << "]";
                 returnval["error"] = 1;
-                returnval["msg"] = "Missing parameter";
+                returnval["msg"] = "Unhandled case";
             }
         }
         else
         {
-            //get device infos
-            infos = getDeviceInfos(command["internalid"].asString());
-            //check if device found
-            if( infos.size()>0 )
-            {
-                returnval["error"] = 0;
-                returnval["msg"] = "";
-
-                deviceType = infos["type"].asString();
-                //switch according to specific device type
-                if( deviceType=="switch" )
-                {
-                    if( cmd=="off" )
-                    {
-                            if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
-                            {
-                                sendcommandV20(internalid, SET_V20, 1, V_STATUS_V20, "0");
-                            }
-                            else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
-                            {
-                                sendcommandV15(internalid, SET_V15, 1, V_STATUS_V15, "0");
-                            }
-                            else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
-                            {
-                                sendcommandV14(internalid, SET_V14, 1, V_LIGHT_V14, "0");
-                            }
-                            else
-                            {
-                                sendcommandV13(internalid, SET_VARIABLE_V13, V_LIGHT_V13, "0");
-                            }
-                    }
-                    else if( cmd=="on" )
-                    {
-                            if( boost::algorithm::starts_with(infos["protocol"].asString(), "2.0") )
-                            {
-                                sendcommandV20(internalid, SET_V20, 1, V_STATUS_V20, "1");
-                            }
-                            else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.5") )
-                            {
-                                sendcommandV15(internalid, SET_V15, 1, V_STATUS_V15, "1");
-                            }
-                            else if( boost::algorithm::starts_with(infos["protocol"].asString(), "1.4") )
-                            {
-                                sendcommandV14(internalid, SET_V14, 1, V_LIGHT_V14, "1");
-                            }
-                            else
-                            {
-                                sendcommandV13(internalid, SET_VARIABLE_V13, V_LIGHT_V13, "1");
-                            }
-                    }
-                }
-                else
-                {
-                    //unhandled case
-                    AGO_ERROR() << "Unhandled case for device " << internalid << "[" << deviceType << "]";
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Unhandled case";
-                }
-            }
-            else
-            {
-                //internalid doesn't belong to this controller
-                returnval["error"] = 5;
-                returnval["msg"] = "Unhandled internalid";
-            }
+            //internalid doesn't belong to this controller
+            returnval["error"] = 5;
+            returnval["msg"] = "Unhandled internalid";
         }
     }
     return returnval;
@@ -1355,11 +1351,9 @@ void AgoMySensors::newDevice(std::string internalid, std::string devicetype, std
     }
 
     //check if device already exists
-    qpid::types::Variant::Map infos = getDeviceInfos(internalid);
-    if( !devicemap["devices"].isVoid() )
+    Json::Value infos = getDeviceInfos(internalid);
+    if( devicemap.isMember("devices") )
     {
-        qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-
         if( infos.size()>0 )
         {
             if( boost::algorithm::starts_with(protocol, "1.5") )
@@ -1369,19 +1363,19 @@ void AgoMySensors::newDevice(std::string internalid, std::string devicetype, std
             else
             {
                 //check protocol version
-                if( !infos["protocol"].isVoid() && protocol.size()>0 && protocol!=DEFAULT_PROTOCOL && infos["protocol"].asString()!=protocol )
+                if( infos.isMember("protocol") && protocol.size()>0 && protocol!=DEFAULT_PROTOCOL && infos["protocol"].asString()!=protocol )
                 {
                     //sensors code was updated to different protocol
                     AGO_INFO() << "Sensor protocol changed (" << infos["protocol"] << "=>" << protocol << ")";
 
                     //refresh infos
                     infos["protocol"] = protocol;
-                    setDeviceInfos(internalid, &infos);
+                    setDeviceInfos(internalid, infos);
                 }
             }
 
             //internalid already referenced
-            if( !infos["type"].isVoid() && infos["type"].asString()!=devicetype )
+            if( infos.isMember("type") && infos["type"].asString()!=devicetype )
             {
                 //sensors is probably reconditioned, remove it before adding it
                 AGO_INFO() << "Reconditioned sensor detected (" << infos["type"] << "=>" << devicetype << ")";
@@ -1389,20 +1383,20 @@ void AgoMySensors::newDevice(std::string internalid, std::string devicetype, std
                 //refresh infos
                 infos = getDeviceInfos(internalid);
                 //and add brand new device
-                addDevice(internalid, devicetype, devices, infos, protocol);
+                addDevice(internalid, devicetype, infos, protocol);
             }
             else
             {
                 //sensor has just rebooted
                 AGO_TRACE() << "Sensor '" << internalid << "'[" << devicetype << "] rebooted";
-                addDevice(internalid, devicetype, devices, infos, protocol);
+                addDevice(internalid, devicetype, infos, protocol);
             }
         }
         else
         {
             //add new device
             AGO_TRACE() << "Add new device '" << devicetype << "' with internalid '" << internalid << "'";
-            addDevice(internalid, devicetype, devices, infos, protocol);
+            addDevice(internalid, devicetype, infos, protocol);
         }
     }
 }
@@ -1410,7 +1404,7 @@ void AgoMySensors::newDevice(std::string internalid, std::string devicetype, std
 /**
  * Process message of protocol v1.3
  */
-void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
+void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, int subType, std::string payload, std::string internalid, Json::Value infos)
 {
     int valid = 0;
     std::stringstream id;
@@ -1432,16 +1426,16 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
                     //update counters
                     if( infos.size()>0 )
                     {
-                        if( infos["counter_received"].isVoid() )
+                        if( !infos.isMember("counter_received") )
                         {
                             infos["counter_received"] = 1;
                         }
                         else
                         {
-                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                            infos["counter_received"] = infos["counter_received"].asUInt64()+1;
                         }
                         infos["last_timestamp"] = (int)(time(NULL));
-                        setDeviceInfos(internalid, &infos);
+                        setDeviceInfos(internalid, infos);
                     }
 
                     //emit battery level
@@ -1450,7 +1444,7 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
                 case I_SKETCH_NAME_V13:
                     //only used to update timestamp. Useful if network relay support enabled
                     infos["last_timestamp"] = (int)(time(NULL));
-                    setDeviceInfos(internalid, &infos);
+                    setDeviceInfos(internalid, infos);
                     break;
                 case I_TIME_V13:
                     timestamp << time(NULL);
@@ -1550,18 +1544,18 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
             if( infos.size()>0 )
             {
                 //update counters
-                if( infos["counter_sent"].isVoid() )
+                if( !infos.isMember("counter_sent") )
                 {
                     infos["counter_sent"] = 1;
                 }
                 else
                 {
-                    infos["counter_sent"] = infos["counter_sent"].asUint64()+1;
+                    infos["counter_sent"] = infos["counter_sent"].asUInt64()+1;
                 }
-                setDeviceInfos(internalid, &infos);
+                setDeviceInfos(internalid, infos);
 
                 //send value
-                sendcommandV13(internalid, SET_VARIABLE_V13, subType, infos["value"]);
+                sendcommandV13(internalid, SET_VARIABLE_V13, subType, infos["value"].asString());
             }
             else
             {
@@ -1575,16 +1569,16 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
             //update counters
             if( infos.size()>0 )
             {
-                if( infos["counter_received"].isVoid() )
+                if( !infos.isMember("counter_received") )
                 {
                     infos["counter_received"] = 1;
                 }
                 else
                 {
-                    infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                    infos["counter_received"] = infos["counter_received"].asUInt64()+1;
                 }
                 infos["last_timestamp"] = (int)(time(NULL));
-                setDeviceInfos(internalid, &infos);
+                setDeviceInfos(internalid, infos);
             }
 
             //do something on received event
@@ -1717,7 +1711,7 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
                 if( infos.size()>0 )
                 {
                     infos["value"] = payload;
-                    setDeviceInfos(internalid, &infos);
+                    setDeviceInfos(internalid, infos);
                 }
             }
             else
@@ -1743,7 +1737,7 @@ void AgoMySensors::processMessageV13(int radioId, int childId, int messageType, 
 /**
  * Process message v1.4
  */
-void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
+void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, Json::Value infos)
 {
     int valid = INVALID;
     std::stringstream timestamp;
@@ -1766,16 +1760,16 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     //update counters
                     if( infos.size()>0 )
                     {
-                        if( infos["counter_received"].isVoid() )
+                        if( !infos.isMember("counter_received") )
                         {
                             infos["counter_received"] = 1;
                         }
                         else
                         {
-                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                            infos["counter_received"] = infos["counter_received"].asUInt64()+1;
                         }
                         infos["last_timestamp"] = (int)(time(NULL));
-                        setDeviceInfos(internalid, &infos);
+                        setDeviceInfos(internalid, infos);
                     }
 
                     //emit battery level
@@ -1805,7 +1799,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                         //we use it here to count errors (only when gateway sends something to a sensor) and update last route
                         
                         //parse message
-                        qpid::types::Variant::Map items;
+                        Json::Value items;
                         if( splitInternalLogMessage(payload, items) )
                         {
                             //handle send message
@@ -1815,32 +1809,32 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                                 std::string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
-                                qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                Json::Value infos = getDeviceInfos(destinationid);
                                 if( infos.size()>0 )
                                 {
                                     //increase sent counter
-                                    if( infos["counter_sent"].isVoid() )
+                                    if( !infos.isMember("counter_sent") )
                                     {
                                         infos["counter_sent"] = 1;
                                     }
                                     else
                                     {
-                                        infos["counter_sent"] = infos["counter_sent"].asUint64()+1;
+                                        infos["counter_sent"] = infos["counter_sent"].asUInt64()+1;
                                     }
                                     
                                     //increase failed counter
                                     if( items["status"].asString()=="fail" )
                                     {
-                                        if( infos["counter_failed"].isVoid() )
+                                        if( !infos.isMember("counter_failed") )
                                         {
                                             infos["counter_failed"] = 1;
                                         }
                                         else
                                         {
-                                            infos["counter_failed"] = infos["counter_failed"].asUint64()+1;
+                                            infos["counter_failed"] = infos["counter_failed"].asUInt64()+1;
                                         }
                                     }
-                                    setDeviceInfos(destinationid, &infos);
+                                    setDeviceInfos(destinationid, infos);
                                 }
                             }
                             else if( items["type"]=="read" )
@@ -1854,21 +1848,21 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                                 {
                                     std::string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
 
-                                    qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                    Json::Value infos = getDeviceInfos(destinationid);
                                     if( infos.size()>0 )
                                     {
                                         //update last route
-                                        if( infos["last_route"].isVoid() )
+                                        if( !infos.isMember("last_route") )
                                         {
                                             AGO_TRACE() << destinationid << " route changed to " << route;
                                             infos["last_route"] = route;
-                                            setDeviceInfos(destinationid, &infos);
+                                            setDeviceInfos(destinationid, infos);
                                         }
                                         else if( infos["last_route"].asString()!=route )
                                         {
                                             AGO_TRACE() << destinationid << " route changed from " << infos["last_route"].asString() << " to " << route;
                                             infos["last_route"] = route;
-                                            setDeviceInfos(destinationid, &infos);
+                                            setDeviceInfos(destinationid, infos);
                                         }
                                     }
                                 }
@@ -1886,12 +1880,12 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     //only used to update network relay timestamp to detect stale state
                     if( bNetworkRelay )
                     {
-                        qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+                        Json::Value infos = getDeviceInfos(internalid);
                         if( infos.size()>0 && infos["type"]=="networkrelay" )
                         {
                             infos["last_timestamp"] = (int)(time(NULL));
-                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
-                            setDeviceInfos(internalid, &infos);
+                            infos["counter_received"] = infos["counter_received"].asUInt64()+1;
+                            setDeviceInfos(internalid, infos);
                         }
                     }
                     break;
@@ -1988,9 +1982,9 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                 {
                     case V_VAR1_V14:
                         //send var1 value (already reserved for pin code)
-                        if( !infos["pin"].isVoid() )
+                        if( infos.isMember("pin") )
                         {
-                            sendcommandV14(internalid, SET_V14, 0, subType, infos["pin"]);
+                            sendcommandV14(internalid, SET_V14, 0, subType, infos["pin"].asString());
                         }
                         else
                         {
@@ -2000,9 +1994,9 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR2_V14:
                         //send var2 value
-                        if( !infos["custom_var2"].isVoid() )
+                        if( infos.isMember("custom_var2") )
                         {
-                            sendcommandV14(internalid, SET_V14, 0, subType, infos["custom_var2"]);
+                            sendcommandV14(internalid, SET_V14, 0, subType, infos["custom_var2"].asString());
                         }
                         else
                         {
@@ -2012,9 +2006,9 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR3_V14:
                         //send var3 value
-                        if( !infos["custom_var3"].isVoid() )
+                        if( infos.isMember("custom_var3") )
                         {
-                            sendcommandV14(internalid, SET_V14, 0, subType, infos["custom_var3"]);
+                            sendcommandV14(internalid, SET_V14, 0, subType, infos["custom_var3"].asString());
                         }
                         else
                         {
@@ -2024,9 +2018,9 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR4_V14:
                         //send var4 value
-                        if( !infos["custom_var4"].isVoid() )
+                        if( infos.isMember("custom_var4") )
                         {
-                            sendcommandV14(internalid, SET_V14, 0, subType, infos["custom_var4"]);
+                            sendcommandV14(internalid, SET_V14, 0, subType, infos["custom_var4"].asString());
                         }
                         else
                         {
@@ -2036,9 +2030,9 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR5_V14:
                         //send var5 value
-                        if( !infos["custom_var5"].isVoid() )
+                        if( infos.isMember("custom_var5") )
                         {
-                            sendcommandV14(internalid, SET_V14, 0, subType, infos["custom_var5"]);
+                            sendcommandV14(internalid, SET_V14, 0, subType, infos["custom_var5"].asString());
                         }
                         else
                         {
@@ -2048,7 +2042,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                         break;
                     default:
                         //send default value
-                        sendcommandV14(internalid, SET_V14, 0, subType, infos["value"]);
+                        sendcommandV14(internalid, SET_V14, 0, subType, infos["value"].asString());
                 }
             }
             else
@@ -2062,16 +2056,16 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
             //update counters
             if( infos.size()>0 )
             {
-                if( infos["counter_received"].isVoid() )
+                if( !infos.isMember("counter_received") )
                 {
                     infos["counter_received"] = 1;
                 }
                 else
                 {
-                    infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                    infos["counter_received"] = infos["counter_received"].asUInt64()+1;
                 }
                 infos["last_timestamp"] = (int)(time(NULL));
-                setDeviceInfos(internalid, &infos);
+                setDeviceInfos(internalid, infos);
             }
 
             //do something on received event
@@ -2171,7 +2165,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                     //custom value 1 is reserved for pin code
                     valid = VALID_DONT_SAVE;
                     {
-                        qpid::types::Variant::Map payloadMap;
+                        Json::Value payloadMap;
                         payloadMap["pin"]=payload;
                         agoConnection->emitEvent(internalid, "event.security.pinentered", payloadMap);
                     }
@@ -2267,7 +2261,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
                         default:
                             AGO_ERROR() << "Unhandled valid case [" << valid << "]. Please check code!";
                     }
-                    setDeviceInfos(internalid, &infos);
+                    setDeviceInfos(internalid, infos);
                 }
             }
 
@@ -2290,7 +2284,7 @@ void AgoMySensors::processMessageV14(int nodeId, int childId, int messageType, i
 /**
  * Process message v2.0
  */
-void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
+void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, Json::Value infos)
 {
     int valid = INVALID;
     std::stringstream timestamp;
@@ -2314,16 +2308,16 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     //update counters
                     if( infos.size()>0 )
                     {
-                        if( infos["counter_received"].isVoid() )
+                        if( !infos.isMember("counter_received") )
                         {
                             infos["counter_received"] = 1;
                         }
                         else
                         {
-                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                            infos["counter_received"] = infos["counter_received"].asUInt64()+1;
                         }
                         infos["last_timestamp"] = (int)(time(NULL));
-                        setDeviceInfos(internalid, &infos);
+                        setDeviceInfos(internalid, infos);
                     }
 
                     //emit battery level
@@ -2353,7 +2347,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                         //we use it here to count errors (only when gateway sends something to a sensor) and update last route
                         
                         //parse message
-                        qpid::types::Variant::Map items;
+                        Json::Value items;
                         if( splitInternalLogMessage(payload, items) )
                         {
                             //handle send message
@@ -2363,32 +2357,32 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                                 std::string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
-                                qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                Json::Value infos = getDeviceInfos(destinationid);
                                 if( infos.size()>0 )
                                 {
                                     //increase sent counter
-                                    if( infos["counter_sent"].isVoid() )
+                                    if( !infos.isMember("counter_sent") )
                                     {
                                         infos["counter_sent"] = 1;
                                     }
                                     else
                                     {
-                                        infos["counter_sent"] = infos["counter_sent"].asUint64()+1;
+                                        infos["counter_sent"] = infos["counter_sent"].asUInt64()+1;
                                     }
                                     
                                     //increase failed counter
                                     if( items["status"].asString()=="fail" )
                                     {
-                                        if( infos["counter_failed"].isVoid() )
+                                        if( !infos.isMember("counter_failed") )
                                         {
                                             infos["counter_failed"] = 1;
                                         }
                                         else
                                         {
-                                            infos["counter_failed"] = infos["counter_failed"].asUint64()+1;
+                                            infos["counter_failed"] = infos["counter_failed"].asUInt64()+1;
                                         }
                                     }
-                                    setDeviceInfos(destinationid, &infos);
+                                    setDeviceInfos(destinationid, infos);
                                 }
                             }
                             else if( items["type"]=="read" )
@@ -2402,21 +2396,21 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                                 {
                                     std::string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
     
-                                    qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                    Json::Value infos = getDeviceInfos(destinationid);
                                     if( infos.size()>0 )
                                     {
                                         //update last route
-                                        if( infos["last_route"].isVoid() )
+                                        if( !infos.isMember("last_route") )
                                         {
                                             AGO_TRACE() << destinationid << " route changed to " << route;
                                             infos["last_route"] = route;
-                                            setDeviceInfos(destinationid, &infos);
+                                            setDeviceInfos(destinationid, infos);
                                         }
                                         else if( infos["last_route"].asString()!=route )
                                         {
                                             AGO_TRACE() << destinationid << " route changed from " << infos["last_route"].asString() << " to " << route;
                                             infos["last_route"] = route;
-                                            setDeviceInfos(destinationid, &infos);
+                                            setDeviceInfos(destinationid, infos);
                                         }
                                     }
                                 }
@@ -2434,12 +2428,12 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     //only used to update network relay timestamp to detect stale state
                     if( bNetworkRelay )
                     {
-                        qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+                        Json::Value infos = getDeviceInfos(internalid);
                         if( infos.size()>0 && infos["type"]=="networkrelay" )
                         {
                             infos["last_timestamp"] = (int)(time(NULL));
-                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
-                            setDeviceInfos(internalid, &infos);
+                            infos["counter_received"] = infos["counter_received"].asUInt64()+1;
+                            setDeviceInfos(internalid, infos);
                         }
                     }
                     break;
@@ -2508,26 +2502,27 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     //so we need to check protocol here
                     
                     //check and update if necessary protocol version of all sensors of current node
-                    if( !devicemap["devices"].isVoid() )
+                    if( devicemap.isMember("devices") )
                     {
-                        qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-                        for( qpid::types::Variant::Map::const_iterator it=devices.begin(); it!=devices.end(); it++ )
+                        const Json::Value& devices = devicemap["devices"];
+                        for(auto it=devices.begin(); it!=devices.end(); it++ )
                         {
-                            if( !it->second.isVoid() && it->second.getType()==VAR_MAP )
+                            if( it->type() == Json::objectValue )
                             {
-                                qpid::types::Variant::Map infos = it->second.asMap();
-                                std::string tmpInternalid = (std::string)it->first;
+                                const Json::Value& infos = *it;
+                                std::string tmpInternalid = it.name();
                                 if( boost::algorithm::starts_with(tmpInternalid, strNodeId) )
                                 {
                                     //sensor is found
-                                    if( !infos["protocol"].isVoid() && payload.size()>0 && payload!=DEFAULT_PROTOCOL && infos["protocol"].asString()!=payload )
+                                    if( infos.isMember("protocol") && payload.size()>0 && payload!=DEFAULT_PROTOCOL && infos["protocol"].asString()!=payload )
                                     {
                                         //sensors code was updated to different protocol
                                         AGO_INFO() << "Sensor " << tmpInternalid << " protocol changed (" << infos["protocol"] << "=>" << payload << ")";
 
                                         //refresh infos
-                                        infos["protocol"] = payload;
-                                        setDeviceInfos(tmpInternalid, &infos);
+                                        Json::Value info = infos;
+                                        info["protocol"] = payload;
+                                        setDeviceInfos(tmpInternalid, info);
                                     }
                                 }
                             }
@@ -2587,9 +2582,9 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                 {
                     case V_VAR1_V20:
                         //send var1 value (already reserved for security pin code)
-                        if( !infos["pin"].isVoid() )
+                        if( infos.isMember("pin") )
                         {
-                            sendcommandV20(internalid, SET_V20, 0, subType, infos["pin"]);
+                            sendcommandV20(internalid, SET_V20, 0, subType, infos["pin"].asString());
                         }
                         else
                         {
@@ -2599,9 +2594,9 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR2_V20:
                         //send var2 value
-                        if( !infos["custom_var2"].isVoid() )
+                        if( infos.isMember("custom_var2") )
                         {
-                            sendcommandV20(internalid, SET_V20, 0, subType, infos["custom_var2"]);
+                            sendcommandV20(internalid, SET_V20, 0, subType, infos["custom_var2"].asString());
                         }
                         else
                         {
@@ -2611,9 +2606,9 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR3_V20:
                         //send var3 value
-                        if( !infos["custom_var3"].isVoid() )
+                        if( infos.isMember("custom_var3") )
                         {
-                            sendcommandV20(internalid, SET_V20, 0, subType, infos["custom_var3"]);
+                            sendcommandV20(internalid, SET_V20, 0, subType, infos["custom_var3"].asString());
                         }
                         else
                         {
@@ -2623,9 +2618,9 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR4_V20:
                         //send var4 value
-                        if( !infos["custom_var4"].isVoid() )
+                        if( infos.isMember("custom_var4") )
                         {
-                            sendcommandV20(internalid, SET_V20, 0, subType, infos["custom_var4"]);
+                            sendcommandV20(internalid, SET_V20, 0, subType, infos["custom_var4"].asString());
                         }
                         else
                         {
@@ -2635,9 +2630,9 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR5_V20:
                         //send var5 value
-                        if( !infos["custom_var5"].isVoid() )
+                        if( infos.isMember("custom_var5") )
                         {
-                            sendcommandV20(internalid, SET_V20, 0, subType, infos["custom_var5"]);
+                            sendcommandV20(internalid, SET_V20, 0, subType, infos["custom_var5"].asString());
                         }
                         else
                         {
@@ -2647,7 +2642,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                         break;
                     default:
                         //send default value
-                        sendcommandV20(internalid, SET_V20, 0, subType, infos["value"]);
+                        sendcommandV20(internalid, SET_V20, 0, subType, infos["value"].asString());
                 }
             }
             else
@@ -2661,16 +2656,16 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
             //update counters
             if( infos.size()>0 )
             {
-                if( infos["counter_received"].isVoid() )
+                if( !infos.isMember("counter_received") )
                 {
                     infos["counter_received"] = 1;
                 }
                 else
                 {
-                    infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                    infos["counter_received"] = infos["counter_received"].asUInt64()+1;
                 }
                 infos["last_timestamp"] = (int)(time(NULL));
-                setDeviceInfos(internalid, &infos);
+                setDeviceInfos(internalid, infos);
             }
 
             //do something on received event
@@ -2770,7 +2765,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                     //custom value 1 is reserved for security pin code
                     valid = VALID_DONT_SAVE;
                     {
-                        qpid::types::Variant::Map payloadMap;
+                        Json::Value payloadMap;
                         payloadMap["pin"]=payload;
                         agoConnection->emitEvent(internalid, "event.security.pinentered", payloadMap);
                     }
@@ -2880,7 +2875,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
                         default:
                             AGO_ERROR() << "Unhandled valid case [" << valid << "]. Please check code!";
                     }
-                    setDeviceInfos(internalid, &infos);
+                    setDeviceInfos(internalid, infos);
                 }
             }
 
@@ -2902,7 +2897,7 @@ void AgoMySensors::processMessageV20(int nodeId, int childId, int messageType, i
 /**
  * Process message v1.5
  */
-void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, qpid::types::Variant::Map infos)
+void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, int ack, int subType, std::string payload, std::string internalid, Json::Value infos)
 {
     int valid = INVALID;
     std::stringstream timestamp;
@@ -2926,16 +2921,16 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     //update counters
                     if( infos.size()>0 )
                     {
-                        if( infos["counter_received"].isVoid() )
+                        if( !infos.isMember("counter_received") )
                         {
                             infos["counter_received"] = 1;
                         }
                         else
                         {
-                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                            infos["counter_received"] = infos["counter_received"].asUInt64()+1;
                         }
                         infos["last_timestamp"] = (int)(time(NULL));
-                        setDeviceInfos(internalid, &infos);
+                        setDeviceInfos(internalid, infos);
                     }
 
                     //emit battery level
@@ -2965,7 +2960,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                         //we use it here to count errors (only when gateway sends something to a sensor) and update last route
                         
                         //parse message
-                        qpid::types::Variant::Map items;
+                        Json::Value items;
                         if( splitInternalLogMessage(payload, items) )
                         {
                             //handle send message
@@ -2975,32 +2970,32 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                                 std::string destinationid = items["destination"].asString() + "/" + items["sensor"].asString();
                                 AGO_TRACE() << "destinationid=" << destinationid;
     
-                                qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                Json::Value infos = getDeviceInfos(destinationid);
                                 if( infos.size()>0 )
                                 {
                                     //increase sent counter
-                                    if( infos["counter_sent"].isVoid() )
+                                    if( !infos.isMember("counter_sent") )
                                     {
                                         infos["counter_sent"] = 1;
                                     }
                                     else
                                     {
-                                        infos["counter_sent"] = infos["counter_sent"].asUint64()+1;
+                                        infos["counter_sent"] = infos["counter_sent"].asUInt64()+1;
                                     }
                                     
                                     //increase failed counter
                                     if( items["status"].asString()=="fail" )
                                     {
-                                        if( infos["counter_failed"].isVoid() )
+                                        if( !infos.isMember("counter_failed") )
                                         {
                                             infos["counter_failed"] = 1;
                                         }
                                         else
                                         {
-                                            infos["counter_failed"] = infos["counter_failed"].asUint64()+1;
+                                            infos["counter_failed"] = infos["counter_failed"].asUInt64()+1;
                                         }
                                     }
-                                    setDeviceInfos(destinationid, &infos);
+                                    setDeviceInfos(destinationid, infos);
                                 }
                             }
                             else if( items["type"]=="read" )
@@ -3014,21 +3009,21 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                                 {
                                     std::string route = items["sender"].asString() + "->" + items["last"].asString() + "->" + items["destination"].asString();
     
-                                    qpid::types::Variant::Map infos = getDeviceInfos(destinationid);
+                                    Json::Value infos = getDeviceInfos(destinationid);
                                     if( infos.size()>0 )
                                     {
                                         //update last route
-                                        if( infos["last_route"].isVoid() )
+                                        if( !infos.isMember("last_route") )
                                         {
                                             AGO_TRACE() << destinationid << " route changed to " << route;
                                             infos["last_route"] = route;
-                                            setDeviceInfos(destinationid, &infos);
+                                            setDeviceInfos(destinationid, infos);
                                         }
                                         else if( infos["last_route"].asString()!=route )
                                         {
                                             AGO_TRACE() << destinationid << " route changed from " << infos["last_route"].asString() << " to " << route;
                                             infos["last_route"] = route;
-                                            setDeviceInfos(destinationid, &infos);
+                                            setDeviceInfos(destinationid, infos);
                                         }
                                     }
                                 }
@@ -3046,12 +3041,12 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     //only used to update network relay timestamp to detect stale state
                     if( bNetworkRelay )
                     {
-                        qpid::types::Variant::Map infos = getDeviceInfos(internalid);
+                        Json::Value infos = getDeviceInfos(internalid);
                         if( infos.size()>0 && infos["type"]=="networkrelay" )
                         {
                             infos["last_timestamp"] = (int)(time(NULL));
-                            infos["counter_received"] = infos["counter_received"].asUint64()+1;
-                            setDeviceInfos(internalid, &infos);
+                            infos["counter_received"] = infos["counter_received"].asUInt64()+1;
+                            setDeviceInfos(internalid, infos);
                         }
                     }
                     break;
@@ -3120,26 +3115,27 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     //so we need to check protocol here
                     
                     //check and update if necessary protocol version of all sensors of current node
-                    if( !devicemap["devices"].isVoid() )
+                    if( devicemap.isMember("devices") )
                     {
-                        qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-                        for( qpid::types::Variant::Map::const_iterator it=devices.begin(); it!=devices.end(); it++ )
+                        const Json::Value& devices = devicemap["devices"];
+                        for( auto it=devices.begin(); it!=devices.end(); it++ )
                         {
-                            if( !it->second.isVoid() && it->second.getType()==VAR_MAP )
+                            if( it->type() == Json::objectValue )
                             {
-                                qpid::types::Variant::Map infos = it->second.asMap();
-                                std::string tmpInternalid = (std::string)it->first;
+                                const Json::Value& infos = *it;
+                                std::string tmpInternalid = it.name();
                                 if( boost::algorithm::starts_with(tmpInternalid, strNodeId) )
                                 {
                                     //sensor is found
-                                    if( !infos["protocol"].isVoid() && payload.size()>0 && payload!=DEFAULT_PROTOCOL && infos["protocol"].asString()!=payload )
+                                    if( infos.isMember("protocol") && payload.size()>0 && payload!=DEFAULT_PROTOCOL && infos["protocol"].asString()!=payload )
                                     {
                                         //sensors code was updated to different protocol
                                         AGO_INFO() << "Sensor " << tmpInternalid << " protocol changed (" << infos["protocol"] << "=>" << payload << ")";
 
                                         //refresh infos
-                                        infos["protocol"] = payload;
-                                        setDeviceInfos(tmpInternalid, &infos);
+                                        Json::Value info = infos;
+                                        info["protocol"] = payload;
+                                        setDeviceInfos(tmpInternalid, info);
                                     }
                                 }
                             }
@@ -3199,9 +3195,9 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                 {
                     case V_VAR1_V15:
                         //send var1 value (already reserved for pin code)
-                        if( !infos["pin"].isVoid() )
+                        if( infos.isMember("pin") )
                         {
-                            sendcommandV15(internalid, SET_V15, 0, subType, infos["pin"]);
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["pin"].asString());
                         }
                         else
                         {
@@ -3211,9 +3207,9 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR2_V15:
                         //send var2 value
-                        if( !infos["custom_var2"].isVoid() )
+                        if( infos.isMember("custom_var2") )
                         {
-                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var2"]);
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var2"].asString());
                         }
                         else
                         {
@@ -3223,9 +3219,9 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR3_V15:
                         //send var3 value
-                        if( !infos["custom_var3"].isVoid() )
+                        if( infos.isMember("custom_var3") )
                         {
-                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var3"]);
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var3"].asString());
                         }
                         else
                         {
@@ -3235,9 +3231,9 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR4_V15:
                         //send var4 value
-                        if( !infos["custom_var4"].isVoid() )
+                        if( infos.isMember("custom_var4") )
                         {
-                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var4"]);
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var4"].asString());
                         }
                         else
                         {
@@ -3247,9 +3243,9 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                         break;
                     case V_VAR5_V15:
                         //send var5 value
-                        if( !infos["custom_var5"].isVoid() )
+                        if( infos.isMember("custom_var5") )
                         {
-                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var5"]);
+                            sendcommandV15(internalid, SET_V15, 0, subType, infos["custom_var5"].asString());
                         }
                         else
                         {
@@ -3259,7 +3255,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                         break;
                     default:
                         //send default value
-                        sendcommandV15(internalid, SET_V15, 0, subType, infos["value"]);
+                        sendcommandV15(internalid, SET_V15, 0, subType, infos["value"].asString());
                 }
             }
             else
@@ -3273,16 +3269,16 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
             //update counters
             if( infos.size()>0 )
             {
-                if( infos["counter_received"].isVoid() )
+                if( !infos.isMember("counter_received") )
                 {
                     infos["counter_received"] = 1;
                 }
                 else
                 {
-                    infos["counter_received"] = infos["counter_received"].asUint64()+1;
+                    infos["counter_received"] = infos["counter_received"].asUInt64()+1;
                 }
                 infos["last_timestamp"] = (int)(time(NULL));
-                setDeviceInfos(internalid, &infos);
+                setDeviceInfos(internalid, infos);
             }
 
             //do something on received event
@@ -3382,7 +3378,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                     //custom value 1 is reserved for pin code
                     valid = VALID_DONT_SAVE;
                     {
-                        qpid::types::Variant::Map payloadMap;
+                        Json::Value payloadMap;
                         payloadMap["pin"]=payload;
                         agoConnection->emitEvent(internalid, "event.security.pinentered", payloadMap);
                     }
@@ -3492,7 +3488,7 @@ void AgoMySensors::processMessageV15(int nodeId, int childId, int messageType, i
                         default:
                             AGO_ERROR() << "Unhandled valid case [" << valid << "]. Please check code!";
                     }
-                    setDeviceInfos(internalid, &infos);
+                    setDeviceInfos(internalid, infos);
                 }
             }
 
@@ -3552,7 +3548,7 @@ void AgoMySensors::receiveFunction()
             std::string internalid = items[0] + "/" + items[1];
             int messageType = atoi(items[2].c_str());
             int subType;
-            qpid::types::Variant::Map infos;
+            Json::Value infos;
             std::string payload = "";
             int ack = 0;
             std::string protocol = "";
@@ -3565,7 +3561,7 @@ void AgoMySensors::receiveFunction()
             {
                 AGO_TRACE() << "infos found=" << infos;
                 //get protocol version from device infos
-                if( !infos["protocol"].isVoid() && infos["protocol"].asString().size()>0 )
+                if( infos.isMember("protocol") && infos["protocol"].asString().size()>0 )
                 {
                     AGO_TRACE() << "Use protocol version from infos map";
                     protocol = infos["protocol"].asString();
@@ -3577,7 +3573,7 @@ void AgoMySensors::receiveFunction()
                 AGO_TRACE() << "Use protocol version of gateway (gateway or broadcast message)";
                 protocol = gateway_protocol_version;
             }
-            else if( !arduinoNodes[strNodeId].isVoid() )
+            else if( arduinoNodes.isMember(strNodeId) )
             {
                 //we have informations from previous arduino nodes request, use it
                 AGO_TRACE() << "Use protocol version found in arduinoNodes map";
@@ -3730,32 +3726,32 @@ void AgoMySensors::checkStaleFunction()
         //get current time
         time_t now = time(NULL);
 
-        if( !devicemap["devices"].isVoid() )
+        if( devicemap.isMember("devices") )
         {
-            qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-            for (qpid::types::Variant::Map::const_iterator it = devices.begin(); it != devices.end(); it++)
+            const Json::Value& devices = devicemap["devices"];
+            for (auto it = devices.begin(); it != devices.end(); it++)
             {
-                if ( ( !it->second.isVoid() ) && (it->second.getType() == VAR_MAP ) ) 
+                if ( it->type() == Json::objectValue )
                 {
-                    qpid::types::Variant::Map infos = it->second.asMap();
-                    std::string internalid = (std::string)it->first;
-                    if( !infos["last_timestamp"].isVoid() && checkInternalid(internalid) )
+                    const Json::Value& infos = *it;
+                    std::string internalid = it.name();
+                    if( infos.isMember("last_timestamp") && checkInternalid(internalid) )
                     {
                         if( !agoConnection->isDeviceStale(internalid) )
                         {
-                            if( (int)now>(infos["last_timestamp"].asInt32()+staleThreshold) )
+                            if( (int)now>(infos["last_timestamp"].asInt()+staleThreshold) )
                             {
                                 //device is stalled
-                                AGO_TRACE() << "Stale: Suspend device " << internalid << " last_ts=" << infos["last_timestamp"].asInt32() << " threshold=" << staleThreshold << " now=" << (int)now;
+                                AGO_TRACE() << "Stale: Suspend device " << internalid << " last_ts=" << infos["last_timestamp"].asInt() << " threshold=" << staleThreshold << " now=" << (int)now;
                                 agoConnection->suspendDevice(internalid);
                             }
                         }
                         else
                         {
-                            if( infos["last_timestamp"].asInt32()>=((int)now-staleThreshold) )
+                            if( infos["last_timestamp"].asInt()>=((int)now-staleThreshold) )
                             {
                                 //device woke up
-                                AGO_TRACE() << "Stale: Resume device " << internalid << " last_ts=" << infos["last_timestamp"].asInt32() << " threshold=" << staleThreshold << " now=" << (int)now;
+                                AGO_TRACE() << "Stale: Resume device " << internalid << " last_ts=" << infos["last_timestamp"].asInt() << " threshold=" << staleThreshold << " now=" << (int)now;
                                 agoConnection->resumeDevice(internalid);
                             }
                         }
@@ -3801,12 +3797,12 @@ void AgoMySensors::setupApp()
 
     // load map, create sections if empty
     fs::path dmf = getConfigPath(DEVICEMAPFILE);
-    devicemap = jsonFileToVariantMap(dmf);
-    if (devicemap["devices"].isVoid())
+    readJsonFile(devicemap, dmf);
+    if (!devicemap.isMember("devices"))
     {
-        qpid::types::Variant::Map devices;
+        Json::Value devices;
         devicemap["devices"] = devices;
-        variantMapToJSONFile(devicemap, dmf);
+        writeJsonFile(devicemap, dmf);
     }
 
     //connect to gateway
@@ -3943,21 +3939,21 @@ void AgoMySensors::setupApp()
 
     //register existing devices
     AGO_INFO() << "Register existing devices:";
-    if( ( !devicemap["devices"].isVoid() ) && (devicemap["devices"].getType() == VAR_MAP ) )
+    if( ( devicemap.isMember("devices") ) && devicemap["devices"].type() == Json::objectValue )
     {
-        qpid::types::Variant::List devicesToPurge;
-        qpid::types::Variant::Map devices = devicemap["devices"].asMap();
-        for (qpid::types::Variant::Map::const_iterator it = devices.begin(); it != devices.end(); it++)
+        std::list<std::string> devicesToPurge;
+        Json::Value& devices = devicemap["devices"];
+        for (auto it = devices.begin(); it != devices.end(); it++)
         {
             std::stringstream log;
-            if( ( !it->second.isVoid() ) && (it->second.getType() == VAR_MAP ) )
+            if( it->type() == Json::objectValue )
             {
-                qpid::types::Variant::Map infos = it->second.asMap();
-                std::string internalid = (std::string)it->first;
+                Json::Value infos = *it;
+                std::string internalid = it.name();
                 log << " - " << internalid << ":" << infos["type"].asString().c_str();
                 if( internalid.length()>0 && checkInternalid(internalid) )
                 {
-                    agoConnection->addDevice(it->first, (infos["type"].asString()));
+                    agoConnection->addDevice(it.name(), (infos["type"].asString()));
                 }
                 else
                 {
@@ -3975,15 +3971,14 @@ void AgoMySensors::setupApp()
         //purge from config invalid entries
         if( devicesToPurge.size()>0 )
         {
-            for( qpid::types::Variant::List::iterator it=devicesToPurge.begin(); it!=devicesToPurge.end(); it++ )
+            for( auto it=devicesToPurge.begin(); it!=devicesToPurge.end(); it++ )
             {
                 AGO_DEBUG() << "Remove invalid device with internalid '" << (*it) << "' from map config file";
-                devices.erase((*it));
+                devices.removeMember(*it);
             }
 
             //and save config
-            devicemap["devices"] = devices;
-            variantMapToJSONFile(devicemap, dmf);
+            writeJsonFile(devicemap, dmf);
         }
     }
     else
