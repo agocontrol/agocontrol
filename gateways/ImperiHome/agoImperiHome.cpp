@@ -9,7 +9,7 @@
 
    */
 
-#include <qpid/messaging/Message.h>
+#include <json/json.h>
 
 #include <boost/foreach.hpp>
 #include <boost/tokenizer.hpp>
@@ -24,226 +24,243 @@ namespace fs = ::boost::filesystem;
 using namespace agocontrol;
 using namespace agocontrol::agohttp;
 
-class AgoImperiHome: public AgoApp {
+class AgoImperiHome : public AgoApp {
 private:
     AgoHttp agoHttp;
 
-    boost::shared_ptr<HttpReqRep> handleReqHome(struct mg_connection *conn, struct http_message *hm, const std::string &path);
-    boost::shared_ptr<HttpReqRep> handleReqDevices(struct mg_connection *conn, struct http_message *hm, const std::string &path);
-    boost::shared_ptr<HttpReqRep> handleReqSystem(struct mg_connection *conn, struct http_message *hm, const std::string &path);
-    boost::shared_ptr<HttpReqRep> handleReqRooms(struct mg_connection *conn, struct http_message *hm, const std::string &path);
+    boost::shared_ptr<HttpReqRep>
+    handleReqHome(struct mg_connection *conn, struct http_message *hm, const std::string &path);
 
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
+    boost::shared_ptr<HttpReqRep>
+    handleReqDevices(struct mg_connection *conn, struct http_message *hm, const std::string &path);
+
+    boost::shared_ptr<HttpReqRep>
+    handleReqSystem(struct mg_connection *conn, struct http_message *hm, const std::string &path);
+
+    boost::shared_ptr<HttpReqRep>
+    handleReqRooms(struct mg_connection *conn, struct http_message *hm, const std::string &path);
+
+    void eventHandler(const std::string &subject, const Json::Value &content);
 
     void setupApp();
 
     void doShutdown();
+
     void cleanupApp();
+
     std::string convertDeviceType(std::string devicetype);
 
 public:
     AGOAPP_CONSTRUCTOR(AgoImperiHome)
 };
 
-boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqHome(struct mg_connection *conn, struct http_message *hm, const std::string &path) {
+boost::shared_ptr<HttpReqRep>
+AgoImperiHome::handleReqHome(struct mg_connection *conn, struct http_message *hm, const std::string &path) {
     boost::shared_ptr<HttpReqJsonRep> reqRep(new HttpReqJsonRep());
     reqRep->jsonResponse = Json::Value("ImperiHome Gateway");
     reqRep->responseReady = true;
     return reqRep;
 }
 
-boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqDevices(struct mg_connection *conn, struct http_message *hm, const std::string &path) {
+boost::shared_ptr<HttpReqRep>
+AgoImperiHome::handleReqDevices(struct mg_connection *conn, struct http_message *hm, const std::string &path) {
     boost::shared_ptr<HttpReqJsonRep> reqRep(new HttpReqJsonRep());
 
-    if(path == "/devices") {
+    if (path == "/devices") {
         // build device list as specified in http://www.imperihome.com/apidoc/systemapi/#!/devices/listDevices_get_0
-        qpid::types::Variant::List devicelist;
-        qpid::types::Variant::Map inventory = agoConnection->getInventory();
-        if( inventory.size()>0 && !inventory["devices"].isVoid() ) {
-            qpid::types::Variant::Map devices = inventory["devices"].asMap();
-            for (qpid::types::Variant::Map::iterator it = devices.begin(); it != devices.end(); it++) {
-                if (it->second.isVoid()) {
-                    AGO_ERROR() << "No device map for " << it->first;
+        Json::Value devicelist(Json::arrayValue);
+        const Json::Value inventory = agoConnection->getInventory();
+        if (inventory.isMember("devices")) {
+            Json::Value devices = inventory["devices"];
+            for (auto it = devices.begin(); it != devices.end(); it++) {
+                if (it->isNull()) {
+                    AGO_ERROR() << "No device map for " << it.name();
                     continue;
                 }
-                qpid::types::Variant::Map device = it->second.asMap();
-                if (device["name"].asString() == "") continue; // skip unnamed devices
-                if (device["room"].asString() == "") continue; // skip devices without room assignment
-                qpid::types::Variant::Map deviceinfo;
-                deviceinfo["name"]=device["name"];
-                deviceinfo["room"]=device["room"];
-                qpid::types::Variant::Map values;
-                if (!device["values"].isVoid()) values = device["values"].asMap();
+                const Json::Value& device = *it;
+                if (!device.isMember("name") || device["name"].asString() == "") continue; // skip unnamed devices
+                if (!device.isMember("room") || device["room"].asString() == "")
+                    continue; // skip devices without room assignment
+
+                Json::Value deviceinfo;
+                deviceinfo["name"] = device["name"];
+                deviceinfo["room"] = device["room"];
+
+                Json::Value values;
+                if (device.isMember("values"))
+                    values = device["values"];
 
                 if (device["devicetype"] == "switch") {
-                    deviceinfo["type"]="DevSwitch";
-                    if (!values["state"].isVoid()) {
-                        qpid::types::Variant::Map param;
-                        qpid::types::Variant::List paramList;
-                        param["key"]="Status";
-                        param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
+                    deviceinfo["type"] = "DevSwitch";
+                    if (values.isMember("state")) {
+                        Json::Value param;
+                        Json::Value paramList;
+                        param["key"] = "Status";
+                        param["value"] = values["state"].asInt64() == 0 ? "0" : "1";
+                        paramList.append(param);
+                        deviceinfo["params"] = paramList;
                     }
                 } else if (device["devicetype"] == "dimmer") {
                     AGO_DEBUG() << "Values for dimmer device: " << values;
-                    deviceinfo["type"]="DevDimmer";
-                    if (!values["state"].isVoid()) {
-                        qpid::types::Variant::Map param, param2;
-                        qpid::types::Variant::List paramList;
-                        param["key"]="Status";
-                        param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
-                        paramList.push_back(param);
-                        param2["key"]="Level";
-                        param2["value"]=values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
-                        paramList.push_back(param2);
-                        deviceinfo["params"]=paramList;
-                    }
-                } else if (device["devicetype"] == "dimmerrgb" || device["devicetype"] == "dimmerrgbw" || device["devicetype"] == "smartdimmer") {
-                    AGO_DEBUG() << "Values for dimmerrgb device: " << values;
-                    deviceinfo["type"]="DevRGBLight";
-                    qpid::types::Variant::List paramList;
-                    if (!values["state"].isVoid()) {
-                        qpid::types::Variant::Map param, param2;
-                        param["key"]="Status";
-                        param["value"]=values["state"].asInt64() == 0 ? "0" : "1";
-                        paramList.push_back(param);
-                        param2["key"]="Level";
-                        param2["value"]=values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
-                        paramList.push_back(param2);
+                    deviceinfo["type"] = "DevDimmer";
+                    if (values.isMember("state")) {
+                        Json::Value param;
+                        Json::Value paramList;
+                        param["key"] = "Status";
+                        param["value"] = values["state"].asInt64() == 0 ? "0" : "1";
+                        paramList.append(param);
 
+                        param["key"] = "Level";
+                        param["value"] = values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
+                        paramList.append(param);
+                        deviceinfo["params"] = paramList;
                     }
-                    qpid::types::Variant::Map param3, param4;
-                    param3["key"]="dimmable";
-                    param3["value"]="1";
-                    paramList.push_back(param3);
-                    param4["key"]="whitechannel";
-                    if (device["devicetype"] == "dimmerrgb" || device["devicetype"] == "smartdimmer") { /* TODO: Check if this is right for smartdimmer */
-                        param4["value"]="0";
+                } else if (device["devicetype"] == "dimmerrgb" || device["devicetype"] == "dimmerrgbw" ||
+                           device["devicetype"] == "smartdimmer") {
+                    AGO_DEBUG() << "Values for dimmerrgb device: " << values;
+                    deviceinfo["type"] = "DevRGBLight";
+                    Json::Value paramList;
+                    Json::Value param;
+                    if (values.isMember("state")) {
+                        param["key"] = "Status";
+                        param["value"] = values["state"].asInt64() == 0 ? "0" : "1";
+                        paramList.append(param);
+
+                        param["key"] = "Level";
+                        param["value"] = values["state"].asInt64() == 255 ? 100 : values["state"].asInt64();
+                        paramList.append(param);
+                    }
+
+                    param["key"] = "dimmable";
+                    param["value"] = "1";
+                    paramList.append(param);
+
+                    param["key"] = "whitechannel";
+                    if (device["devicetype"] == "dimmerrgb" ||
+                        device["devicetype"] == "smartdimmer") { /* TODO: Check if this is right for smartdimmer */
+                        param["value"] = "0";
                     } else {
-                        param4["value"]="1";
+                        param["value"] = "1";
                     }
-                    paramList.push_back(param4);
-                    deviceinfo["params"]=paramList;
+                    paramList.append(param);
+
+                    deviceinfo["params"] = paramList;
                 } else if (device["devicetype"] == "drapes") {
                     AGO_DEBUG() << "Values for drapes/shutter device: " << values;
-                    deviceinfo["type"]="DevShutter";
-                    if (!values["state"].isVoid()) {
-                        qpid::types::Variant::Map param, param2, param3;
-                        qpid::types::Variant::List paramList;
-                        param["key"]="Level";
-                        param["value"]=values["state"].asInt64() == 0 ? "100" : "0"; // TODO: should reflect real level
-                        paramList.push_back(param);
-                        param2["key"]="stopable";
-                        param2["value"]=1; // TODO: add new device type to agocontrol so that we can distinguish
-                        paramList.push_back(param2);
-                        param2["key"]="pulseable";
-                        param2["value"]=1; // TODO: add new device type to agocontrol so that we can distinguish
-                        paramList.push_back(param3);
-                        deviceinfo["params"]=paramList;
+                    deviceinfo["type"] = "DevShutter";
+                    if (values.isMember("state")) {
+                        Json::Value param;
+                        Json::Value paramList;
+                        param["key"] = "Level";
+                        param["value"] =
+                                values["state"].asInt64() == 0 ? "100" : "0"; // TODO: should reflect real level
+                        paramList.append(param);
+
+                        param["key"] = "stopable";
+                        param["value"] = 1; // TODO: add new device type to agocontrol so that we can distinguish
+                        paramList.append(param);
+
+                        param["key"] = "pulseable";
+                        param["value"] = 1; // TODO: add new device type to agocontrol so that we can distinguish
+                        paramList.append(param);
+
+                        deviceinfo["params"] = paramList;
                     }
 
                 } else if (device["devicetype"] == "scenario") {
-                    deviceinfo["type"]="DevScene";
+                    deviceinfo["type"] = "DevScene";
                 } else if (device["devicetype"] == "camera") {
-                    deviceinfo["type"]="DevCamera";
-                    qpid::types::Variant::Map param;
-                    param["key"]="localjpegurl";
-                    param["value"]=device["internalid"];
-                    qpid::types::Variant::List paramList;
-                    paramList.push_back(param);
-                    deviceinfo["params"]=paramList;
+                    deviceinfo["type"] = "DevCamera";
+                    Json::Value param;
+                    param["key"] = "localjpegurl";
+                    param["value"] = device["internalid"];
+
+                    Json::Value paramList;
+                    paramList.append(param);
+                    deviceinfo["params"] = paramList;
                 } else if (device["devicetype"] == "co2sensor") {
-                    deviceinfo["type"]="DevCO2";
-                    qpid::types::Variant::List paramList;
-                    if (!(values["co2"]).isVoid()) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        agoValue = (values["co2"]).asMap();
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
-                        param["graphable"]="false";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
+                    deviceinfo["type"] = "DevCO2";
+                    Json::Value paramList;
+                    if (values.isMember("co2")) {
+                        const Json::Value& agoValue(values["co2"]);
+                        Json::Value param;
+                        param["key"] = "Value";
+                        param["value"] = agoValue["level"].asString();
+                        param["unit"] = agoValue["unit"];
+                        param["graphable"] = "false";
+                        paramList.append(param);
+                        deviceinfo["params"] = paramList;
                     }
                 } else if (device["devicetype"] == "multilevelsensor") {
-                    deviceinfo["type"]="DevGenericSensor";
-                    qpid::types::Variant::List paramList;
-                    for (qpid::types::Variant::Map::iterator paramIt= values.begin(); paramIt != values.end(); paramIt++) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        if (!(paramIt->second).isVoid()) agoValue = (paramIt->second).asMap();
-                        //param["key"]=paramIt->first;
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
-                        param["graphable"]="false";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
+                    deviceinfo["type"] = "DevGenericSensor";
+                    Json::Value paramList;
+                    for (auto paramIt = values.begin(); paramIt != values.end(); paramIt++) {
+                        Json::Value agoValue(*paramIt);
+                        Json::Value param;
+
+                        //param["key"]=it.name();
+                        param["key"] = "Value";
+                        param["value"] = agoValue["level"].asString();
+                        param["unit"] = agoValue["unit"];
+                        param["graphable"] = "false";
+                        paramList.append(param);
                     }
-                    deviceinfo["params"]=paramList;
+                    deviceinfo["params"] = paramList;
                 } else if (device["devicetype"] == "brightnesssensor") {
-                    deviceinfo["type"]="DevLuminosity";
-                    qpid::types::Variant::List paramList;
-                    if (!(values["brightness"]).isVoid()) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        agoValue = (values["brightness"]).asMap();
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
-                        param["graphable"]="false";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
+                    deviceinfo["type"] = "DevLuminosity";
+                    if (values.isMember("brightness")) {
+                        Json::Value& agoValue(values["brightness"]);
+                        Json::Value paramList;
+                        Json::Value param;
+                        param["key"] = "Value";
+                        param["value"] = agoValue["level"].asString();
+                        param["unit"] = agoValue["unit"];
+                        param["graphable"] = "false";
+                        paramList.append(param);
+                        deviceinfo["params"] = paramList;
                     }
                 } else if (device["devicetype"] == "smokedetector") {
-                    deviceinfo["type"]="DevSmoke";
+                    deviceinfo["type"] = "DevSmoke";
                 } else if (device["devicetype"] == "temperaturesensor") {
-                    deviceinfo["type"]="DevTemperature";
-                    qpid::types::Variant::List paramList;
-                    if (!(values["temperature"]).isVoid()) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        agoValue = (values["temperature"]).asMap();
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
+                    deviceinfo["type"] = "DevTemperature";
+                    if (values.isMember("temperature")) {
+                        Json::Value paramList;
+                        Json::Value& agoValue(values["temperature"]);
+                        Json::Value param;
+                        param["key"] = "Value";
+                        param["value"] = agoValue["level"].asString();
                         if (agoValue["unit"] == "degC") {
-                            param["unit"]="˚C";
+                            param["unit"] = "˚C";
                         } else {
-                            param["unit"]="˚F";
+                            param["unit"] = "˚F";
                         }
-                        param["graphable"]="false";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
+                        param["graphable"] = "false";
+                        paramList.append(param);
+                        deviceinfo["params"] = paramList;
                     }
                 } else if (device["devicetype"] == "humiditysensor") {
-                    deviceinfo["type"]="DevHygrometry";
-                    qpid::types::Variant::List paramList;
-                    if (!(values["humidity"]).isVoid()) {
-                        qpid::types::Variant::Map agoValue;
-                        qpid::types::Variant::Map param;
-                        agoValue = (values["humidity"]).asMap();
-                        param["key"]="Value";
-                        param["value"]=agoValue["level"].asString();
-                        param["unit"]=agoValue["unit"];
-                        param["graphable"]="false";
-                        paramList.push_back(param);
-                        deviceinfo["params"]=paramList;
+                    deviceinfo["type"] = "DevHygrometry";
+                    if (values.isMember("humidity")) {
+                        Json::Value agoValue(values["humidity"]);
+                        Json::Value paramList;
+                        Json::Value param;
+                        param["key"] = "Value";
+                        param["value"] = agoValue["level"].asString();
+                        param["unit"] = agoValue["unit"];
+                        param["graphable"] = "false";
+                        paramList.append(param);
+                        deviceinfo["params"] = paramList;
                     }
                 } else if (device["devicetype"] == "thermostat") {
-                    deviceinfo["type"]="DevThermostat";
-                } else continue;
-                deviceinfo["id"]=it->first;
-                devicelist.push_back(deviceinfo);
+                    deviceinfo["type"] = "DevThermostat";
+                } else
+                    continue;
+                deviceinfo["id"] = it.name();
+                devicelist.append(deviceinfo);
             }
         }
 
-        qpid::types::Variant::Map finaldevices;
-        finaldevices["devices"] = devicelist;
-
-        reqRep->jsonResponse = Json::Value(Json::objectValue);
-        variantMapToJson(finaldevices, reqRep->jsonResponse);
+        reqRep->jsonResponse["devices"] = devicelist;
         reqRep->responseReady = true;
         return reqRep;
     }
@@ -251,32 +268,32 @@ boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqDevices(struct mg_connecti
     // Else, assume /devices/xxx/action/xxx
     // parse the action URI as defined by http://www.imperihome.com/apidoc/systemapi/#!/devices/deviceAction_get_1
     std::vector<std::string> items = split(path, '/');
-    for (unsigned int i=0;i<items.size();i++) {
+    for (unsigned int i = 0; i < items.size(); i++) {
         AGO_TRACE() << "Item " << i << ": " << items[i];
     }
-    if ( items.size()>=5 && items.size()<=6 ) {
-        if (items[1] == "devices" && items[3]=="action") {
-            qpid::types::Variant::Map command;
-            command["uuid"]=items[2];
-            if (items.size()==6) { // we got an action with paramter
+    if (items.size() >= 5 && items.size() <= 6) {
+        if (items[1] == "devices" && items[3] == "action") {
+            Json::Value command;
+            command["uuid"] = items[2];
+            if (items.size() == 6) { // we got an action with paramter
                 if (items[4] == "setStatus") {
-                    command["command"]= items[5]=="1" ? "on" : "off";
-                } else  if (items[4] == "setLevel") {
-                    command["command"]="setlevel";
-                    command["level"]= atoi(items[5].c_str());
-                } else  if (items[4] == "setArmed") {
+                    command["command"] = items[5] == "1" ? "on" : "off";
+                } else if (items[4] == "setLevel") {
+                    command["command"] = "setlevel";
+                    command["level"] = atoi(items[5].c_str());
+                } else if (items[4] == "setArmed") {
                     // TODO
-                } else  if (items[4] == "setChoice") {
+                } else if (items[4] == "setChoice") {
                     // TODO
-                } else  if (items[4] == "setMode") {
-                    command["command"]="setthermostatmode";
-                    command["mode"]=items[5];
-                } else  if (items[4] == "setSetPoint") {
-                    command["command"]="settemperature";
-                    command["temperature"]=atof(items[5].c_str());
-                } else  if (items[4] == "pulseShutter") {
-                    command["command"]= items[5]=="up" ? "off" : "on";
-                } else  if (items[4] == "setColor") {
+                } else if (items[4] == "setMode") {
+                    command["command"] = "setthermostatmode";
+                    command["mode"] = items[5];
+                } else if (items[4] == "setSetPoint") {
+                    command["command"] = "settemperature";
+                    command["temperature"] = atof(items[5].c_str());
+                } else if (items[4] == "pulseShutter") {
+                    command["command"] = items[5] == "up" ? "off" : "on";
+                } else if (items[4] == "setColor") {
                     std::stringstream colorstring(items[5]);
                     unsigned int num = 0;
                     colorstring >> std::hex >> num;
@@ -288,19 +305,19 @@ boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqDevices(struct mg_connecti
                 }
             } else { // we got action without parameter
                 if (items[4] == "stopShutter") {
-                    command["command"]="stop";
+                    command["command"] = "stop";
                 } else if (items[4] == "launchScene") {
-                    command["command"]="run";
-                } else  if (items[4] == "setAck") {
+                    command["command"] = "run";
+                } else if (items[4] == "setAck") {
                     // TODO
                 }
             }
 
             reqRep->jsonResponse = Json::Value(Json::objectValue);
-            if(!command.count("command")) {
+            if (!command.isMember("command")) {
                 reqRep->jsonResponse["success"] = false;
                 reqRep->jsonResponse["errormsg"] = "Unsupported command in agoImperiHome";
-            }else{
+            } else {
                 // XXX: Do not interact with remote in this thread!
                 AgoResponse rep = agoConnection->sendRequest(command);
 
@@ -320,44 +337,40 @@ boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqDevices(struct mg_connecti
     return reqRep;
 }
 
-boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqSystem(struct mg_connection *conn, struct http_message *hm, const std::string &path) {
+boost::shared_ptr<HttpReqRep>
+AgoImperiHome::handleReqSystem(struct mg_connection *conn, struct http_message *hm, const std::string &path) {
     boost::shared_ptr<HttpReqJsonRep> reqRep(new HttpReqJsonRep());
 
-    qpid::types::Variant::Map systeminfo;
-    systeminfo["apiversion"] = 1;
-    systeminfo["id"] = getConfigSectionOption("system", "uuid", "00000000-0000-0000-000000000000");
+    Json::Value& rep (reqRep->jsonResponse);
 
-    reqRep->jsonResponse = Json::Value(Json::objectValue);
-    variantMapToJson(systeminfo, reqRep->jsonResponse);
+    rep["apiversion"] = 1;
+    rep["id"] = getConfigSectionOption("system", "uuid", "00000000-0000-0000-000000000000");
+
     reqRep->responseReady = true;
-
     return reqRep;
 }
 
-boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqRooms(struct mg_connection *conn, struct http_message *hm, const std::string &path) {
+boost::shared_ptr<HttpReqRep>
+AgoImperiHome::handleReqRooms(struct mg_connection *conn, struct http_message *hm, const std::string &path) {
     boost::shared_ptr<HttpReqJsonRep> reqRep(new HttpReqJsonRep());
 
-    qpid::types::Variant::List roomlist;
+    Json::Value roomlist(Json::arrayValue);
 
     // XXX: bad, do not block and wait in this thread!
-    qpid::types::Variant::Map inventory = agoConnection->getInventory();
-    if( inventory.size()>0 && !inventory["rooms"].isVoid() ) {
-        qpid::types::Variant::Map rooms = inventory["rooms"].asMap();
-        for (qpid::types::Variant::Map::iterator it = rooms.begin(); it != rooms.end(); it++) {
-            qpid::types::Variant::Map room = it->second.asMap();
+    const Json::Value inventory = agoConnection->getInventory();
+    if (inventory.isMember("rooms")) {
+        const Json::Value& rooms = inventory["rooms"];
+        for (auto it = rooms.begin(); it != rooms.end(); it++) {
+            const Json::Value& room = *it;
             AGO_TRACE() << room;
-            qpid::types::Variant::Map roominfo;
-            roominfo["name"]=room["name"];
-            roominfo["id"]=it->first;
-            roomlist.push_back(roominfo);
+            Json::Value roominfo;
+            roominfo["name"] = room["name"];
+            roominfo["id"] = it.name();
+            roomlist.append(roominfo);
         }
     }
 
-    qpid::types::Variant::Map finalrooms;
-    finalrooms["rooms"] = roomlist;
-
-    reqRep->jsonResponse = Json::Value(Json::objectValue);
-    variantMapToJson(finalrooms, reqRep->jsonResponse);
+    reqRep->jsonResponse["rooms"] = roomlist;
     reqRep->responseReady = true;
 
     return reqRep;
@@ -366,8 +379,7 @@ boost::shared_ptr<HttpReqRep> AgoImperiHome::handleReqRooms(struct mg_connection
 /**
  * Agoclient event handler
  */
-void AgoImperiHome::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
-{
+void AgoImperiHome::eventHandler(const std::string &subject, const Json::Value &content) {
 }
 
 void AgoImperiHome::setupApp() {
@@ -389,17 +401,17 @@ void AgoImperiHome::setupApp() {
     typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
     boost::char_separator<char> sep(", ");
     tokenizer tok(ports_cfg, sep);
-    for(tokenizer::iterator gen=tok.begin(); gen != tok.end(); ++gen) {
+    for (tokenizer::iterator gen = tok.begin(); gen != tok.end(); ++gen) {
         std::string addr(*gen);
-        if(addr[addr.length() -1] == 's') {
-            addr.assign(addr, 0, addr.length()-1);
+        if (addr[addr.length() - 1] == 's') {
+            addr.assign(addr, 0, addr.length() - 1);
             agoHttp.addBinding(addr, certificate);
-        }else
+        } else
             agoHttp.addBinding(addr);
     }
 
     fs::path authPath = htdocs / HTPASSWD;
-    if( fs::exists(authPath) )
+    if (fs::exists(authPath))
         agoHttp.setAuthFile(authPath);
     else
         AGO_INFO() << "Disabling authentication: file does not exist";
@@ -411,7 +423,7 @@ void AgoImperiHome::setupApp() {
 
     try {
         agoHttp.start();
-    }catch(const std::runtime_error &err) {
+    } catch (const std::runtime_error &err) {
         throw ConfigurationError(err.what());
     }
 
