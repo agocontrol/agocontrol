@@ -31,7 +31,7 @@ using namespace agocontrol;
 class AgoWebcam: public AgoApp {
 private:
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 
     CURLcode curl_read(const std::string& url, std::ostream& os, long timeout);
 public:
@@ -70,14 +70,19 @@ CURLcode AgoWebcam::curl_read(const std::string& url, std::ostream& os, long tim
     return code;
 }
 
-qpid::types::Variant::Map AgoWebcam::commandHandler(qpid::types::Variant::Map content) {
+Json::Value AgoWebcam::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    checkMsgParameter(content, "internalid", Json::stringValue);
+
+    std::string command = content["command"].asString();
     std::string internalid = content["internalid"].asString();
-    if (content["command"] == "getvideoframe") {
+
+    if (command == "getvideoframe") {
         std::ostringstream tmpostr;
         if(CURLE_OK == curl_read(internalid, tmpostr, 2)) {
             std::string s;
             s = tmpostr.str();  
-            qpid::types::Variant::Map returnval;
+            Json::Value returnval;
             returnval["image"]  = base64_encode(reinterpret_cast<const unsigned char*>(s.c_str()), s.length());
             return responseSuccess(returnval);
         } else {
