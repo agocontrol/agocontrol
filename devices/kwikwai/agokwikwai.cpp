@@ -28,24 +28,29 @@ private:
     kwikwai::Kwikwai *myKwikwai;
 
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 public:
     AGOAPP_CONSTRUCTOR(AgoKwikwai);
 };
 
-qpid::types::Variant::Map AgoKwikwai::commandHandler(qpid::types::Variant::Map content) {
-    qpid::types::Variant::Map returnval;
+Json::Value AgoKwikwai::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    checkMsgParameter(content, "internalid", Json::stringValue);
+
+    std::string command = content["command"].asString();
     std::string internalid = content["internalid"].asString();
+
+    Json::Value returnval;
     if (internalid == "hdmicec") {
-        if (content["command"] == "alloff" ) {
+        if (command == "alloff" ) {
             myKwikwai->cecSend("FF:36");
             return responseSuccess();
         }
     } else if (internalid == "tv") {
-        if (content["command"] == "on" ) {
+        if (command == "on" ) {
             myKwikwai->cecSend("F0:04");
             return responseSuccess();
-        } else if (content["command"] == "off" ) {
+        } else if (command == "off" ) {
             myKwikwai->cecSend("F0:36");
             return responseSuccess();
         }
