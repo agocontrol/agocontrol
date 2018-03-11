@@ -5,9 +5,6 @@ file (GLOB_RECURSE DEVICE_SOURCE_FILES *.cpp)
 set (DEVICE_EXTRA_LIBRARIES
      tinyxml2
      ${OpenLighting_LIBRARIES} # olaslpclient + any path
-     olaslpcore
-     ola
-     olacommon
      agoclient
 )
 

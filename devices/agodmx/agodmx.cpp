@@ -23,7 +23,6 @@
 
 #include "agoapp.h"
 
-using namespace qpid::types;
 using namespace tinyxml2;
 using namespace agocontrol;
 namespace fs = ::boost::filesystem;
@@ -35,7 +34,7 @@ class AgoLogDestination: public ola::LogDestination {
 
 class AgoDmx: public AgoApp {
 private:
-    Variant::Map channelMap;
+    Json::Value channelMap;
     ola::DmxBuffer buffer;
     ola::StreamingClient ola_client;
     AgoLogDestination *agoLogDestination;
@@ -43,15 +42,15 @@ private:
 
     void setupApp();
     void cleanupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 
-    bool setDevice_strobe(Variant::Map device, int strobe);
+    bool setDevice_strobe(const Json::Value& device, int strobe);
     void ola_setChannel(int channel, int value);
-    bool setDevice_color(Variant::Map device, int red, int green, int blue);
-    bool setDevice_level(Variant::Map device, int level);
+    bool setDevice_color(const Json::Value& device, int red, int green, int blue);
+    bool setDevice_level(const Json::Value& device, int level);
     bool ola_send();
-    void reportDevices(Variant::Map channelmap);
-    bool loadChannels(std::string filename, Variant::Map& _channelMap);
+    void reportDevices();
+    bool loadChannels(std::string filename, Json::Value& _channelMap);
 
 public:
     AGOAPP_CONSTRUCTOR(AgoDmx);
@@ -71,7 +70,7 @@ void AgoLogDestination::Write(ola::log_level level, const std::string &log_line)
 /**
  * parses the device XML file and creates a qpid::types::Variant::Map with the data
  */
-bool AgoDmx::loadChannels(std::string filename, Variant::Map& _channelMap) {
+bool AgoDmx::loadChannels(std::string filename, Json::Value& _channelMap) {
     XMLDocument channelsFile;
     int returncode;
 
@@ -88,7 +87,7 @@ bool AgoDmx::loadChannels(std::string filename, Variant::Map& _channelMap) {
     if (device) {
         XMLElement *nextdevice = device;
         while (nextdevice != NULL) {
-            Variant::Map content;
+            Json::Value content;
 
             AGO_TRACE() << "node: " << nextdevice->Attribute("internalid") << " type: " << nextdevice->Attribute("type");
 
@@ -100,7 +99,9 @@ bool AgoDmx::loadChannels(std::string filename, Variant::Map& _channelMap) {
                 XMLElement *nextchannel = channel;
                 while (nextchannel != NULL) {
                     AGO_DEBUG() << "channel: " << nextchannel->GetText() << " type: " << nextchannel->Attribute("type");
-                    content[nextchannel->Attribute("type")]=nextchannel->GetText();
+
+                    content[nextchannel->Attribute("type")] = parseToJson(nextchannel->GetText());
+
                     nextchannel = nextchannel->NextSiblingElement();
                 }
             }
@@ -133,31 +134,33 @@ bool AgoDmx::ola_send() {
 /**
  * set a device to a color
  */
-bool AgoDmx::setDevice_color(Variant::Map device, int red=0, int green=0, int blue=0) {
-    std::string channel_red = device["red"];
-    std::string channel_green = device["green"];
-    std::string channel_blue = device["blue"];
-    ola_setChannel(atoi(channel_red.c_str()), red);
-    ola_setChannel(atoi(channel_green.c_str()), green);
-    ola_setChannel(atoi(channel_blue.c_str()), blue);
+bool AgoDmx::setDevice_color(const Json::Value& device, int red=0, int green=0, int blue=0) {
+    int channel_red = device["red"].asInt();
+    int channel_green = device["green"].asInt();
+    int channel_blue = device["blue"].asInt();
+    ola_setChannel(channel_red, red);
+    ola_setChannel(channel_green, green);
+    ola_setChannel(channel_blue, blue);
     return ola_send();
 }
 
 /**
  * set device level 
  */
-bool AgoDmx::setDevice_level(Variant::Map device, int level=0) {
-    if (device["level"]) {
-        std::string channel = device["level"];
-        ola_setChannel(atoi(channel.c_str()), (int) ( 255.0 * level / 100 ));
+bool AgoDmx::setDevice_level(const Json::Value& device, int level=0) {
+    if (device.isMember("level")) {
+        int channel = device["level"].asInt();
+        ola_setChannel(channel, (int) ( 255.0 * level / 100 ));
         return ola_send();
     } else {
-        std::string channel_red = device["red"];
-        std::string channel_green = device["green"];
-        std::string channel_blue = device["blue"];
-        int red = (int) ( buffer.Get(atoi(channel_red.c_str())) * level / 100);
-        int green = (int) ( buffer.Get(atoi(channel_green.c_str())) * level / 100);
-        int blue = (int) ( buffer.Get(atoi(channel_blue.c_str())) * level / 100);
+        int channel_red = device["red"].asInt();
+        int channel_green = device["green"].asInt();
+        int channel_blue = device["blue"].asInt();
+
+        int red = (int) ( buffer.Get(channel_red) * level / 100);
+        int green = (int) ( buffer.Get(channel_green) * level / 100);
+        int blue = (int) ( buffer.Get(channel_blue) * level / 100);
+
         return setDevice_color(device, red, green, blue);
     }
 }
@@ -165,10 +168,10 @@ bool AgoDmx::setDevice_level(Variant::Map device, int level=0) {
 /**
  * set device strobe
  */
-bool AgoDmx::setDevice_strobe(Variant::Map device, int strobe=0) {
-    if (device["strobe"]) {
-        std::string channel = device["strobe"];
-        ola_setChannel(atoi(channel.c_str()), (int) ( 255.0 * strobe / 100 ));
+bool AgoDmx::setDevice_strobe(const Json::Value& device, int strobe=0) {
+    if (device.isMember("strobe")) {
+        int channel = device["strobe"].asInt();
+        ola_setChannel(channel, (int) ( 255.0 * strobe / 100 ));
         return ola_send();
     } else {
         AGO_ERROR() << "Strobe command not supported on device";
@@ -179,51 +182,48 @@ bool AgoDmx::setDevice_strobe(Variant::Map device, int strobe=0) {
 /**
  * announces our devices in the channelmap to the resolver
  */
-void AgoDmx::reportDevices(Variant::Map channelmap) {
-    for (Variant::Map::const_iterator it = channelmap.begin(); it != channelmap.end(); ++it) {
-        Variant::Map device;
-
-        device = it->second.asMap();
+void AgoDmx::reportDevices() {
+    for (auto it = channelMap.begin(); it != channelMap.end(); ++it) {
+        const Json::Value& device = *it;
         agoConnection->addDevice(device["internalid"].asString(), device["devicetype"].asString());
     }
 }
 
-qpid::types::Variant::Map AgoDmx::commandHandler(qpid::types::Variant::Map content) {
-    bool handled = true;
+Json::Value AgoDmx::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    checkMsgParameter(content, "internalid", Json::stringValue);
 
-    const char *internalid = content["internalid"].asString().c_str();
-    Variant::Map device = channelMap[internalid].asMap();
+    std::string command = content["command"].asString();
+    std::string internalid = content["internalid"].asString();
 
-    if (content["command"] == "on") {
-        if (setDevice_level(device, device["onlevel"])) {
-            agoConnection->emitEvent(internalid, "event.device.statechanged", device["onlevel"].asString(), "");
+    Json::Value& device = channelMap[internalid];
+
+    if (command == "on") {
+        if (setDevice_level(device, device["onlevel"].asInt())) {
+            agoConnection->emitEvent(internalid, "event.device.statechanged", device["onlevel"].asInt(), "");
             return responseSuccess();
         } else return responseFailed("cannot set device level via OLA");
-    } else if (content["command"] == "off") {
+    } else if (command == "off") {
         if (setDevice_level(device, 0)) {
-            agoConnection->emitEvent(internalid, "event.device.statechanged", "0", "");
+            agoConnection->emitEvent(internalid, "event.device.statechanged", 0, "");
             return responseSuccess();
         } else return responseFailed("cannot set device level via OLA");
-    } else if (content["command"] == "setlevel") {
-        checkMsgParameter(content, "level", VAR_INT32);
-        if (setDevice_level(device, content["level"])) {
-
-            Variant::Map content = device;
-            content["onlevel"] = content["level"].asString().c_str();
-            channelMap[internalid] = content;
-
-            agoConnection->emitEvent(internalid, "event.device.statechanged", content["level"].asString(), "");
+    } else if (command == "setlevel") {
+        checkMsgParameter(content, "level", Json::intValue);
+        if (setDevice_level(device, content["level"].asInt())) {
+            device["onlevel"] = content["level"];
+            agoConnection->emitEvent(internalid, "event.device.statechanged", content["level"].asInt(), "");
             return responseSuccess();
         } else return responseFailed("cannot set device level via OLA");
-    } else if (content["command"] == "setcolor") {
-        checkMsgParameter(content, "red", VAR_INT32);
-        checkMsgParameter(content, "green", VAR_INT32);
-        checkMsgParameter(content, "blue", VAR_INT32);
-        if (setDevice_color(channelMap[internalid].asMap(), content["red"], content["green"], content["blue"])) {
+    } else if (command == "setcolor") {
+        checkMsgParameter(content, "red", Json::intValue);
+        checkMsgParameter(content, "green", Json::intValue);
+        checkMsgParameter(content, "blue", Json::intValue);
+        if (setDevice_color(device, content["red"].asInt(), content["green"].asInt(), content["blue"].asInt())) {
             return responseSuccess();
         } else return responseFailed("cannot set device color via OLA");
-    } else if (content["command"] == "setstrobe") {
-        if (setDevice_strobe(channelMap[internalid].asMap(), content["strobe"])) {
+    } else if (command == "setstrobe") {
+        if (setDevice_strobe(device, content["strobe"].asInt())) {
             return responseSuccess();
         } else return responseFailed("cannot set device strobe via OLA");
     }
@@ -262,7 +262,7 @@ void AgoDmx::setupApp() {
     }
 
     AGO_TRACE() << "reporting devices";
-    reportDevices(channelMap);
+    reportDevices();
 
     addCommandHandler();
 
