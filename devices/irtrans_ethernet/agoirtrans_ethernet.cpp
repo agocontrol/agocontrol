@@ -43,6 +43,9 @@ public:
 };
 
 Json::Value AgoIrtrans_Ethernet::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    std::string command = content["command"].asString();
+
     checkMsgParameter(content, "internalid");
     int internalid;
     if(!stringToInt(content["internalid"], internalid))
