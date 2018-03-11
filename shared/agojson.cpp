@@ -60,6 +60,39 @@ namespace {
     }
 };
 
+#if (BOOST_VERSION < 105600)
+// Ugly dropins for older boosts
+namespace boost {
+namespace conversion {
+
+bool try_lexical_convert(const std::string&s, int& intValue) {
+    try {
+        intValue = boost::lexical_cast<int>(s);
+        return true;
+    }catch(boost::bad_lexical_cast&e) {
+        return false;
+    }
+}
+bool try_lexical_convert(const std::string&s, unsigned int& uintValue) {
+    try {
+        uintValue = boost::lexical_cast<unsigned int>(s);
+        return true;
+    }catch(boost::bad_lexical_cast&e) {
+        return false;
+    }
+}
+bool try_lexical_convert(const std::string&s, double& realValue) {
+    try {
+        realValue = boost::lexical_cast<double>(s);
+        return true;
+    }catch(boost::bad_lexical_cast&e) {
+        return false;
+    }
+}
+}
+}
+#endif
+
 Json::Value agocontrol::parseToJson(const std::string& s)
 {
     Json::Int intValue;
