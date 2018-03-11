@@ -37,13 +37,6 @@ namespace agocontrol {
     std::string uint64ToString(uint64_t i);
     unsigned int stringToUint(const std::string& v);
 
-    /// convert int to std::string.
-    std::string int2str(int i);
-
-    /// convert float to std::string.
-    std::string float2str(float f);
-    std::string double2str(double f);
-
     /// ago control client connection class.
     class AgoConnectionImpl;
 

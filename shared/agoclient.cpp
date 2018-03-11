@@ -77,25 +77,6 @@ std::vector<std::string> agocontrol::split(const std::string &s, char delimiter)
     return elements;
 }
 
-
-std::string agocontrol::int2str(int i) {
-    std::stringstream sstream;
-    sstream << i;
-    return sstream.str();
-}
-
-std::string agocontrol::float2str(float f) {
-    std::stringstream sstream;
-    sstream << f;
-    return sstream.str();
-}
-
-std::string agocontrol::double2str(double f) {
-    std::stringstream sstream;
-    sstream << f;
-    return sstream.str();
-}
-
 // generates a uuid as std::string via libuuid
 std::string agocontrol::generateUuid() {
     std::unique_ptr<char> name(new char[38]);

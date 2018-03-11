@@ -1509,12 +1509,12 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                         //convert value according to configured metrics
                         if (units=="F" && unitsystem==0)
                         {
-                            str = float2str((std::stof(str)-32)*5/9);
+                            str = std::to_string((std::stof(str)-32)*5/9);
                             level = str;
                         }
                         else if (units =="C" && unitsystem==1)
                         {
-                            str = float2str(std::stof(str)*9/5 + 32);
+                            str = std::to_string(std::stof(str)*9/5 + 32);
                             level = str;
                         }
                     }
@@ -2046,7 +2046,7 @@ Json::Value AgoZwave::commandHandler(const Json::Value& content)
             uint32_t numassoc = Manager::Get()->GetAssociations(g_homeId, mynode, mygroup, &associations);
             for (uint32_t assoc = 0; assoc < numassoc; assoc++)
             {
-                associationsmap[int2str(assoc)] = associations[assoc];
+                associationsmap[std::to_string(assoc)] = associations[assoc];
             }
             if (numassoc >0)
                 delete associations;
