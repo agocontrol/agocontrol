@@ -41,6 +41,9 @@ public:
     const std::string& value() const { return value_; };
 
     bool isQuery() const { return value_ == "?"; }
+    bool isUndefined() const { return unit_ == "UNDEFINED"; }
+    bool isRestricted() const { return unit_ == "RESTRICTED"; }
+    bool isError() const { return isUndefined() || isRestricted(); }
 
     YNCAMessage asPreQuery() const {
         return YNCAMessage(unit_, function_, SkipNextIfSameValue);

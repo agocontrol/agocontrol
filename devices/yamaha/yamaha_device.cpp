@@ -33,7 +33,7 @@ void YamahaDevice::powerOn() {
     queryAndSend(YNCAMessage("MAIN", "PWR", "On"));
 }
 void YamahaDevice::powerOff() {
-    queryAndSend(YNCAMessage("MAIN", "PWR", "Off"));
+    queryAndSend(YNCAMessage("MAIN", "PWR", "Standby"));
 }
 void YamahaDevice::mute() {
     queryAndSend(YNCAMessage("MAIN", "MUTE", "On"));

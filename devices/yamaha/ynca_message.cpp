@@ -55,10 +55,14 @@ YNCAMessage::YNCAMessage(asio::streambuf &buf, size_t num_bytes) {
     size_t pos=1,
            npos = msg.find(':', pos);
 
-    unit_ = msg.substr(pos, npos-pos);
+    // We may get @RESTRICTED or @UNDEFINED without :
+    if(npos == std::string::npos) {
+        npos = msg.find('\r', pos);
+        unit_ = msg.substr(pos, npos-pos);
 
-    // We may get @RESTRICTED only
-    if(npos != std::string::npos) {
+        assert(npos == num_bytes - 2);
+    } else if(npos != std::string::npos) {
+        unit_ = msg.substr(pos, npos-pos);
         pos = npos + 1;
 
         npos = msg.find('=', pos);

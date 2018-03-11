@@ -236,37 +236,45 @@ void YamahaDeviceBase::onRead(const boost::system::error_code& error, size_t byt
 
 //    AGO_DEBUG() << bytes_transferred << " bytes recieved";
 
+    // TODO: If recvbuf is partial, this crashes.
     YNCAMessage msg(recvBuf, bytes_transferred);
     bool handled = false;
     if(sendState == SENT) {
         // Match command response
         YNCAMessage req = sendQueue.front();
         bool noReply = req.replyMode() == YNCAMessage::NoReply;
-        if(noReply || msg.isSameFunction(req)) {
+        if(noReply || msg.isSameFunction(req) || msg.isError()) {
             // Matching message
+            YNCAMessage sentMsg = sendQueue.front();
             sendQueue.pop();
             sendTimer.cancel();
             sendState = RECEIVED;
 
-            switch(req.replyMode()) {
-            case YNCAMessage::SkipNextIfSameValue:
-                assert(sendQueue.size() > 0);
-                assert(req.isQuery());
-                assert(msg.isSameFunction(sendQueue.front()));
+            if(msg.isError()) {
+               AGO_WARNING() << "Failed to send " << sentMsg << ": " << msg;
+               handled = true;
+               onCommandReply(req, msg);
+            } else {
+               switch(req.replyMode()) {
+               case YNCAMessage::SkipNextIfSameValue:
+                   assert(sendQueue.size() > 0);
+                   assert(req.isQuery());
+                   assert(msg.isSameFunction(sendQueue.front()));
 
-                if(msg.value() == sendQueue.front().value()) {
-                    AGO_TRACE() << "Skipping next message, value is correct";
-                    sendQueue.pop();
-                }
+                   if(msg.value() == sendQueue.front().value()) {
+                       AGO_TRACE() << "Skipping next message, value is correct";
+                       sendQueue.pop();
+                   }
 
-                /* DROP THROUGH */
-            case YNCAMessage::NoReply:
-                /* Let handled=false trigger auto-feedback below */
-                break;
-            default:
-                handled = true;
-                onCommandReply(req, msg);
-                break;
+                   /* DROP THROUGH */
+               case YNCAMessage::NoReply:
+                   /* Let handled=false trigger auto-feedback below */
+                   break;
+               default:
+                   handled = true;
+                   onCommandReply(req, msg);
+                   break;
+               }
             }
             
             // Protocol dictates we delay at least 100ms between commands
