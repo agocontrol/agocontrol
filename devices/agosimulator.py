@@ -33,11 +33,11 @@ class AgoSimulator(agoclient.AgoApp):
     def setup_app(self):
         self.connection.add_handler(self.message_handler)
 
-        self.connection.add_device("123", "dimmer")
-        self.connection.add_device("124", "switch")
-        self.connection.add_device("125", "binarysensor")
-        self.connection.add_device("126", "multilevelsensor")
-        self.connection.add_device("127", "pushbutton")
+        self.connection.add_device("123", "dimmer", "simulated dimmer")
+        self.connection.add_device("124", "switch", "simulated switch")
+        self.connection.add_device("125", "binarysensor", "simulated binsensor")
+        self.connection.add_device("126", "multilevelsensor", "simulated multisensor")
+        self.connection.add_device("127", "pushbutton", "simulated pushbutton")
 
         self.log.info("Starting test thread")
         self.background = TestEvent(self, self.args.interval)
