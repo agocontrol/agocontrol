@@ -25,7 +25,7 @@ private:
     int interval;
 
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 
     void readBMP085();
     bool i2ccommand(const char *device, int i2caddr, int command, size_t size, __u8  *buf);
@@ -36,7 +36,6 @@ public:
     AGOAPP_CONSTRUCTOR(AgoI2c);
 };
 
-//void *readBMP085(void*){
 void AgoI2c::readBMP085(){
 
     AGO_DEBUG() << "void *readBMP085( void* param) i2cFileName: " << devicefile << " interval: " << interval;
@@ -49,7 +48,7 @@ void AgoI2c::readBMP085(){
         value << ((double)pressure)/100;
 
         std::stringstream value2;
-        value2 << ((double)temperature)/10,0x00B0;
+        value2 << ((double)temperature)/10;
         agoConnection->emitEvent("BMP085-baro", "event.environment.pressurechanged", value.str(), "hPa");
         agoConnection->emitEvent("BMP085-temp", "event.environment.temperaturechanged", value2.str(), "degC");
 
@@ -160,13 +159,23 @@ bool AgoI2c::get_pcf8574_state(const char *device, int i2caddr, uint8_t &state) 
     return true;
 }
 
-qpid::types::Variant::Map AgoI2c::commandHandler(qpid::types::Variant::Map content) {
+Json::Value AgoI2c::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "internalid", Json::stringValue);
+    checkMsgParameter(content, "command", Json::stringValue);
     std::string internalid = content["internalid"].asString();
+
     if (internalid.find("pcf8574:") != std::string::npos) {
         unsigned found = internalid.find(":");
         std::string tmpid = internalid.substr(found+1);
         bool state;
-        if (content["command"] == "on") state = true; else state=false;
+
+        if (content["command"] == "on")
+            state = true;
+        else if (content["command"] == "off")
+            state = false;
+        else
+            return responseUnknownCommand();
+
         unsigned sep = tmpid.find("/");
         if (sep != std::string::npos) {
             int output = atoi(tmpid.substr(sep+1).c_str());
@@ -179,7 +188,8 @@ qpid::types::Variant::Map AgoI2c::commandHandler(qpid::types::Variant::Map conte
                     agoConnection->emitEvent(internalid, "event.device.statechanged", "0", "");
                 }
                 return responseSuccess();
-            } else return responseError(RESPONSE_ERR_INTERNAL, "Cannot set PCF8574 output");
+            } else
+                return responseError(RESPONSE_ERR_INTERNAL, "Cannot set PCF8574 output");
         }
     }
     return responseUnknownCommand();
