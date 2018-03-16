@@ -6,9 +6,6 @@ ago control
 
 Have fun!
 
-
-
-
  
 
 - [Support](#Support)
