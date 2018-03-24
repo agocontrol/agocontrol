@@ -1,12 +1,6 @@
 cmake_minimum_required (VERSION 3.0)
 
 
-configure_file (
-    "${CMAKE_CURRENT_SOURCE_DIR}/agoclient/_directories.py.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/agoclient/_directories.py"
-    @ONLY
-)
-
 set(LIBAGOCLIENT_SOURCE_FILES
 	agoclient.cpp
 	agoproto.cpp
@@ -16,15 +10,6 @@ set(LIBAGOCLIENT_SOURCE_FILES
 	agoapp.cpp
 	agoconfig.cpp
 	base64.cpp
-)
-
-set(PYTHON_AGOCLIENT_SOURCE_FILES
-    agoapp.py
-    agoconnection.py
-    config.py
-    _directories.py
-    __init__.py
-    _logging.py
 )
 
 IF (Boost_LOG_FOUND)
@@ -48,7 +33,6 @@ set (AGOCLIENT_LIBRARIES
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
 )
 
-
 IF (Boost_LOG_FOUND)
 	LIST(APPEND AGOCLIENT_LIBRARIES ${Boost_LOG_LIBRARY})
 ELSE()
@@ -70,18 +54,43 @@ set_property(
 	COMPILE_OPTIONS
 	-Werror)
 
+####### Python version of agoclient
+
+configure_file (
+        "${CMAKE_CURRENT_SOURCE_DIR}/agoclient/_directories.py.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/agoclient/_directories.py"
+        @ONLY
+)
+
+set(PYTHON_AGOCLIENT_SOURCE_FILES
+    agoapp.py
+    agoconnection.py
+    config.py
+    __init__.py
+    _logging.py
+)
+
+# Copy python files, unless we're in-source build
+if (NOT IN_SOURCE_BUILD)
+    add_custom_target(agoclient-python)
+    add_dependencies(agoclient agoclient-python)
+    foreach (file ${PYTHON_AGOCLIENT_SOURCE_FILES})
+        add_custom_command(
+            TARGET agoclient-python
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/agoclient/${file} agoclient/${file}
+        )
+    endforeach(file)
+endif()
 
 # Install instructions for this target
 install (TARGETS agoclient LIBRARY DESTINATION ${LIBDIR})
-install (DIRECTORY DESTINATION ${PYTHON2DIST}/agoclient)
-install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/agoclient/agoapp.py DESTINATION ${PYTHON2DIST}/agoclient)
-install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/agoclient/agoconnection.py DESTINATION ${PYTHON2DIST}/agoclient)
-install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/agoclient/config.py DESTINATION ${PYTHON2DIST}/agoclient)
-install (PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/agoclient/_directories.py DESTINATION ${PYTHON2DIST}/agoclient)
-install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/agoclient/__init__.py DESTINATION ${PYTHON2DIST}/agoclient)
-install (PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/agoclient/_logging.py DESTINATION ${PYTHON2DIST}/agoclient)
-install (DIRECTORY DESTINATION ${CONFDIR}/uuidmap)
 
+# Python installation
+install (DIRECTORY DESTINATION ${PYTHON2DIST}/agoclient)
+foreach (file ${PYTHON_AGOCLIENT_SOURCE_FILES} _directories.py)
+    install (PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/agoclient/${file} DESTINATION ${PYTHON2DIST}/agoclient)
+endforeach(file)
+install (DIRECTORY DESTINATION ${CONFDIR}/uuidmap)
 
 
 add_subdirectory (agohttp)

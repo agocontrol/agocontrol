@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 3.0)
 
 IF(COMMAND cmake_policy)
+    # FILE GLOB_RECURSE calls should not follow symlinks by default.
     cmake_policy(SET CMP0009 NEW)
 ENDIF(COMMAND cmake_policy)
 
@@ -50,15 +51,15 @@ get_filename_component(CMAKE_CURRENT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR
 get_filename_component(CMAKE_CURRENT_BINARY_DIR_REAL "${CMAKE_CURRENT_BINARY_DIR}" REALPATH)
 
 # If we are NOT in-source build, we have to copy all files below html/ to the build dir.
-if (NOT "${CMAKE_CURRENT_SOURCE_DIR_REAL}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR_REAL}")
+if (NOT IN_SOURCE_BUILD)
     file(GLOB_RECURSE HTML_FILES ${CMAKE_CURRENT_SOURCE_DIR}/html/*)
     foreach (infile ${HTML_FILES})
         # Almost all...
         if (NOT infile MATCHES ".in.html$"
                 AND NOT infile MATCHES "/\\."
                 AND NOT IS_SYMLINK "${infile}")
-            # This is quite verbose, logging every file, but have not found any way to
-            # have a dependency on input file -> output file without this...
+            # This is quite verbose, logging every file, but we want a
+            # dependency on input file -> output file for quick rebuild with just "make"
             string(REPLACE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} outfile ${infile})
             add_custom_command(
                 OUTPUT ${outfile} DEPENDS ${infile}

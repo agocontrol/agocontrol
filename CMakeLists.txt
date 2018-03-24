@@ -141,7 +141,14 @@ set (ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${BINDIR}")
 
-
+get_filename_component(CMAKE_CURRENT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
+get_filename_component(CMAKE_CURRENT_BINARY_DIR_REAL "${CMAKE_CURRENT_BINARY_DIR}" REALPATH)
+if ("${CMAKE_CURRENT_SOURCE_DIR_REAL}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR_REAL}")
+	set (IN_SOURCE_BUILD TRUE)
+	message(WARNING "In-Source build is not recommended. Instead, create a separate directory and run cmake /path/to/source")
+else()
+	set (IN_SOURCE_BUILD FALSE)
+endif()
 
 # configure a header file to pass some of the CMake settings
 # to the source code

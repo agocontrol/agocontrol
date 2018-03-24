@@ -3,3 +3,6 @@ ports=8008,8009s
 htdocs=@HTMLDIR@
 certificate=@CONFDIR@/rpc/rpc_cert.pem
 numthreads=50
+python_extra_paths=@PYTHON2DIST@/agoclient
+
+
