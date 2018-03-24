@@ -1,2 +1,31 @@
-job1:
-  script: "cmake . && make -j10"
+stages:
+  - build
+  - slowbuild
+
+build:jessie:
+  stage: build
+  tags: [jessie]
+  script:
+    - ./debian/docker-build.sh
+
+  artifacts:
+    expire_in: 1 week
+    paths:
+    - ./build/*.deb
+    - ./build/*.changes
+    - ./build/*.build
+
+# . disabled, dont have all deps (knx)
+.build:raspbian-jessie:
+  # This is muuuch slower; ensure we run it only if main build is OK.
+  stage: slowbuild
+  tags: [raspbian-jessie]
+  script:
+    # Enforce building of ARM code
+    - cross-build-start
+    # Cannot utilize -j10/parallel builds when running with cross-build, since parallel calls to
+    # /bin/sh breaks things due to the way it works with linking /bin/sh back and forth:
+    # https://docs.resin.io/reference/base-images/resin-base-images/?ref=dockerhub#resin-xbuild-qemu
+    # Add -d since knxd-dev and libeibclient-dev does not exist
+    - BUILD_CONCURRENCY=1 DEBUILD_EXTRA_ARGS=-d ./debian/docker-build.sh
+    - cross-build-end
