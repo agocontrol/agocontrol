@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import sys
 import logging
 import os.path
@@ -14,6 +16,7 @@ __all__ = ["AgoApp"]
 
 class StartupError(Exception):
     pass
+
 class ConfigurationError(Exception):
     pass
 
@@ -36,7 +39,7 @@ class AgoApp:
         else:
             self.app_short_name = self.app_name.lower()
 
-        self.log = logging.getLogger(self.app_name)
+        self.log = None
         self.exit_signaled = False
 
     def parse_command_line(self, argv):
@@ -95,16 +98,16 @@ class AgoApp:
 
             parser.print_help()
 
-            print
-            print "Paths"
-            print "  Default config dir: %s" % _directories.DEFAULT_CONFDIR
-            print "  Default state dir : %s" % _directories.DEFAULT_LOCALSTATEDIR
-            print "  Active config dir : %s" % config.CONFDIR
-            print "  Active state dir  : %s" % config.LOCALSTATEDIR
-            print
-            print "System configuration file      : %s" % config.get_config_path('conf.d/system.conf')
-            print "App-specific configuration file: %s" % config.get_config_path('conf.d/%s.conf'% self.app_short_name)
-            print
+            print()
+            print("Paths")
+            print("  Default config dir: %s" % _directories.DEFAULT_CONFDIR)
+            print("  Default state dir : %s" % _directories.DEFAULT_LOCALSTATEDIR)
+            print("  Active config dir : %s" % config.CONFDIR)
+            print("  Active state dir  : %s" % config.LOCALSTATEDIR)
+            print()
+            print("System configuration file      : %s" % config.get_config_path('conf.d/system.conf'))
+            print("App-specific configuration file: %s" % config.get_config_path('conf.d/%s.conf' % self.app_short_name))
+            print()
 
             return False
 
@@ -137,7 +140,8 @@ class AgoApp:
         Note that this may be called even if corresponding setup call
         have not been executed, implementations must ensure that they
         can handle this."""
-        self.log.trace("Cleaning up")
+        if self.log:
+            self.log.trace("Cleaning up")
         self.cleanup_app()
         self.cleanup_connection()
 
@@ -187,24 +191,25 @@ class AgoApp:
                 if syslog_fac not in SysLogHandler.facility_names:
                     raise ConfigurationError("Invalid syslog_facility %s" % syslog_fac)
 
-            # Try to autodetect OS syslog unix socket
+            # Try to autodetect OS syslog unix socket. For example in docker
+            # this wont be found.
+            syslog_kwargs = dict(facility=SysLogHandler.facility_names[syslog_fac])
             for f in ["/dev/log", "/var/run/log"]:
                 if os.path.exists(f):
-                    syslog_path = f
+                    syslog_kwargs[address] = syslog_path
                     break
+            else:
+                print("Warning: no well-known syslog file found; logging via UDP", file=sys.stderr)
 
-            self.log_handler = SysLogHandler(
-                    address = syslog_path,
-                    facility = SysLogHandler.facility_names[syslog_fac])
-
+            self.log_handler = SysLogHandler(**syslog_kwargs)
             self.log_formatter = logging.Formatter(self.app_name.lower() + " %(name)-10s %(levelname)-5s %(message)s")
 
         self.log_handler.setFormatter(self.log_formatter)
 
         # Forcibly limit QPID logging to INFO
         logging.getLogger('qpid').setLevel(max(root.level, logging.INFO))
-
         root.addHandler(self.log_handler)
+        self.log = logging.getLogger(self.app_name)
 
     def setup_connection(self):
         """Create an AgoConnection instance, assigned to self.connection"""
@@ -261,10 +266,11 @@ class AgoApp:
 
         ret = self._main(argv)
 
-        if ret == 0:
-            self.log.info("Exiting %s", self.app_name)
-        else:
-            self.log.warn("Exiting %s (code %d)", self.app_name, ret)
+        if self.log:
+            if ret == 0:
+                self.log.info("Exiting %s", self.app_name)
+            else:
+                self.log.warn("Exiting %s (code %d)", self.app_name, ret)
 
         sys.exit(ret)
 
@@ -295,8 +301,13 @@ class AgoApp:
                 return 1
 
             except ConfigurationError,e:
-                self.log.error("Failed to start %s due to configuration error: %s",
-                        self.app_name, e.message)
+                if self.log:
+                    self.log.error("Failed to start %s due to configuration error: %s",
+                                   self.app_name, e.message)
+                else:
+                    # Print to stderr, in case logging setup failed
+                    print("Failed to start %s due to configuration error: %s" % (self.app_name, e.message),
+                          file=sys.stderr)
                 return 1
 
             self.log.info("Starting %s", self.app_name)
@@ -304,8 +315,12 @@ class AgoApp:
             self.log.debug("Shutting down %s", self.app_name)
             return 0
         except:
-            self.log.critical("Unhandled exception, crashing",
+            if self.log:
+                self.log.critical("Unhandled exception, crashing",
                     exc_info=True)
+            else:
+                print("Unhandled exception, crashing", file=sys.stderr)
+                raise
             return 1
         finally:
             # Always execute cleanup!
@@ -314,7 +329,10 @@ class AgoApp:
             try:
                 self.cleanup()
             except:
-                self.log.error("Unhandled exception while cleaning up", exc_info=True)
+                if self.log:
+                    self.log.error("Unhandled exception while cleaning up", exc_info=True)
+                else:
+                    print("Unhandled exception, crashing", file=sys.stderr)
 
 
 
