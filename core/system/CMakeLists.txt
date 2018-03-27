@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 set (AGOSYSTEM_SOURCE_FILES agosystem.cpp)
 IF (FREEBSD)
@@ -16,7 +16,6 @@ ENDIF()
 
 set (SYSTEM_LIBRARIES
     agoclient
-    pthread
 	${Boost_PROGRAM_DATE_TIME_LIBRARY}
 )
 

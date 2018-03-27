@@ -1,11 +1,10 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 file (GLOB_RECURSE AGODATALOGGER_SOURCE_FILES *.cpp)
 set (DATALOGGER_LIBRARIES
     agoclient
     sqlite3
-    pthread
-	 ${Boost_PROGRAM_DATE_TIME_LIBRARY}
+    ${Boost_PROGRAM_DATE_TIME_LIBRARY}
     rrd
     cppdb
 )

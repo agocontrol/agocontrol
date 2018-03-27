@@ -1,6 +1,5 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 project (agocontrol)
-
 
 # The version number.
 set (AGOCONTROL_VERSION 0.1)
@@ -105,7 +104,8 @@ else()
 	endif ()
 endif (CPPDB_FOUND)
 
-FIND_PACKAGE(Boost COMPONENTS system filesystem thread program_options date_time regex REQUIRED)
+find_package(Threads REQUIRED)
+find_package(Boost COMPONENTS system filesystem thread program_options date_time regex REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIRS})
 

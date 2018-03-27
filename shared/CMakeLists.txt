@@ -1,4 +1,5 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
+
 
 configure_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/agoclient/_directories.py.in"
@@ -40,11 +41,11 @@ set (AGOCLIENT_LIBRARIES
     qpidtypes
     uuid
     augeas
-	 ${Boost_SYSTEM_LIBRARY}
-	 ${Boost_FILESYSTEM_LIBRARY}
-	 ${Boost_THREAD_LIBRARY}
-	 ${Boost_PROGRAM_OPTIONS_LIBRARY}
-    ${JSONCPP_LIBRARIES}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${CMAKE_THREAD_LIBS_INIT} # for pthread
+    ${Boost_PROGRAM_OPTIONS_LIBRARY}
 )
 
 

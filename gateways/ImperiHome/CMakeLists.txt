@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 IF(COMMAND cmake_policy)
     cmake_policy(SET CMP0009 NEW)
@@ -7,7 +7,6 @@ ENDIF(COMMAND cmake_policy)
 set (IMPERIHOME_LIBRARIES
     agoclient
     agohttp
-    pthread
 )
 
 IF (NOT FREEBSD)

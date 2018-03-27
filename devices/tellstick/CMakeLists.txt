@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 install (PROGRAMS agotellstick.py DESTINATION ${BINDIR})
 install (PROGRAMS tellstickbase.py DESTINATION ${BINDIR})

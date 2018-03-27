@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 # only set these variables if you actually have the files
 # set (my_device_schema "example.yaml")
@@ -22,7 +22,6 @@ file (GLOB_RECURSE DEVICE_SOURCE_FILES
 # your binary
 set (DEVICE_EXTRA_LIBRARIES
      agoclient
-     pthread
 )
 
 #set a device name. This will be the 'target'

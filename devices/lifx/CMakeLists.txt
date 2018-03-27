@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 # Files needed for lifxlan
 # Installing local copy of lifxlan for now. CDhnages accepted by maintainer but still not available in standard package

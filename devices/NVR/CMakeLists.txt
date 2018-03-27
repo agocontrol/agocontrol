@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 file (GLOB_RECURSE DEVICE_SOURCE_FILES *.cpp)
 set(DEVICE_SOURCE_FILES
@@ -8,7 +8,6 @@ set(DEVICE_SOURCE_FILES
 
 set (VIDEO_LIBRARIES
     agoclient
-    pthread
     opencv_core
     opencv_imgproc
     opencv_objdetect

@@ -1,11 +1,10 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 file (GLOB DEVICE_SOURCE_FILES *.cpp)
 
 set (DEVICE_EXTRA_LIBRARIES
      ${OpenZWave_LIBRARIES}
      agoclient
-     pthread
 )
 
 IF (FREEBSD)

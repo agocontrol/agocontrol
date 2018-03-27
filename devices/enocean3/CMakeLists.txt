@@ -1,10 +1,9 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 set (DEVICE_SOURCE_FILES agoenocean3.cpp esp3.cpp)
 
 set (DEVICE_EXTRA_LIBRARIES
      agoclient
-     pthread
 )
 
 set (DEVICE "agoenocean3")

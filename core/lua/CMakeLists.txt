@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.0)
 
 configure_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/command.lua.in"
@@ -15,9 +15,8 @@ endif(FREEBSD)
 file (GLOB_RECURSE AGOLUA_SOURCE_FILES *.cpp)
 set (LUA_LIBRARIES
     agoclient
-    pthread
-	 ${Boost_REGEX_LIBRARY}
-	 ${LUA}
+	${Boost_REGEX_LIBRARY}
+	${LUA}
 )
 
 # add the executable
