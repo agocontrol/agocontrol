@@ -1,0 +1,13 @@
+{
+	"name": "Agocontrol",
+	"start_url": "index.html",
+	"icons": [
+		{
+			"src": "favicon.png",
+			"sizes": "16x16",
+			"type": "image/png",
+			"density": 1
+		}
+	],
+	"display": "standalone"
+}
