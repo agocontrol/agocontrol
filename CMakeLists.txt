@@ -105,7 +105,7 @@ else()
 endif (CPPDB_FOUND)
 
 find_package(Threads REQUIRED)
-find_package(Boost COMPONENTS system filesystem thread program_options date_time regex REQUIRED)
+find_package(Boost COMPONENTS system filesystem thread program_options date_time regex chrono REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIRS})
 

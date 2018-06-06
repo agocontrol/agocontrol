@@ -8,6 +8,7 @@ set(DEVICE_SOURCE_FILES
 
 set (VIDEO_LIBRARIES
     agoclient
+    ${Boost_CHRONO_LIBRARY}
     opencv_core
     opencv_imgproc
     opencv_objdetect
