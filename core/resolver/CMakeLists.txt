@@ -5,13 +5,8 @@ file (GLOB_RECURSE AGORESOLVER_SOURCE_FILES *.cpp)
 set (RESOLVER_LIBRARIES
     sqlite3
     agoclient
+	 ${YAML_CPP_LIBRARIES}
 )
-
-IF (FREEBSD)
-	set (RESOLVER_LIBRARIES ${RESOLVER_LIBRARIES} yaml-cpp03)
-ELSE(FREEBSD)
-	set (RESOLVER_LIBRARIES ${RESOLVER_LIBRARIES} yaml-cpp)
-ENDIF(FREEBSD)
 
 # add the executable
 add_executable (agoresolver ${AGORESOLVER_SOURCE_FILES})

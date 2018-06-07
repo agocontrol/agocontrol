@@ -4,6 +4,8 @@ project (agocontrol)
 # The version number.
 set (AGOCONTROL_VERSION 0.1)
 
+find_package(PkgConfig REQUIRED)
+
 # FreeBSD have some differences in building, mainly 
 # that non-base libs/includes are located in /usr/local.
 IF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
@@ -106,6 +108,13 @@ endif (CPPDB_FOUND)
 
 find_package(Threads REQUIRED)
 find_package(Boost COMPONENTS system filesystem thread program_options date_time regex chrono REQUIRED)
+
+pkg_check_modules(YAML_CPP yaml-cpp)
+if (NOT YALM_CPP_FOUND)
+	# FreeBSD user might also have 0.3 installed.
+	pkg_check_modules(YAML_CPP REQUIRED yaml-cpp03)
+endif()
+
 
 include_directories(${Boost_INCLUDE_DIRS})
 
