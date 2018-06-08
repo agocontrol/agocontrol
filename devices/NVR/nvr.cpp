@@ -31,6 +31,7 @@ using namespace qpid::messaging;
 using namespace qpid::types;
 using namespace agocontrol;
 using namespace cv;
+using namespace std; // XXX: Ugly. Proper cleanup is in qpid-removal branch.
 namespace pt = boost::posix_time;
 namespace fs = boost::filesystem;
 
