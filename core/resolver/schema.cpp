@@ -8,11 +8,21 @@
 
 
 #include "schema.h"
+#include <iostream>
 #include <fstream>
 #include <string>
 
+#if defined(__FreeBSD__) && YAML_CPP_VERSION <= 3
+#include "yaml-cpp03/yaml.h"
+#else
+#include "yaml-cpp/yaml.h"
+#endif
+
 using namespace qpid::messaging;
 using namespace qpid::types;
+
+static Variant::List sequenceToVariantList(const YAML::Node &node);
+static Variant::Map mapToVariantMap(const YAML::Node &node);
 
 /// Merge two Variant Lists.
 qpid::types::Variant::List mergeList(qpid::types::Variant::List a, qpid::types::Variant::List b) {
@@ -47,54 +57,36 @@ qpid::types::Variant::Map mergeMap(qpid::types::Variant::Map a, qpid::types::Var
 
 }
 
-#ifdef __YAMLCPP05__
-qpid::types::Variant::Map YAMLMapToVariantMap(const YAML::Node& node) {
+static Variant::Map mapToVariantMap(const YAML::Node &node) {
     Variant::Map output;
+
+#if YAML_CPP_VERSION >= 5
     for(YAML::const_iterator it=node.begin();it!=node.end();++it) {
         std::string key = it->first.as<std::string>();
-        std::cout << "Key: " << key << " Type: " << it->second.Type() <<  std::endl;
+        //std::cout << "Key: " << key << " Type: " << it->second.Type() <<  std::endl;
         switch(it->second.Type()) {
             case YAML::NodeType::Map:
-                output[key] = YAMLMapToVariantMap(it->second);
+                output[key] = mapToVariantMap(it->second);
                 break;
             case YAML::NodeType::Sequence:
-                output[key] = YAMLSequenceToVariantList(it->second);
+                output[key] = sequenceToVariantList(it->second);
                 break;
             case YAML::NodeType::Scalar:
                 try {
                     output[key] = it->second.as<std::string>();
                 } catch(YAML::TypedBadConversion<std::string> e) {
-                    cout << "error" << endl;
+                    std::cout << "error" << std::endl;
                 }
                 break;
+            case YAML::NodeType::Null:
+                output[key] = Variant();
+                break;
+            case YAML::NodeType::Undefined:
+               std::cout << "Error: YAML value for " << key << " is undefined" << std::endl;
+               break;
         }
     }
-    return output;
-}
-
-qpid::types::Variant::List YAMLSequenceToVariantList(const YAML::Node& node) {
-    Variant::List output;
-    for (YAML::const_iterator it=node.begin();it!=node.end();++it) {
-        switch (it->Type()) {
-            case YAML::NodeType::Map:
-                output.push_back(YAMLMapToVariantMap(it->second));
-                break;
-            case YAML::NodeType::Sequence:
-                output.push_back(YAMLSequenceToVariantList(it->second));
-                break;
-            case YAML::NodeType::Scalar:
-                output.push_back(Variant(it->as<std::string>()));
-                break;
-        }
-    }
-    return output;
-}
-
 #else
-
-Variant::Map mapToVariantMap(const YAML::Node &node) {
-    Variant::Map output;
-
     if (node.Type() == YAML::NodeType::Map) {
         for(YAML::Iterator it=node.begin(); it!=node.end(); ++it) {
             if (it.first().Type() == YAML::NodeType::Scalar) {
@@ -110,16 +102,38 @@ Variant::Map mapToVariantMap(const YAML::Node &node) {
                     output[key] = value;
                 }
             } else {
-                printf("Error, key is no scalar\n");
+               std::cout << "Error: YAML key is not scalar" << std::endl;
             }
         }
     }
+#endif
     return output;
 }
 
-Variant::List sequenceToVariantList(const YAML::Node &node) {
+static Variant::List sequenceToVariantList(const YAML::Node &node) {
     Variant::List output;
 
+#if YAML_CPP_VERSION >= 5
+    for (YAML::const_iterator it=node.begin();it!=node.end();++it) {
+        switch (it->Type()) {
+            case YAML::NodeType::Map:
+                output.push_back(mapToVariantMap(it->second));
+                break;
+            case YAML::NodeType::Sequence:
+                output.push_back(sequenceToVariantList(it->second));
+                break;
+            case YAML::NodeType::Scalar:
+                output.push_back(Variant(it->as<std::string>()));
+                break;
+            case YAML::NodeType::Null:
+                output.push_back(Variant());
+                break;
+            case YAML::NodeType::Undefined:
+               std::cout << "Error: YAML value in array is undefined" << std::endl;
+               break;
+        }
+    }
+#else
     if (node.Type() == YAML::NodeType::Sequence) {
         for(unsigned int i=0; i<node.size(); i++) {
             if (node[i].Type() == YAML::NodeType::Sequence) {
@@ -133,14 +147,14 @@ Variant::List sequenceToVariantList(const YAML::Node &node) {
             }
         }
     }
+#endif
     return output;
 }
-#endif
 
 Variant::Map parseSchema(const fs::path &file) {
-#ifdef __YAMLCPP05__
+#if YAML_CPP_VERSION >= 5
     YAML::Node schema = YAML::LoadFile(file.string());
-    return YAMLMapToVariantMap(schema);
+    return mapToVariantMap(schema);
 #else
     std::ifstream fin(file.string());
     YAML::Parser parser(fin);
