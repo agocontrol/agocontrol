@@ -211,6 +211,15 @@ void agocontrol::AgoConnection::run() {
                         Json::Value commandResponse;
                         try {
                             commandResponse = commandHandler(content);
+
+                            // Catch any non-updated applications HARD.
+                            if(!commandResponse.empty() && !commandResponse.isMember("result") && !commandResponse.isMember("error")) {
+                                AGO_ERROR() << "Application " << instance << " has not been updated properly and command handler returns non-valid responses.";
+                                AGO_ERROR() << "Input: " << content;
+                                AGO_ERROR() << "Output: " << content;
+                                commandResponse = responseError(RESPONSE_ERR_INTERNAL,
+                                        "Component "+instance+" has not been updated properly, please contact developers with logs");
+                            }
                         }catch(const AgoCommandException& ex) {
                             commandResponse = ex.toResponse();
                         }catch(const std::exception &ex) {

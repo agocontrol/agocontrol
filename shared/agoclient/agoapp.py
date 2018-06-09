@@ -41,6 +41,7 @@ class AgoApp:
 
         self.log = None
         self.exit_signaled = False
+        self.connection = None # type: AgoConnection
 
     def parse_command_line(self, argv):
         """Parse the provided command line.
