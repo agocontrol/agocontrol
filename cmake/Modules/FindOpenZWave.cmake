@@ -20,7 +20,7 @@ IF(OpenZWave_INCLUDE_BASE_DIR)
     IF(OpenZWave_LIBRARIES)
         set(OpenZWave_FOUND "YES")
         set(OpenZWave_LIBRARIES ${OpenZWave_LIBRARIES})
-        set(OpenZWave_INCLUDE_DIRS ${OpenZWave_INCLUDE_BASE_DIR}/openzwave)
+        set(OpenZWave_INCLUDE_DIRS ${OpenZWave_INCLUDE_BASE_DIR} ${OpenZWave_INCLUDE_BASE_DIR}/openzwave)
 
         # Determine which version of OpenZWave we have
         set(CMAKE_REQUIRED_INCLUDES "${OpenZWave_INCLUDE_DIRS}")

@@ -15,7 +15,9 @@ IF (FREEBSD)
 	ENDIF ()
 ENDIF (FREEBSD)
 
-include_directories(${OpenZWave_INCLUDE_DIRS})
+# Use BEFORE to allow local installation of Zwave to take priority
+# over global installation.
+include_directories(BEFORE ${OpenZWave_INCLUDE_DIRS})
 
 set (DEVICE "agozwave")
 
