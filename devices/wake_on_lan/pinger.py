@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """
 A pure Python "ping" implementation, based on a rewrite by Johannes Meyer,
 of a script originally by Matthew Dixon Cowles. Which in turn was derived
