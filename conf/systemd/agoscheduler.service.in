@@ -2,7 +2,7 @@
 Description=agocontrol scheduler
 
 [Service]
-ExecStart=@BINDIR@/agoscheduler.py
+ExecStart=@BINDIR@/agoscheduler
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

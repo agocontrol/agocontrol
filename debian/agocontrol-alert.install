@@ -1,4 +1,6 @@
 lib/systemd/system/agoalert.service
-opt/agocontrol/bin/agoalert.py
-opt/agocontrol/bin/pushbullet.py
+opt/agocontrol/bin/agoalert
+opt/agocontrol/python/agoalert
+opt/agocontrol/python/agoalert/pushbullet.py
+opt/agocontrol/python/agoalert/agoalert.py
 etc/opt/agocontrol/schema.d/10-notification.yaml

@@ -2,7 +2,7 @@
 Description=ago control Weather Reporter service
 
 [Service]
-ExecStart=@BINDIR@/agoweatherreporter.py
+ExecStart=@BINDIR@/agoweatherreporter
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

@@ -2,7 +2,7 @@
 Description=ago control temperatur "sensor" getting data from http://temperatur.nu
 
 [Service]
-ExecStart=@BINDIR@/agotemperaturnu.py
+ExecStart=@BINDIR@/agotemperaturnu
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

@@ -1,2 +1,4 @@
-lib/systemd/system/raspiCamera.service
-opt/agocontrol/bin/raspiCamera.py
+lib/systemd/system/agoraspiCamera.service
+opt/agocontrol/bin/agoraspiCamera
+opt/agocontrol/python/agoraspiCamera
+opt/agocontrol/python/agoraspiCamera/agoraspiCamera.py

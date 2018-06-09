@@ -2,7 +2,7 @@
 Description=ago control gc100 interface
 
 [Service]
-ExecStart=@BINDIR@/agogc100.py
+ExecStart=@BINDIR@/agogc100
 WorkingDirectory=@BINDIR@
 Restart=always
 RestartSec=2

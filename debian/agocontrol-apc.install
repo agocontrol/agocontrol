@@ -1,3 +1,6 @@
 etc/opt/agocontrol/apc
 lib/systemd/system/agoapc.service
-opt/agocontrol/bin/agoapc.py
+opt/agocontrol/bin/agoapc
+opt/agocontrol/python/agoapc
+opt/agocontrol/python/agoapc/agoapc.py
+

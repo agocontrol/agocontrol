@@ -2,7 +2,7 @@
 Description=ago control Wake on LAN handler
 
 [Service]
-ExecStart=@BINDIR@/agowake_on_lan.py
+ExecStart=@BINDIR@/agowake_on_lan
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

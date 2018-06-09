@@ -91,7 +91,7 @@ IF (FREEBSD)
 	)
 ENDIF (FREEBSD)
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/agosimulator.py ${CMAKE_CURRENT_BINARY_DIR}/agosimulator.py COPYONLY)
+AgoPythonProgram(simulator)
 
 foreach (device ${AGODEVICES})
     # options what to build

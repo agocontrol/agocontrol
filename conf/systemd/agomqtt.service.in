@@ -2,7 +2,7 @@
 Description=ago control MQTT client
 
 [Service]
-ExecStart=@BINDIR@/agomqtt.py
+ExecStart=@BINDIR@/agomqtt
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

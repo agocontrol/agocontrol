@@ -1,2 +1,4 @@
-lib/systemd/system/raspi1wGPIO.service
-opt/agocontrol/bin/raspi1wGPIO.py
+lib/systemd/system/agoraspi1wGPIO.service
+opt/agocontrol/bin/agoraspi1wGPIO
+opt/agocontrol/python/agoraspi1wGPIO
+opt/agocontrol/python/agoraspi1wGPIO/agoraspi1wGPIO.py

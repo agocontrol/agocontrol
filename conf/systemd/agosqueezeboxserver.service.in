@@ -2,7 +2,7 @@
 Description=ago control Squeezebox device
 
 [Service]
-ExecStart=@BINDIR@/agosqueezeboxserver.py
+ExecStart=@BINDIR@/agosqueezeboxserver
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

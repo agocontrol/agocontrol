@@ -1,12 +1,12 @@
 [Unit]
-Description=ago control APC Device
+Description=ago control raspberry pi GPIO Device
 
 [Service]
-ExecStart=@BINDIR@/agoapc
+ExecStart=@BINDIR@/agoraspiGPIO
 WorkingDirectory=@BINDIR@
 Restart=always
 RestartSec=2
-User=agocontrol
+User=root
 
 [Install]
 WantedBy=multi-user.target

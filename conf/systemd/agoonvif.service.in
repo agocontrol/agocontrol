@@ -2,7 +2,7 @@
 Description=ago control for onvif devices
 
 [Service]
-ExecStart=@BINDIR@/agoonvif.py
+ExecStart=@BINDIR@/agoonvif
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

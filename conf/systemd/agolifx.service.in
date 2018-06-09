@@ -2,7 +2,7 @@
 Description=ago control LIFX handler
 
 [Service]
-ExecStart=@BINDIR@/agolifx.py
+ExecStart=@BINDIR@/agolifx
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

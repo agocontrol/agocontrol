@@ -2,7 +2,7 @@
 Description=ago control advanced graphing system based on rrdtool
 
 [Service]
-ExecStart=@BINDIR@/agorrdtool.py
+ExecStart=@BINDIR@/agorrdtool
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

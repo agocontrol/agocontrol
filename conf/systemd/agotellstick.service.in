@@ -2,7 +2,7 @@
 Description=ago control Tellstick handler
 
 [Service]
-ExecStart=@BINDIR@/agotellstick.py
+ExecStart=@BINDIR@/agotellstick
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

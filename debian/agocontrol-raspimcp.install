@@ -1,2 +1,4 @@
-lib/systemd/system/raspiMCP3xxxGPIO.service
-opt/agocontrol/bin/raspiMCP3xxxGPIO.py
+lib/systemd/system/agoraspiMCP3xxxGPIO.service
+opt/agocontrol/bin/agoraspiMCP3xxxGPIO
+opt/agocontrol/python/agoraspiMCP3xxxGPIO
+opt/agocontrol/python/agoraspiMCP3xxxGPIO/agoraspiMCP3xxxGPIO.py

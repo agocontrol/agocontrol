@@ -2,7 +2,7 @@
 Description=ago control ETAtouch service
 	
 [Service]
-ExecStart=@BINDIR@/agoeta.py
+ExecStart=@BINDIR@/agoeta
 WorkingDirectory=@BINDIR@
 Restart=always
 RestartSec=2

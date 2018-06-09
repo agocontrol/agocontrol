@@ -2,7 +2,7 @@
 Description=ago control axis audio transmit device
 
 [Service]
-ExecStart=@BINDIR@/agoaxisaudiotransmit.py
+ExecStart=@BINDIR@/agoaxisaudiotransmit
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

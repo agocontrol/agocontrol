@@ -50,27 +50,25 @@ install (TARGETS get_table_lang.cgi RUNTIME DESTINATION ${HTMLDIR}/cgi-bin)
 get_filename_component(CMAKE_CURRENT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
 get_filename_component(CMAKE_CURRENT_BINARY_DIR_REAL "${CMAKE_CURRENT_BINARY_DIR}" REALPATH)
 
-# If we are NOT in-source build, we have to copy all files below html/ to the build dir.
+# This is quite similar to our CopyFilesFromSource function, but does some extra filtering,
+# since we do globbing and don't want to copy .in.html or dot-files.
 if (NOT IN_SOURCE_BUILD)
     file(GLOB_RECURSE HTML_FILES ${CMAKE_CURRENT_SOURCE_DIR}/html/*)
+    add_custom_target(html-ui ALL)
+    add_dependencies(agorpc html-ui)
     foreach (infile ${HTML_FILES})
         # Almost all...
         if (NOT infile MATCHES ".in.html$"
                 AND NOT infile MATCHES "/\\."
                 AND NOT IS_SYMLINK "${infile}")
-            # This is quite verbose, logging every file, but we want a
-            # dependency on input file -> output file for quick rebuild with just "make"
             string(REPLACE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} outfile ${infile})
             add_custom_command(
-                OUTPUT ${outfile} DEPENDS ${infile}
+                TARGET html-ui DEPENDS ${infile}
                 COMMAND ${CMAKE_COMMAND} -E copy ${infile} ${outfile})
             set (UI_FILES ${UI_FILES} ${outfile})
         endif()
     endforeach(infile)
-    add_custom_target(html-ui DEPENDS ${UI_FILES})
-    add_dependencies(agorpc html-ui)
 endif()
-
 
 # For every .in.html file, pass it through the mergetranslation.sh script
 file(GLOB_RECURSE HTML_IN_FILES ${CMAKE_CURRENT_SOURCE_DIR}/html/*.in.html)
@@ -86,7 +84,6 @@ endforeach (infile)
 
 add_custom_target(translations DEPENDS ${OUT_FILES})
 add_dependencies(agorpc translations)
-
 
 # These JS files are loaded on main page. Build a merged file so we can load quicker...
 # Poor mans minifying...

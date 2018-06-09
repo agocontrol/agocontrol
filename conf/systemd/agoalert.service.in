@@ -2,7 +2,7 @@
 Description=ago control alerts system
 
 [Service]
-ExecStart=@BINDIR@/agoalert.py
+ExecStart=@BINDIR@/agoalert
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

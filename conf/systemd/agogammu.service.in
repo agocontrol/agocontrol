@@ -2,7 +2,7 @@
 Description=ago control gammu sms gateway
 
 [Service]
-ExecStart=@BINDIR@/agogammu.py
+ExecStart=@BINDIR@/agogammu
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog

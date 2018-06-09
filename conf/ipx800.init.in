@@ -11,4 +11,4 @@ stop on runlevel [!2345]
 
 respawn
 chdir @BINDIR@
-exec @BINDIR@/agoipx800.py
+exec @BINDIR@/agoipx800

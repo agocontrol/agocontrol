@@ -1,4 +1,6 @@
 lib/systemd/system/agoiscp.service
-opt/agocontrol/bin/agoiscp.py
-opt/agocontrol/bin/core.py
-opt/agocontrol/bin/commands.py
+opt/agocontrol/bin/agoiscp
+opt/agocontrol/python/agoiscp
+opt/agocontrol/python/agoiscp/core.py
+opt/agocontrol/python/agoiscp/agoiscp.py
+opt/agocontrol/python/agoiscp/commands.py

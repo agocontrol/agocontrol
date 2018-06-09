@@ -2,29 +2,15 @@ cmake_minimum_required (VERSION 3.0)
 
 #get files
 FILE(GLOB FILES_WSDL wsdl/*.*)
-FILE(GLOB FILES_ONVIF onvif/*.*)
-FILE(GLOB FILES_DIRS_SUDS suds/*)
-FILE(GLOB FILES_SUDS_PASSWORDDIGEST suds_passworddigest/*.*)
 
-#install files
-install (PROGRAMS agoonvif.py DESTINATION ${BINDIR})
-#onvif lib
-install (DIRECTORY DESTINATION ${BINDIR}/onvif)
-install (PROGRAMS ${FILES_ONVIF} DESTINATION ${BINDIR}/onvif)
-#wsdl
+FILE(GLOB FILES_ONVIF RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} onvif/*.*)
+FILE(GLOB_RECURSE FILES_DIRS_SUDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} suds/*.*)
+FILE(GLOB FILES_SUDS_PASSWORDDIGEST RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} suds_passworddigest/*.*)
+
+set(EXTRA_FILES ${FILES_ONVIF} ${FILES_DIRS_SUDS} ${FILES_SUDS_PASSWORDDIGEST})
+
+AgoPythonProgram(onvif EXTRA_FILES "${EXTRA_FILES}")
+
+# wsdl
 install (DIRECTORY DESTINATION /etc/onvif/wsdl)
-install (PROGRAMS ${FILES_WSDL} DESTINATION /etc/onvif/wsdl)
-#suds lib
-foreach(ITEM ${FILES_DIRS_SUDS})
-    if( IS_DIRECTORY "${ITEM}" )
-        list( APPEND DIRS_SUDS "${ITEM}" )
-    else()
-        list( APPEND FILES_SUDS "${ITEM}" )
-    endif()
-endforeach()
-install( FILES ${FILES_SUDS} DESTINATION ${BINDIR}/suds )
-install( DIRECTORY ${DIRS_SUDS} DESTINATION ${BINDIR}/suds )
-#suds_passworddigest lib
-install (DIRECTORY DESTINATION ${BINDIR}/suds_passworddigest)
-install (PROGRAMS ${FILES_SUDS_PASSWORDDIGEST} DESTINATION ${BINDIR}/suds_passworddigest)
-
+install (FILES ${FILES_WSDL} DESTINATION /etc/onvif/wsdl)

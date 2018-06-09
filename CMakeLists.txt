@@ -6,6 +6,8 @@ set (AGOCONTROL_VERSION 0.1)
 
 find_package(PkgConfig REQUIRED)
 
+include(cmake/AgoFileHelpers.cmake)
+
 # FreeBSD have some differences in building, mainly 
 # that non-base libs/includes are located in /usr/local.
 IF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
@@ -24,7 +26,8 @@ ENDIF ()
 
 # some configurable values
 IF (FREEBSD)
-	set (BINDIR ${LOCALDIR}/bin CACHE STRING "Directory to store Binaries")
+	set (BASEDIR ${LOCALDIR}/agocontrol CACHE STRING "Directory to store agocontrol installation")
+	set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
 	set (ETCDIR ${LOCALDIR}/etc CACHE STRING "Directory for system-wide settings")
 	set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
 	set (CONFDIR ${ETCDIR}/agocontrol CACHE STRING "Directory for agocontrol settings")
@@ -33,17 +36,18 @@ IF (FREEBSD)
 	# and those should be stored in share.
 	set (DATADIR ${LOCALDIR}/share/agocontrol CACHE STRING "Directory for variable data")
 	set (LOCALSTATEDIR ${LOCALDIR}/var/agocontrol CACHE STRING "Directory for state info")
-	set (HTMLDIR ${LOCALDIR}/share/agocontrol/html CACHE STRING "Directory for rpc HTML files")
+	set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
 	set (AUGEASLENSEDIR ${LOCALDIR}/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
 ELSE (FREEBSD)
-	set (BINDIR /opt/agocontrol/bin CACHE STRING "Directory to store Binaries")
+	set (BASEDIR /opt/agocontrol CACHE STRING "Directory to store agocontrol installation")
+	set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
 	set (ETCDIR /etc CACHE STRING "Directory for system-wide settings")
 	set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
 	set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
 	set (INCDIR /usr/include/agocontrol CACHE STRING "Directory for include files")
 	set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
 	set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
-	set (HTMLDIR /opt/agocontrol/html CACHE STRING "Directory for rpc HTML files")
+	set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
 	set (AUGEASLENSEDIR /usr/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
 	set (PYTHON2DIST /usr/lib/python2.7/dist-packages CACHE STRING "Directory for Python 2.7 packages")
 	set (PYTHON3DIST /usr/lib/python3/dist-packages CACHE STRING "Directory for Python 3 packages")
@@ -167,6 +171,9 @@ configure_file (
 		"${PROJECT_BINARY_DIR}/build_config.h"
 		@ONLY
 )
+
+# Shared for all
+install(DIRECTORY DESTINATION ${BINDIR})
 
 # add sub directories
 OPTION(BUILD_SHARED "Build the agoclient shared library" ON)

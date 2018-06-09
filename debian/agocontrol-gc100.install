@@ -1,2 +1,4 @@
 lib/systemd/system/agogc100.service
-opt/agocontrol/bin/agogc100.py
+opt/agocontrol/bin/agogc100
+opt/agocontrol/python/agogc100
+opt/agocontrol/python/agogc100/agogc100.py

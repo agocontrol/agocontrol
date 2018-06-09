@@ -1,3 +1,5 @@
 etc/opt/agocontrol/jointspace
 lib/systemd/system/agojointspace.service
-opt/agocontrol/bin/agojointspace.py
+opt/agocontrol/bin/agojointspace
+opt/agocontrol/python/agojointspace
+opt/agocontrol/python/agojointspace/agojointspace.py

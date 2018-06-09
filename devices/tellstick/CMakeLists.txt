@@ -1,11 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
 
-install (PROGRAMS agotellstick.py DESTINATION ${BINDIR})
-install (PROGRAMS tellstickbase.py DESTINATION ${BINDIR})
-install (PROGRAMS tellstickduo.py DESTINATION ${BINDIR})
-install (PROGRAMS tellsticknet.py DESTINATION ${BINDIR})
-install (PROGRAMS tellstick_auth.py DESTINATION ${BINDIR})
-install (PROGRAMS td.py DESTINATION ${BINDIR})
+set(EXTRA_FILES tellstickbase.py tellstickduo.py tellsticknet.py tellstick_auth.py td.py)
 
-
-
+AgoPythonProgram(tellstick EXTRA_FILES ${EXTRA_FILES})

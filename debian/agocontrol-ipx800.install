@@ -1,4 +1,6 @@
 lib/systemd/system/agoipx800.service
-opt/agocontrol/bin/agoipx800.py
-opt/agocontrol/bin/pyipx800v3.py
+opt/agocontrol/bin/agoipx800
 etc/opt/agocontrol/schema.d/20-ipx800.yaml
+opt/agocontrol/python/agoipx800
+opt/agocontrol/python/agoipx800/pyipx800v3.py
+opt/agocontrol/python/agoipx800/agoipx800.py
