@@ -1,19 +1,7 @@
-*.so
-*.so.*
-*.a
-*.pyc
-*.o
-CMakeFiles
-cmake_install.cmake
-CMakeCache.txt
-build/
-Makefile
-*.core
+*build*/
 scripts/agososreport.sh
 shared/agoclient/_directories.py
 version.h
-CTestTestfile.cmake
-Testing/
 
 # Eclipse/PTP related files
 .project
@@ -24,22 +12,7 @@ Testing/
 
 # Apple FileSystem
 .DS_Store
-core/.DS_Store
-core/rpc/.DS_Store
-core/rpc/html/.DS_Store
-core/rpc/html/configuration/devices/.DS_Store
-unittest/.DS_Store
-shared/.DS_Store
-core/rpc/html/templates/.DS_Store
-core/rpc/html/protocols/knx/.DS_Store
-core/rpc/html/protocols/ipx800/.DS_Store
-core/rpc/html/js/.DS_Store
-core/rpc/html/dashboard/.DS_Store
-core/rpc/html/dashboard/all/.DS_Store
-core/rpc/html/configuration/.DS_Store
-core/rpc/html/protocols/.DS_Store
-debian/.DS_Store
-core/rpc/html/js/libs/.DS_Store
-devices/.DS_Store
 
 *.save
+
+.idea/
