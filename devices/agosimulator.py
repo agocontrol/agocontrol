@@ -13,15 +13,22 @@ class AgoSimulator(agoclient.AgoApp):
             if content["command"] == "on":
                 print "switching on: " + internalid
                 self.connection.emit_event(internalid, "event.device.statechanged", 255, "")
-            if content["command"] == "off":
+            elif content["command"] == "off":
                 print "switching off: " + internalid
                 self.connection.emit_event(internalid, "event.device.statechanged", 0, "")
-            if content["command"] == "push":
+            elif content["command"] == "push":
                 print "push button: " + internalid
-            if content['command'] == 'setlevel':
+            elif content['command'] == 'setlevel':
                 if 'level' in content:
                     print "device level changed", content["level"]
                     self.connection.emit_event(internalid, "event.device.statechanged", content["level"], "")
+            else:
+                return self.connection.response_unknown_command()
+
+            return self.connection.response_success()
+        else:
+            return self.connection.response_bad_parameters()
+
 
     def app_cmd_line_options(self, parser):
         """App-specific command line options"""
