@@ -725,8 +725,7 @@ void AgoResolver::eventHandler(const std::string& subject, qpid::types::Variant:
                 uint64_t timestamp;
                 timestamp = time(NULL);
                 device["lastseen"] = timestamp;
-                device["state"] = "0";
-                device["state"].setEncoding("utf8");
+                device["state"] = 0;
                 device["values"] = values;
                 device["stale"] = 0;
 
