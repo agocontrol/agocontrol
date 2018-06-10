@@ -191,7 +191,6 @@ endif()
 OPTION(BUILD_CORE "Build the CORE" ON)
 if (BUILD_CORE)
   add_subdirectory (core) 
-  install (PROGRAMS gateways/agomeloware.py DESTINATION ${BINDIR})
   install (FILES data/inventory.sql data/datalogger.sql DESTINATION ${DATADIR})
 endif()
 

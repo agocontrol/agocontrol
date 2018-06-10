@@ -41,19 +41,25 @@ endfunction()
 # and to avoid conflicts.
 #
 # Usage:
-#   AgoPythonProgram(myapp [WITH_CONFIGDIR ] [EXTRA_FILES "..."])
+#   AgoPythonProgram(myapp DESCRIPTION "ago control blaha handler" [WITH_CONFIGDIR ] [EXTRA_FILES "..."])
 #
 #   Will setup targets to copy agomyapp.py and any extra files to the CMAKE_CURRENT_BINARY_DIR,
 #   and setup install to then copy these files to the appropriate installation dir.
+#   Also prepares a conf/systemd/agomyapp.service file and installs it, unless a .in with same name
+#   exists in the source dir.
 #
 #   If WITH_CONFIGDIR is set, it will enable installation of directory /etc/opt/agocontrol/myapp.
 #   If EXTRA_FILES is specified, these will be copied to the "private" dir next to the .py file.
+#   If RUN_AS is specified, systemd will have that User instead of default user.
 #
 # Note that PROGRAM_BASE_NAME should not have ago prefix, nor .py suffix.
 # The directory containing this directive must have a file named ago<name>.py.
 #
 function(AgoPythonProgram PROGRAM_BASE_NAME)
-    cmake_parse_arguments(PYPROG "WITH_CONFIGDIR" "" "EXTRA_FILES" ${ARGN})
+    set(options WITH_CONFIGDIR)
+    set(oneValueArgs DESCRIPTION RUN_AS)
+    set(multiValueArgs EXTRA_FILES)
+    cmake_parse_arguments(PYPROG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     set(PROGRAM_NAME "ago${PROGRAM_BASE_NAME}")
     set(APP_DIR "${BASEDIR}/python/${PROGRAM_NAME}")
@@ -65,6 +71,8 @@ function(AgoPythonProgram PROGRAM_BASE_NAME)
         install(DIRECTORY DESTINATION ${CONFDIR}/${PROGRAM_BASE_NAME})
     endif()
 
+    AgoService(${PROGRAM_BASE_NAME} DESCRIPTION "${PYPROG_DESCRIPTION}" RUN_AS "${PYPROG_RUN_AS}")
+
     install(CODE "
         execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ../python/${PROGRAM_NAME}/${PROGRAM_NAME}.py \$ENV{DESTDIR}${BINDIR}/${PROGRAM_NAME})
         message(\"-- Installing symlink: \$ENV{DESTDIR}${BINDIR}/${PROGRAM_NAME} -> ../python/${PROGRAM_NAME}/${PROGRAM_NAME}.py\")
@@ -75,4 +83,22 @@ function(AgoPythonProgram PROGRAM_BASE_NAME)
         install (FILES "${CMAKE_CURRENT_BINARY_DIR}/${infile}" DESTINATION "${OUTDIR}")
     endforeach()
 
+endfunction()
+
+
+function(AgoService PROGRAM_BASE_NAME)
+    set(options )
+    set(oneValueArgs DESCRIPTION RUN_AS)
+    set(multiValueArgs )
+    cmake_parse_arguments(PROG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    set(PROGRAM_NAME "ago${PROGRAM_BASE_NAME}")
+    if(NOT EXISTS "${PROJECT_SOURCE_DIR}/conf/systemd/${PROGRAM_NAME}.service.in")
+        if(NOT PROG_RUN_AS)
+            set(PROG_RUN_AS "agocontrol")
+        endif()
+        #message("Creating service file for ${PROGRAM_NAME} ${PROG_DESCRIPTION} AND ${PROG_RUN_AS}")
+        configure_file("${PROJECT_SOURCE_DIR}/conf/systemd/template.service.in" ${PROJECT_BINARY_DIR}/conf/systemd/${PROGRAM_NAME}.service)
+        install (FILES "${PROJECT_BINARY_DIR}/conf/systemd/${PROGRAM_NAME}.service" DESTINATION "/lib/systemd/system/")
+    endif()
 endfunction()

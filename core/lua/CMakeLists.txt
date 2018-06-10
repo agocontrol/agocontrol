@@ -18,3 +18,4 @@ add_executable (agolua ${AGOLUA_SOURCE_FILES})
 target_link_libraries (agolua ${LUA_LIBRARIES})
 
 install (TARGETS agolua RUNTIME DESTINATION ${BINDIR})
+AgoService(lua DESCRIPTION "ago control LUA script event handler")

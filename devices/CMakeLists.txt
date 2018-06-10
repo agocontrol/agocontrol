@@ -34,7 +34,7 @@ set (AGODEVICES
   alert
   ipx800
   raspiCamera
-  scheduler
+  schedulerold
   tellstick
   lifx
   knx
@@ -51,6 +51,7 @@ set (AGODEVICES
   MQTT
   NVR
   harmonyhub
+  agoping
 )
 
 FIND_PACKAGE(OpenCV)
@@ -91,7 +92,7 @@ IF (FREEBSD)
 	)
 ENDIF (FREEBSD)
 
-AgoPythonProgram(simulator)
+AgoPythonProgram(simulator DESCRIPTION "ago control Device simulator")
 
 foreach (device ${AGODEVICES})
     # options what to build

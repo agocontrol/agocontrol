@@ -35,3 +35,5 @@ set_property(
 
 install (TARGETS ${DEVICE} RUNTIME DESTINATION ${BINDIR})
 install (DIRECTORY DESTINATION ${CONFDIR}/ozw)
+
+AgoService(zwave DESCRIPTION "ago control Z-Wave Device")

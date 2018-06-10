@@ -1,3 +1,3 @@
 cmake_minimum_required (VERSION 3.0)
 
-AgoPythonProgram(weatherreporter)
+AgoPythonProgram(weatherreporter DESCRIPTION "ago control Weather Reporter service")

@@ -16,7 +16,6 @@ foreach (infile ${INIT_FILES})
 
 endforeach (infile)
 
-add_subdirectory (systemd)
 add_subdirectory (conf.d)
 add_subdirectory (schema.d)
 add_subdirectory (sysvinit)

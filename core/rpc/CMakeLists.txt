@@ -45,6 +45,7 @@ configure_file (
 
 install (TARGETS agorpc rpc-htpasswd RUNTIME DESTINATION ${BINDIR})
 install (TARGETS get_table_lang.cgi RUNTIME DESTINATION ${HTMLDIR}/cgi-bin)
+AgoService(rpc DESCRIPTION "ago control HTTP RPC interface")
 
 
 get_filename_component(CMAKE_CURRENT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)

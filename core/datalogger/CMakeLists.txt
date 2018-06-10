@@ -14,3 +14,5 @@ add_executable (agodatalogger ${AGODATALOGGER_SOURCE_FILES})
 target_link_libraries (agodatalogger ${DATALOGGER_LIBRARIES})
 
 install (TARGETS agodatalogger RUNTIME DESTINATION ${BINDIR})
+
+AgoService(datalogger DESCRIPTION "ago control Data Logger")

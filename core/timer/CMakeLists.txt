@@ -11,3 +11,4 @@ add_executable (agotimer ${AGOTIMER_SOURCE_FILES})
 target_link_libraries (agotimer ${TIMER_LIBRARIES})
 
 install (TARGETS agotimer RUNTIME DESTINATION ${BINDIR})
+AgoService(timer DESCRIPTION "ago control Timer")

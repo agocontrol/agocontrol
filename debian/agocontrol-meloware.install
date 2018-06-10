@@ -1,2 +1,5 @@
 lib/systemd/system/agomeloware.service
-opt/agocontrol/bin/agomeloware.py
+opt/agocontrol/bin/agomeloware
+opt/agocontrol/bin/agomeloware
+opt/agocontrol/python/agomeloware
+opt/agocontrol/python/agomeloware/agomeloware.py

@@ -8,4 +8,6 @@ FILE(GLOB LIFXLAN_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} lifxlan/*.py)
 
 set(EXTRA_FILES lifxbase.py lifxnet.py lifxlan2.py prodinfo.json ${LIFXLAN_FILES})
 
-AgoPythonProgram(lifx EXTRA_FILES "${EXTRA_FILES}")
+AgoPythonProgram(lifx
+    DESCRIPTION "ago control LIFX handler"
+    EXTRA_FILES "${EXTRA_FILES}")

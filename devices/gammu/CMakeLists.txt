@@ -1,3 +1,3 @@
 cmake_minimum_required (VERSION 3.0)
 
-AgoPythonProgram(gammu)
+AgoPythonProgram(gammu DESCRIPTION "ago control gammu sms gateway")

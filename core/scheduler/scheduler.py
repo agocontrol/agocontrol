@@ -23,7 +23,6 @@ from variables import Variables
 import json
 import random
 import math
-from groups import Groups
 import sys
 if sys.version_info[0] > 2:
     # py3k

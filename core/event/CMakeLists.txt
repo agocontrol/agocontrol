@@ -10,3 +10,4 @@ add_executable (agoevent ${AGOEVENT_SOURCE_FILES})
 target_link_libraries (agoevent ${EVENT_LIBRARIES})
 
 install (TARGETS agoevent RUNTIME DESTINATION ${BINDIR})
+AgoService(event DESCRIPTION "ago control Event Device")

@@ -9,3 +9,4 @@ add_executable (agoscenario agoscenario.cpp)
 target_link_libraries (agoscenario ${SCENARIO_LIBRARIES})
 
 install (TARGETS agoscenario RUNTIME DESTINATION ${BINDIR})
+AgoService(scenario DESCRIPTION "ago control Scenario Device")

@@ -9,7 +9,9 @@ FILE(GLOB FILES_SUDS_PASSWORDDIGEST RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} suds_pa
 
 set(EXTRA_FILES ${FILES_ONVIF} ${FILES_DIRS_SUDS} ${FILES_SUDS_PASSWORDDIGEST})
 
-AgoPythonProgram(onvif EXTRA_FILES "${EXTRA_FILES}")
+AgoPythonProgram(onvif
+    DESCRIPTION "ago control for onvif devices"
+    EXTRA_FILES "${EXTRA_FILES}")
 
 # wsdl
 install (DIRECTORY DESTINATION /etc/onvif/wsdl)

@@ -1,3 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
 
-AgoPythonProgram(alert EXTRA_FILES pushbullet.py)
+AgoPythonProgram(alert
+    DESCRIPTION "ago control agoalert system"
+    EXTRA_FILES pushbullet.py)

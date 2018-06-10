@@ -10,3 +10,8 @@ if (BUILD_GATEWAY_ImperiHome)
   add_subdirectory (ImperiHome)
 endif()
 
+OPTION(BUILD_GATEWAY_meloware "Build Meloware Lightswitchserver Gateway" ON)
+if (BUILD_GATEWAY_meloware)
+	AgoPythonProgram(meloware DESCRIPTION "ago control Meloware Lightswitchserver Gateway")
+endif()
+

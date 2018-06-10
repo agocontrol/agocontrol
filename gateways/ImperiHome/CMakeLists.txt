@@ -25,3 +25,4 @@ set_property(
 
 install (TARGETS agoImperiHome RUNTIME DESTINATION ${BINDIR})
 
+AgoService(ImperiHome DESCRIPTION "ago control ImperiHome App gateway")

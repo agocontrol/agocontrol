@@ -13,3 +13,5 @@ add_executable (${DEVICE} ${DEVICE_SOURCE_FILES})
 target_link_libraries (${DEVICE} ${DEVICE_EXTRA_LIBRARIES})
 
 install (TARGETS ${DEVICE} RUNTIME DESTINATION ${BINDIR})
+
+AgoService(i2c DESCRIPTION "ago control i2c device")

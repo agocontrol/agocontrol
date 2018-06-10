@@ -30,3 +30,4 @@ add_executable (agosystem ${AGOSYSTEM_SOURCE_FILES})
 target_link_libraries (agosystem ${SYSTEM_LIBRARIES})
 
 install (TARGETS agosystem RUNTIME DESTINATION ${BINDIR})
+AgoService(system DESCRIPTION "ago control system controller")

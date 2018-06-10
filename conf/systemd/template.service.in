@@ -1,14 +1,14 @@
 [Unit]
-Description=ago control temperatur "sensor" getting data from http://temperatur.nu
+Description=@PROG_DESCRIPTION@
 
 [Service]
-ExecStart=@BINDIR@/agotemperaturnu
+ExecStart=@BINDIR@/@PROGRAM_NAME@
 WorkingDirectory=@BINDIR@
 StandardOutput=syslog
 StandardError=syslog
 Restart=always
 RestartSec=2
-User=agocontrol
+User=@PROG_RUN_AS@
 
 [Install]
 WantedBy=multi-user.target
