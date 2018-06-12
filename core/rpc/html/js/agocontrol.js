@@ -552,6 +552,21 @@ Agocontrol.prototype = {
         this.variables.push(variable);
     },
 
+    /**
+     * Get the value observable for the given variable, or null if not defined.
+     *
+     * @param variableName
+     * @returns Observable | null
+     */
+    getVariable: function(variableName) {
+        var varObj = this.variables.find(
+            function(v){
+                return v.variable === variableName
+            }
+        );
+        return varObj != null ? varObj.value : null;
+    },
+
     //handle initial inventory call
     handleInventory: function(result)
     {
