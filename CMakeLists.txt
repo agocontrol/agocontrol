@@ -151,6 +151,15 @@ ELSE()
     set(BUILD_TESTS_DEFAULT OFF)
 ENDIF()
 
+# Different linux distributions places i2c-dev.h at different locations
+# For example, debian uses linux/i2c-dev.h, but Fedora 27 uses i2c-tools/i2c-dev.h
+# Since it seems wrong to include /usr/include/linux as -I, this detects the location
+# and sets a HAVE_ def instead which the code then can use to include the wanted one.
+check_include_files("linux/i2c-dev.h" HAVE_LINUX_I2C_DEV_H)
+check_include_files("i2c-tools/i2c-dev.h" HAVE_I2CTOOLS_I2C_DEV_H)
+
+
+
 set (ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${BINDIR}")
