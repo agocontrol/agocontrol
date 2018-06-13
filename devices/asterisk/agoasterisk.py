@@ -55,7 +55,7 @@ except:
 	amipassword = "letmein"
 
 parser = optparse.OptionParser(usage="usage: %prog <command> [options] [ PARAMETERS ... ]",
-                               description="send automation control commands")
+							   description="send automation control commands")
 parser.add_option("-b", "--broker", default=broker, help="hostname of broker (default %default)")
 parser.add_option("-u", "--username", default=username, help="specify a username")
 parser.add_option("-P", "--password", default=password, help="specify a password")
@@ -157,8 +157,8 @@ class ListPeers():
 					print "Line: %s/%s" % (entry['channeltype'], entry['objectname'])
 					reportdevice("%s/%s" % (entry['channeltype'], entry['objectname']))
 		def onError( reason ):
-		    print reason.getTraceback()
-		    return reason
+			print reason.getTraceback()
+			return reason
 		def onFinished( result ):
 			pass
 		dfl = ami.sipPeers()
@@ -181,8 +181,8 @@ class DialOut():
 		def onResult(result):
 			print 'Result', result
 		def onError( reason ):
-		    print reason.getTraceback()
-		    return reason
+			print reason.getTraceback()
+			return reason
 		def onFinished( result ):
 			pass
 		try:
@@ -205,7 +205,7 @@ class CommandReceiver():
 		while running:
 			try:
 				message = receiver.fetch(timeout=1)
-                session.acknowledge()
+				session.acknowledge()
 				if message.content:
 					if 'command' in message.content:
 						if 'uuid' in message.content:
