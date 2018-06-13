@@ -159,6 +159,8 @@ check_include_files("linux/i2c-dev.h" HAVE_LINUX_I2C_DEV_H)
 check_include_files("i2c-tools/i2c-dev.h" HAVE_I2CTOOLS_I2C_DEV_H)
 
 
+check_include_files("xlocale.h" HAVE_XLOCALE_H)
+
 
 set (ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")

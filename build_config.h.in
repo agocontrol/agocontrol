@@ -4,5 +4,6 @@
 
 #cmakedefine HAVE_LINUX_I2C_DEV_H @HAVE_LINUX_I2C_DEV_H@
 #cmakedefine HAVE_I2CTOOLS_I2C_DEV_H @HAVE_I2CTOOLS_I2C_DEV_H@
+#cmakedefine HAVE_XLOCALE_H @HAVE_XLOCALE_H@
 
 #endif
