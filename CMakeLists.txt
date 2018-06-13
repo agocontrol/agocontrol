@@ -115,7 +115,7 @@ pkg_search_module(YAML_CPP REQUIRED yaml-cpp yaml-cpp03)
 message(STATUS "yaml-cpp version: ${YAML_CPP_VERSION}")
 
 # Linux/debian has lua5.x, FreeBSD has lua-5.x
-pkg_search_module(LUA REQUIRED  lua5.3 lua-5.3 lua5.2 lua-5.2 lua5.1 lua-5.1)
+pkg_search_module(LUA REQUIRED  lua5.3 lua-5.3 lua5.2 lua-5.2 lua5.1 lua-5.1 lua)
 message(STATUS "lua version: ${LUA_VERSION}")
 
 find_package(Threads REQUIRED)

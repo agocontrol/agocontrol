@@ -13,6 +13,8 @@ set (LUA_LIBRARIES
 	${LUA_LIBRARIES}
 )
 
+include_directories(${LUA_INCLUDE_DIRS})
+
 # add the executable
 add_executable (agolua ${AGOLUA_SOURCE_FILES})
 target_link_libraries (agolua ${LUA_LIBRARIES})

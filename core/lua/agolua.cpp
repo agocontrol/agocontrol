@@ -12,6 +12,8 @@
 
 #include "boost/regex.hpp"
 
+#include "lua.hpp"
+
 #ifndef SCRIPTSINFOSFILE
 #define SCRIPTSINFOSFILE "maps/agolua.json"
 #endif
@@ -27,12 +29,6 @@
 namespace fs = ::boost::filesystem;
 
 using namespace agocontrol;
-
-#ifdef __FreeBSD__
-#include "lua52/lua.hpp"
-#else
-#include "lua5.2/lua.hpp"
-#endif
 
 #define INVENTORY_MAX_AGE 60 //in seconds
 
