@@ -6,6 +6,8 @@ set (AGOCONTROL_VERSION 0.1)
 
 find_package(PkgConfig REQUIRED)
 
+include (CheckIncludeFiles)
+
 include(cmake/AgoFileHelpers.cmake)
 
 # FreeBSD have some differences in building, mainly 
