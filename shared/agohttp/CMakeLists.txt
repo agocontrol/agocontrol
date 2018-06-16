@@ -21,7 +21,7 @@ set (AGOHTTP_LIBRARIES
 
 #IF (Boost_LOG_FOUND)
 #    LIST(APPEND AGOHTTP_LIBRARIES ${Boost_LOG_LIBRARY})
-#ENDIF()
+#endif()
 
 target_link_libraries (agohttp ${AGOHTTP_LIBRARIES})
 

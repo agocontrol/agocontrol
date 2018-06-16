@@ -13,7 +13,7 @@ set(LIBAGOCLIENT_SOURCE_FILES
     base64.cpp
 )
 
-IF (Boost_LOG_FOUND)
+if(Boost_LOG_FOUND)
     list(APPEND LIBAGOCLIENT_SOURCE_FILES agolog_boost.cpp)
 else()
     list(APPEND LIBAGOCLIENT_SOURCE_FILES agolog_basic.cpp)
@@ -34,11 +34,11 @@ set (AGOCLIENT_LIBRARIES
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
 )
 
-IF (Boost_LOG_FOUND)
+if(Boost_LOG_FOUND)
     LIST(APPEND AGOCLIENT_LIBRARIES ${Boost_LOG_LIBRARY})
-ELSE()
+else()
     LIST(APPEND AGOCLIENT_LIBRARIES ${Boost_DATE_TIME_LIBRARY})
-ENDIF()
+endif()
 
 target_link_libraries (agoclient ${AGOCLIENT_LIBRARIES})
 

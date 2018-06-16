@@ -1,9 +1,9 @@
 cmake_minimum_required (VERSION 3.0)
 
-IF(COMMAND cmake_policy)
+if(COMMAND cmake_policy)
     # FILE GLOB_RECURSE calls should not follow symlinks by default.
     cmake_policy(SET CMP0009 NEW)
-ENDIF(COMMAND cmake_policy)
+endif()
 
 set (RPC_LIBRARIES
     agoclient

@@ -7,7 +7,7 @@ set (DEVICE_EXTRA_LIBRARIES
      agoclient
 )
 
-IF (OS_FREEBSD)
+if(OS_FREEBSD)
     list(APPEND DEVICE_EXTRA_LIBRARIES usb)
     IF(NOT EXISTS "/usr/include/iconv.h")
         # Pre 10.0 FreeBSD without globla iconv

@@ -16,7 +16,7 @@ FIND_LIBRARY(OpenZWave_LIBRARIES openzwave
    /usr/local/lib64
    /usr/lib)
 
-IF(OpenZWave_INCLUDE_BASE_DIR)
+if(OpenZWave_INCLUDE_BASE_DIR)
     IF(OpenZWave_LIBRARIES)
         set(OpenZWave_FOUND "YES")
         set(OpenZWave_LIBRARIES ${OpenZWave_LIBRARIES})
@@ -77,11 +77,11 @@ int main(void){
             set(OpenZWave_VERSION_MAJOR "${OpenZWave_VERSION_MAJOR}" CACHE INTERNAL "OpenZWave major version")
             set(OpenZWave_VERSION_MINOR "${OpenZWave_VERSION_MINOR}" CACHE INTERNAL "OpenZWave minor version")
             set(OpenZWave_VERSION_REVISION "${OpenZWave_VERSION_REVISION}" CACHE INTERNAL "OpenZWave GIT revision")
-        ENDIF()
+        endif()
 
         message(STATUS "Found OpenZWave version: ${OpenZWave_VERSION}")
-    ENDIF(OpenZWave_LIBRARIES)
-ENDIF(OpenZWave_INCLUDE_BASE_DIR)
+    endif()
+endif()
 
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(OPENZWAVE DEFAULT_MSG OpenZWave_LIBRARIES OpenZWave_INCLUDE_DIRS)

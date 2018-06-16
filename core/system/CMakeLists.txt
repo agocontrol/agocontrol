@@ -6,10 +6,10 @@ set (SYSTEM_LIBRARIES
     )
 
 set (AGOSYSTEM_SOURCE_FILES agosystem.cpp)
-IF (OS_FREEBSD)
+if(OS_FREEBSD)
     list(APPEND AGOSYSTEM_SOURCE_FILES processinfo_freebsd.cpp)
     list(APPEND SYSTEM_LIBRARIES kvm)
-ELSE()
+else()
     list(APPEND AGOSYSTEM_SOURCE_FILES processinfo_linux.cpp)
     list(APPEND SYSTEM_LIBRARIES ${LIBPROCPS_LIBRARIES})
 
@@ -18,7 +18,7 @@ ELSE()
     IF (FREEPROC_EXISTS)
         ADD_DEFINITIONS(-DFREEPROC_EXISTS)
     ENDIF (FREEPROC_EXISTS)
-ENDIF()
+endif()
 
 # add the executable
 add_executable (agosystem ${AGOSYSTEM_SOURCE_FILES})

@@ -36,7 +36,7 @@ else()
 endif()
 
 # some configurable values
-IF (OS_FREEBSD)
+if (OS_FREEBSD)
     set (BASEDIR ${INSTALL_PREFIX}/agocontrol CACHE STRING "Directory to store agocontrol installation")
     set (ETCDIR ${INSTALL_PREFIX}/etc CACHE STRING "Directory for system-wide settings")
     set (CONFDIR ${ETCDIR}/agocontrol CACHE STRING "Directory for agocontrol settings")
@@ -44,14 +44,14 @@ IF (OS_FREEBSD)
     # and those should be stored in share.
     set (DATADIR ${INSTALL_PREFIX}/share/agocontrol CACHE STRING "Directory for variable data")
     set (LOCALSTATEDIR ${INSTALL_PREFIX}/var/agocontrol CACHE STRING "Directory for state info")
-ELSE()
+else()
     set (BASEDIR /opt/agocontrol CACHE STRING "Directory to store agocontrol installation")
     set (ETCDIR /etc CACHE STRING "Directory for system-wide settings")
     set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
     set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
     set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
     set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
-ENDIF (OS_FREEBSD)
+endif()
 
 # Common structure
 set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
@@ -111,11 +111,11 @@ endmacro()
 find_package(Threads REQUIRED)
 find_package(Boost COMPONENTS system filesystem thread program_options date_time regex chrono REQUIRED)
 find_package(Boost COMPONENTS log)
-IF (Boost_LOG_FOUND)
+if(Boost_LOG_FOUND)
     ADD_DEFINITIONS(-DHAVE_BOOST_LOG)
-ELSE()
+else()
     find_package(Boost COMPONENTS REQUIRED date_time)
-ENDIF()
+endif()
 
 pkg_search_module(YAML_CPP REQUIRED yaml-cpp yaml-cpp03)
 log_pkg_found(yamlcpp "${YAML_CPP_FOUND}" "${YAML_CPP_VERSION}" FATAL_ERROR "")
@@ -161,14 +161,14 @@ include_directories(${Boost_INCLUDE_DIRS})
 # Fix for Boost < 1.56 built without C++, when we build with C++11
 # https://stackoverflow.com/questions/35007134/c-boost-undefined-reference-to-boostfilesystemdetailcopy-file
 # https://chaste.cs.ox.ac.uk/trac/wiki/ChasteGuides/ModernCpp#Boostscopedenumsforboost1.56
-IF(Boost_VERSION VERSION_LESS 105600)
+if(Boost_VERSION VERSION_LESS 105600)
     message(STATUS "Boost version < 1.56, building with BOOST_NO_CXX11_SCOPED_ENUMS")
     set_property( DIRECTORY
         APPEND PROPERTY
         COMPILE_OPTIONS
         -DBOOST_NO_CXX11_SCOPED_ENUMS
     )
-ENDIF()
+endif()
 
 find_package(CppUnit)
 log_pkg_found(CppUnit "${CPPUNIT_FOUND}" "${CPPUNIT_VERSION}" STATUS "not building unit-tests")
@@ -192,40 +192,40 @@ endif()
 install(DIRECTORY DESTINATION ${BINDIR})
 
 # add sub directories
-OPTION(BUILD_SHARED "Build the agoclient shared library" ON)
+option(BUILD_SHARED "Build the agoclient shared library" ON)
 if (BUILD_SHARED)
   add_subdirectory (shared)
 endif()
 
-OPTION(BUILD_TESTS "Build the unittests" ON)
+option(BUILD_TESTS "Build the unittests" ON)
 if (BUILD_TESTS AND CPPUNIT_FOUND)
     # These are only for Shared right now, so add them right after.
     enable_testing()
     add_subdirectory (unittest)
 endif()
 
-OPTION(BUILD_CORE "Build the CORE" ON)
+option(BUILD_CORE "Build the CORE" ON)
 if (BUILD_CORE)
   add_subdirectory (core)
   install (FILES data/inventory.sql data/datalogger.sql DESTINATION ${DATADIR})
 endif()
 
-OPTION(BUILD_GATEWAYS "Build the gateways" ON)
+option(BUILD_GATEWAYS "Build the gateways" ON)
 if (BUILD_GATEWAYS)
   add_subdirectory (gateways)
 endif()
 
-OPTION(BUILD_DEVICES "Build the devices" ON)
+option(BUILD_DEVICES "Build the devices" ON)
 if (BUILD_DEVICES)
   add_subdirectory (devices)
 endif()
 
-OPTION(BUILD_CONF "Build the configs" ON)
+option(BUILD_CONF "Build the configs" ON)
 if (BUILD_CONF)
   add_subdirectory (conf)
 endif()
 
-OPTION(BUILD_SCRIPTS "Build the scripts" ON)
+option(BUILD_SCRIPTS "Build the scripts" ON)
 if (BUILD_SCRIPTS)
   add_subdirectory (scripts)
 endif()

@@ -54,37 +54,37 @@ set (AGODEVICES
   agoping
 )
 
-IF (NOT OpenCV_FOUND)
+if(NOT OpenCV_FOUND)
     list(REMOVE_ITEM AGODEVICES NVR)
-    MESSAGE(STATUS "OpenCV not found, not building NVR device")
+    message(STATUS "OpenCV not found, not building NVR device")
 ENDIF (NOT OpenCV_FOUND)
 
-IF (NOT OpenZWave_FOUND)
+if(NOT OpenZWave_FOUND)
     list(REMOVE_ITEM AGODEVICES zwave)
-    MESSAGE(STATUS "OpenZWave not found, not building zwave device")
+    message(STATUS "OpenZWave not found, not building zwave device")
 ENDIF ()
 
-IF (NOT EibClient_FOUND)
+if(NOT EibClient_FOUND)
     list(REMOVE_ITEM AGODEVICES knx)
-    MESSAGE(STATUS "eibclient not found, not building knx device")
+    message(STATUS "eibclient not found, not building knx device")
 ENDIF ()
 
-IF (NOT OpenLighting_FOUND)
+if(NOT OpenLighting_FOUND)
     list(REMOVE_ITEM AGODEVICES agodmx)
-    MESSAGE(STATUS "OpenLighting (ola) not found, not building agodmx device")
+    message(STATUS "OpenLighting (ola) not found, not building agodmx device")
 ENDIF ()
 
 if(NOT HAVE_I2C_SMBUS)
     list(REMOVE_ITEM AGODEVICES i2c blinkm)
-    MESSAGE(STATUS "Linux i2c smbus not found, not building i2c & blinkm devices")
+    message(STATUS "Linux i2c smbus not found, not building i2c & blinkm devices")
 endif()
 
 if(NOT LIBCURL_FOUND)
     list(REMOVE_ITEM AGODEVICES zmcam webcam)
-    MESSAGE(STATUS "libcurl not found, not building zmcam & webcam devices")
+    message(STATUS "libcurl not found, not building zmcam & webcam devices")
 endif()
 
-IF (OS_FREEBSD)
+if(OS_FREEBSD)
     # These does not build on FreeBSD currently
     list(REMOVE_ITEM AGODEVICES
         firmata # S_IRUSR
@@ -98,7 +98,7 @@ AgoPythonProgram(simulator DESCRIPTION "ago control Device simulator")
 
 foreach (device ${AGODEVICES})
     # options what to build
-    OPTION(BUILD_DEVICE_${device} "Build the device ${device}" ON)
+    option(BUILD_DEVICE_${device} "Build the device ${device}" ON)
     if (BUILD_DEVICE_${device})
         add_subdirectory(${device})
     endif()
