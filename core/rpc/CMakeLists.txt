@@ -14,11 +14,6 @@ set (RPCPASSWD_LIBRARIES
     agohttp
 )
 
-IF (NOT FREEBSD)
-    list(APPEND RPC_LIBRARIES dl )
-    list(APPEND RPCPASSWD_LIBRARIES dl )
-ENDIF (NOT FREEBSD)
-
 # add the executable
 add_executable (agorpc agorpc.cpp)
 target_link_libraries (agorpc ${RPC_LIBRARIES})

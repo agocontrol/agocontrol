@@ -1,17 +1,13 @@
 cmake_minimum_required (VERSION 3.0)
 
-IF(COMMAND cmake_policy)
+if(COMMAND cmake_policy)
     cmake_policy(SET CMP0009 NEW)
-ENDIF(COMMAND cmake_policy)
+endif()
 
 set (IMPERIHOME_LIBRARIES
     agoclient
     agohttp
 )
-
-IF (NOT FREEBSD)
-    list(APPEND IMPERIHOME_LIBRARIES dl )
-ENDIF (NOT FREEBSD)
 
 # add the executable
 add_executable (agoImperiHome agoImperiHome.cpp)

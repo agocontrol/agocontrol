@@ -6,7 +6,7 @@ set (SYSTEM_LIBRARIES
     )
 
 set (AGOSYSTEM_SOURCE_FILES agosystem.cpp)
-IF (FREEBSD)
+IF (OS_FREEBSD)
     list(APPEND AGOSYSTEM_SOURCE_FILES processinfo_freebsd.cpp)
     list(APPEND SYSTEM_LIBRARIES kvm)
 ELSE()

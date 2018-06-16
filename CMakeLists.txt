@@ -15,52 +15,53 @@ include(cmake/AgoFileHelpers.cmake)
 find_package(PythonNaive)
 
 
+set (INSTALL_PREFIX /usr)
+
 # FreeBSD have some differences in building, mainly
 # that non-base libs/includes are located in /usr/local.
-IF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-    set (FREEBSD YES)
-    set (LOCALDIR /usr/local)
-    include_directories("${LOCALDIR}/include")
-    LINK_DIRECTORIES(${LOCALDIR}/lib)
-ELSE (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-    set (LOCALDIR /usr)
-ENDIF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-
-# See README.OSX
-IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+    set (OS_FREEBSD YES)
+    set (INSTALL_PREFIX /usr/local)
+    include_directories("${INSTALL_PREFIX}/include")
+    link_directories(${INSTALL_PREFIX}/lib)
+elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
+    set (OS_LINUX YES)
+    set (INSTALL_PREFIX /usr)
+elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    # See README.OSX. Does not actually build.
+    set (OS_DARWIN YES)
     include_directories("./local-include")
-ENDIF ()
+else()
+    message(STATUS "Unknown OS ${CMAKE_SYSTEM_NAME}, expect issues!")
+endif()
 
 # some configurable values
-IF (FREEBSD)
-    set (BASEDIR ${LOCALDIR}/agocontrol CACHE STRING "Directory to store agocontrol installation")
-    set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
-    set (ETCDIR ${LOCALDIR}/etc CACHE STRING "Directory for system-wide settings")
-    set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
+IF (OS_FREEBSD)
+    set (BASEDIR ${INSTALL_PREFIX}/agocontrol CACHE STRING "Directory to store agocontrol installation")
+    set (ETCDIR ${INSTALL_PREFIX}/etc CACHE STRING "Directory for system-wide settings")
     set (CONFDIR ${ETCDIR}/agocontrol CACHE STRING "Directory for agocontrol settings")
-    set (INCDIR ${LOCALDIR}/include/agocontrol CACHE STRING "Directory for include files")
     # XXX: Not sure what "variable" data is, but only .sql files are installed currently,
     # and those should be stored in share.
-    set (DATADIR ${LOCALDIR}/share/agocontrol CACHE STRING "Directory for variable data")
-    set (LOCALSTATEDIR ${LOCALDIR}/var/agocontrol CACHE STRING "Directory for state info")
-    set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
-    set (AUGEASLENSEDIR ${LOCALDIR}/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
-ELSE (FREEBSD)
+    set (DATADIR ${INSTALL_PREFIX}/share/agocontrol CACHE STRING "Directory for variable data")
+    set (LOCALSTATEDIR ${INSTALL_PREFIX}/var/agocontrol CACHE STRING "Directory for state info")
+ELSE()
     set (BASEDIR /opt/agocontrol CACHE STRING "Directory to store agocontrol installation")
-    set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
     set (ETCDIR /etc CACHE STRING "Directory for system-wide settings")
-    set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
     set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
-    set (INCDIR /usr/include/agocontrol CACHE STRING "Directory for include files")
     set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
     set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
-    set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
-    set (AUGEASLENSEDIR /usr/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
     set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
-ENDIF (FREEBSD)
+ENDIF (OS_FREEBSD)
 
-set (PYTHON2DIST ${LOCALDIR}/${Python2_SITELIB} CACHE STRING "Directory for Python 2.7 packages")
-set (PYTHON3DIST ${LOCALDIR}/${Python3_SITELIB} CACHE STRING "Directory for Python 3 packages")
+# Common structure
+set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
+set (LIBDIR ${INSTALL_PREFIX}/lib CACHE STRING "Directory for libraries")
+set (INCDIR ${INSTALL_PREFIX}/include/agocontrol CACHE STRING "Directory for include files")
+set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
+set (AUGEASLENSEDIR ${INSTALL_PREFIX}/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
+
+set (PYTHON2DIST ${INSTALL_PREFIX}/${Python2_SITELIB} CACHE STRING "Directory for Python 2.7 packages")
+set (PYTHON3DIST ${INSTALL_PREFIX}/${Python3_SITELIB} CACHE STRING "Directory for Python 3 packages")
 
 # Enable C++11
 if (CMAKE_VERSION VERSION_LESS "3.1")
@@ -132,7 +133,7 @@ log_pkg_found(cppdb "${CPPDB_FOUND}" "" WARNING ", parts of core will not be bui
 pkg_search_module(LIBRRD librrd)
 log_pkg_found(librrd "${LIBRRD_FOUND}" "${LIBRRD_VERSION}" WARNING ", parts of core will not be built")
 
-if(NOT FREEBSD)
+if(OS_LINUX)
     # used by agosystem
     pkg_search_module(LIBPROCPS REQUIRED libprocps)
     log_pkg_found(libprocps "${LIBPROCPS_FOUND}" "${LIBPROCPS_VERSION}" WARNING "")

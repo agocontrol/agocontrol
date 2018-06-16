@@ -84,7 +84,7 @@ if(NOT LIBCURL_FOUND)
     MESSAGE(STATUS "libcurl not found, not building zmcam & webcam devices")
 endif()
 
-IF (FREEBSD)
+IF (OS_FREEBSD)
     # These does not build on FreeBSD currently
     list(REMOVE_ITEM AGODEVICES
         firmata # S_IRUSR
@@ -92,7 +92,7 @@ IF (FREEBSD)
         MySensors # TCIFLUSH / TCIOFLUSH
         zmcam # error: member access into incomplete type 'struct sockaddr_in'
     )
-ENDIF (FREEBSD)
+ENDIF (OS_FREEBSD)
 
 AgoPythonProgram(simulator DESCRIPTION "ago control Device simulator")
 

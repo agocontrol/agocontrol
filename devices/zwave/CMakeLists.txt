@@ -7,13 +7,13 @@ set (DEVICE_EXTRA_LIBRARIES
      agoclient
 )
 
-IF (FREEBSD)
+IF (OS_FREEBSD)
     list(APPEND DEVICE_EXTRA_LIBRARIES usb)
     IF(NOT EXISTS "/usr/include/iconv.h")
         # Pre 10.0 FreeBSD without globla iconv
         list(APPEND DEVICE_EXTRA_LIBRARIES iconv)
     ENDIF ()
-ENDIF (FREEBSD)
+ENDIF (OS_FREEBSD)
 
 # Use BEFORE to allow local installation of Zwave to take priority
 # over global installation.
