@@ -54,38 +54,42 @@ set (AGODEVICES
   agoping
 )
 
-FIND_PACKAGE(OpenCV)
+find_package(OpenCV)
 
 IF (NOT OpenCV_FOUND)
     list(REMOVE_ITEM AGODEVICES NVR)
     MESSAGE(STATUS "OpenCV not found, NOT building NVR device")
 ENDIF (NOT OpenCV_FOUND)
 
-FIND_PACKAGE(OpenZWave)
+find_package(OpenZWave)
 IF (NOT OpenZWave_FOUND)
 	list(REMOVE_ITEM AGODEVICES zwave)
 	MESSAGE(STATUS "OpenZWave not found, NOT building zwave device")
 ENDIF ()
 
-FIND_PACKAGE(EibClient)
+find_package(EibClient)
 IF (NOT EibClient_FOUND)
 	list(REMOVE_ITEM AGODEVICES knx)
 	MESSAGE(STATUS "eibclient not found, NOT building knx device")
 ENDIF ()
 
-find_package(PkgConfig)
 pkg_check_modules(OpenLighting libola)
 IF (NOT OpenLighting_FOUND)
 	list(REMOVE_ITEM AGODEVICES agodmx)
 	MESSAGE(STATUS "OpenLighting (ola) not found, NOT building agodmx device")
 ENDIF ()
 
+if(NOT FREEBSD)
+    find_package(LinuxI2C)
+endif()
+if(NOT HAVE_I2C_SMBUS)
+	list(REMOVE_ITEM AGODEVICES i2c blinkm)
+endif()
+
 IF (FREEBSD)
 	# These does not build on FreeBSD currently
 	list(REMOVE_ITEM AGODEVICES
-		blinkm # linux/i2c-dev.h
 		firmata # S_IRUSR
-		i2c # linux/i2c-dev.h
 		PLCBUS # TCIFLUSH / TCIOFLUSH
 		MySensors # TCIFLUSH / TCIOFLUSH
 		zmcam # error: member access into incomplete type 'struct sockaddr_in'

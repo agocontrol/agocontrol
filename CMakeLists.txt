@@ -15,7 +15,7 @@ include(cmake/AgoFileHelpers.cmake)
 find_package(PythonNaive)
 
 
-# FreeBSD have some differences in building, mainly 
+# FreeBSD have some differences in building, mainly
 # that non-base libs/includes are located in /usr/local.
 IF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
 	set (FREEBSD YES)
@@ -151,16 +151,7 @@ ELSE()
     set(BUILD_TESTS_DEFAULT OFF)
 ENDIF()
 
-# Different linux distributions places i2c-dev.h at different locations
-# For example, debian uses linux/i2c-dev.h, but Fedora 27 uses i2c-tools/i2c-dev.h
-# Since it seems wrong to include /usr/include/linux as -I, this detects the location
-# and sets a HAVE_ def instead which the code then can use to include the wanted one.
-check_include_files("linux/i2c-dev.h" HAVE_LINUX_I2C_DEV_H)
-check_include_files("i2c-tools/i2c-dev.h" HAVE_I2CTOOLS_I2C_DEV_H)
-
-
 check_include_files("xlocale.h" HAVE_XLOCALE_H)
-
 
 set (ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
@@ -175,21 +166,13 @@ else()
 	set (IN_SOURCE_BUILD FALSE)
 endif()
 
-# configure a header file to pass some of the CMake settings
-# to the source code
-configure_file (
-		"${PROJECT_SOURCE_DIR}/build_config.h.in"
-		"${PROJECT_BINARY_DIR}/build_config.h"
-		@ONLY
-)
-
 # Shared for all
 install(DIRECTORY DESTINATION ${BINDIR})
 
 # add sub directories
 OPTION(BUILD_SHARED "Build the agoclient shared library" ON)
 if (BUILD_SHARED)
-  add_subdirectory (shared) 
+  add_subdirectory (shared)
 endif()
 
 OPTION(BUILD_TESTS "Build the unittests" ${BUILD_TESTS_DEFAULT})
@@ -201,26 +184,35 @@ endif()
 
 OPTION(BUILD_CORE "Build the CORE" ON)
 if (BUILD_CORE)
-  add_subdirectory (core) 
+  add_subdirectory (core)
   install (FILES data/inventory.sql data/datalogger.sql DESTINATION ${DATADIR})
 endif()
 
 OPTION(BUILD_GATEWAYS "Build the gateways" ON)
 if (BUILD_GATEWAYS)
-  add_subdirectory (gateways) 
+  add_subdirectory (gateways)
 endif()
 
 OPTION(BUILD_DEVICES "Build the devices" ON)
 if (BUILD_DEVICES)
-  add_subdirectory (devices) 
+  add_subdirectory (devices)
 endif()
 
 OPTION(BUILD_CONF "Build the configs" ON)
 if (BUILD_CONF)
-  add_subdirectory (conf) 
+  add_subdirectory (conf)
 endif()
 
 OPTION(BUILD_SCRIPTS "Build the scripts" ON)
 if (BUILD_SCRIPTS)
   add_subdirectory (scripts)
 endif()
+
+
+# configure a header file to pass some of the CMake settings
+# to the source code
+configure_file (
+		"${PROJECT_SOURCE_DIR}/build_config.h.in"
+		"${PROJECT_BINARY_DIR}/build_config.h"
+		@ONLY
+)

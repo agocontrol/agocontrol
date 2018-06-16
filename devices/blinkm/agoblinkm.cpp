@@ -7,15 +7,7 @@
 
 #include <sys/ioctl.h>
 
-#include "build_config.h"
-
-#if HAVE_LINUX_I2C_DEV_H
-#include <linux/i2c-dev.h>
-#elif HAVE_I2CTOOLS_I2C_DEV_H
-#include <i2c-tools/i2c-dev.h>
-#else
-#error "i2c-dev.h not found"
-#endif
+#include "../i2c_include.h"
 
 #include "agoapp.h"
 
