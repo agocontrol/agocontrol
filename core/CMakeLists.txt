@@ -54,12 +54,12 @@ if (BUILD_CORE_event)
 endif()
 
 OPTION(BUILD_CORE_datalogger "Build agodatalogger" ON)
-if (BUILD_CORE_datalogger)
+if (BUILD_CORE_datalogger AND LIBRRD_FOUND AND CPPDB_FOUND)
   add_subdirectory (datalogger)
 endif()
 
 OPTION(BUILD_CORE_lua "Build agolua" ON)
-if (BUILD_CORE_lua)
+if (BUILD_CORE_lua AND LUA_FOUND)
   add_subdirectory (lua)
 endif()
 

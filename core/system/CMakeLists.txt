@@ -1,28 +1,23 @@
 cmake_minimum_required (VERSION 3.0)
 
+set (SYSTEM_LIBRARIES
+    agoclient
+    ${Boost_PROGRAM_DATE_TIME_LIBRARY}
+    )
+
 set (AGOSYSTEM_SOURCE_FILES agosystem.cpp)
 IF (FREEBSD)
     list(APPEND AGOSYSTEM_SOURCE_FILES processinfo_freebsd.cpp)
+    list(APPEND SYSTEM_LIBRARIES kvm)
 ELSE()
     list(APPEND AGOSYSTEM_SOURCE_FILES processinfo_linux.cpp)
+    list(APPEND SYSTEM_LIBRARIES ${LIBPROCPS_LIBRARIES})
 
     INCLUDE (CheckLibraryExists)
     CHECK_LIBRARY_EXISTS(procps freeproc "" FREEPROC_EXISTS)
     IF (FREEPROC_EXISTS)
         ADD_DEFINITIONS(-DFREEPROC_EXISTS)
     ENDIF (FREEPROC_EXISTS)
-
-ENDIF()
-
-set (SYSTEM_LIBRARIES
-    agoclient
-	${Boost_PROGRAM_DATE_TIME_LIBRARY}
-)
-
-IF (FREEBSD)
-    list(APPEND SYSTEM_LIBRARIES kvm)
-ELSE()
-    list(APPEND SYSTEM_LIBRARIES procps)
 ENDIF()
 
 # add the executable

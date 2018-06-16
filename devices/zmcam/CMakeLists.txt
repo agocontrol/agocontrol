@@ -4,8 +4,8 @@ file (GLOB_RECURSE DEVICE_SOURCE_FILES *.cpp
       ../webcam/base64.cpp)
 
 set (DEVICE_EXTRA_LIBRARIES
-     curl
-     agoclient
+    ${LIBCURL_LIBRARIES}
+    agoclient
 )
 
 set (DEVICE "agozmcam")

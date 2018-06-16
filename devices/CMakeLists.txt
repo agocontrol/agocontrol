@@ -54,36 +54,34 @@ set (AGODEVICES
   agoping
 )
 
-find_package(OpenCV)
-
 IF (NOT OpenCV_FOUND)
     list(REMOVE_ITEM AGODEVICES NVR)
-    MESSAGE(STATUS "OpenCV not found, NOT building NVR device")
+    MESSAGE(STATUS "OpenCV not found, not building NVR device")
 ENDIF (NOT OpenCV_FOUND)
 
-find_package(OpenZWave)
 IF (NOT OpenZWave_FOUND)
-	list(REMOVE_ITEM AGODEVICES zwave)
-	MESSAGE(STATUS "OpenZWave not found, NOT building zwave device")
+    list(REMOVE_ITEM AGODEVICES zwave)
+    MESSAGE(STATUS "OpenZWave not found, not building zwave device")
 ENDIF ()
 
-find_package(EibClient)
 IF (NOT EibClient_FOUND)
-	list(REMOVE_ITEM AGODEVICES knx)
-	MESSAGE(STATUS "eibclient not found, NOT building knx device")
+    list(REMOVE_ITEM AGODEVICES knx)
+    MESSAGE(STATUS "eibclient not found, not building knx device")
 ENDIF ()
 
-pkg_check_modules(OpenLighting libola)
 IF (NOT OpenLighting_FOUND)
-	list(REMOVE_ITEM AGODEVICES agodmx)
-	MESSAGE(STATUS "OpenLighting (ola) not found, NOT building agodmx device")
+    list(REMOVE_ITEM AGODEVICES agodmx)
+    MESSAGE(STATUS "OpenLighting (ola) not found, not building agodmx device")
 ENDIF ()
 
-if(NOT FREEBSD)
-    find_package(LinuxI2C)
-endif()
 if(NOT HAVE_I2C_SMBUS)
 	list(REMOVE_ITEM AGODEVICES i2c blinkm)
+    MESSAGE(STATUS "Linux i2c smbus not found, not building i2c & blinkm devices")
+endif()
+
+if(NOT LIBCURL_FOUND)
+    list(REMOVE_ITEM AGODEVICES zmcam webcam)
+    MESSAGE(STATUS "libcurl not found, not building zmcam & webcam devices")
 endif()
 
 IF (FREEBSD)

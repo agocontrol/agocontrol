@@ -96,30 +96,64 @@ include_directories("${PROJECT_SOURCE_DIR}/shared")
 # We have an amalgamated version of jsoncpp, ensure we can include <json/json.h>
 include_directories("${PROJECT_SOURCE_DIR}/shared/jsoncpp")
 
-# fix augeas bug
-include_directories("${LOCALDIR}/include/libxml2")
+macro(log_pkg_found PKG_NAME PKG_FOUND PKG_VERSION NOTFOUND_LEVEL NOTFOUND_EXTRA)
+    if("${PKG_FOUND}" AND "${PKG_VERSION}" STREQUAL "")
+        message(STATUS "${PKG_NAME} found")
+    elseif(${PKG_FOUND})
+        message(STATUS "${PKG_NAME} version: ${PKG_VERSION}")
+    else()
+        message(${NOTFOUND_LEVEL} "${PKG_NAME} not found${NOTFOUND_EXTRA}")
+    endif()
+endmacro()
 
-
-find_package(CppDb REQUIRED)
-if (CPPDB_FOUND)
-	include_directories(${CPPDB_INCLUDE_DIRS})
-else()
-	IF (NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
-		# TEMP: Disable this requirement on OS X, not in brew.
-		message(FATAL_ERROR "Could not find cppdb")
-	endif ()
-endif (CPPDB_FOUND)
-
-# FreeBSD user might only have 0.3 installed.
-pkg_search_module(YAML_CPP REQUIRED yaml-cpp yaml-cpp03)
-message(STATUS "yaml-cpp version: ${YAML_CPP_VERSION}")
-
-# Linux/debian has lua5.x, FreeBSD has lua-5.x
-pkg_search_module(LUA REQUIRED  lua5.3 lua-5.3 lua5.2 lua-5.2 lua5.1 lua-5.1 lua)
-message(STATUS "lua version: ${LUA_VERSION}")
 
 find_package(Threads REQUIRED)
 find_package(Boost COMPONENTS system filesystem thread program_options date_time regex chrono REQUIRED)
+find_package(Boost COMPONENTS log)
+IF (Boost_LOG_FOUND)
+    ADD_DEFINITIONS(-DHAVE_BOOST_LOG)
+ELSE()
+    find_package(Boost COMPONENTS REQUIRED date_time)
+ENDIF()
+
+pkg_search_module(YAML_CPP REQUIRED yaml-cpp yaml-cpp03)
+log_pkg_found(yamlcpp "${YAML_CPP_FOUND}" "${YAML_CPP_VERSION}" FATAL_ERROR "")
+
+pkg_search_module(AUGEAS REQUIRED augeas)
+log_pkg_found(augeas "${AUGEAS_FOUND}" "${AUGEAS_VERSION}" FATAL_ERROR "")
+
+# Linux/debian has lua5.x, FreeBSD has lua-5.x, fedora has just lua
+pkg_search_module(LUA lua5.3 lua-5.3 lua5.2 lua-5.2 lua5.1 lua-5.1 lua)
+log_pkg_found(lua "${LUA_FOUND}" "${LUA_VERSION}" WARNING ", parts of core will not be built")
+
+find_package(CppDb)
+log_pkg_found(cppdb "${CPPDB_FOUND}" "" WARNING ", parts of core will not be built")
+
+pkg_search_module(LIBRRD librrd)
+log_pkg_found(librrd "${LIBRRD_FOUND}" "${LIBRRD_VERSION}" WARNING ", parts of core will not be built")
+
+if(NOT FREEBSD)
+	# used by agosystem
+	pkg_search_module(LIBPROCPS REQUIRED libprocps)
+    log_pkg_found(libprocps "${LIBPROCPS_FOUND}" "${LIBPROCPS_VERSION}" WARNING "")
+
+    find_package(LinuxI2C)
+endif()
+
+pkg_search_module(LIBCURL libcurl)
+log_pkg_found(libcurl "${LIBCURL_FOUND}" "${LIBCURL_VERSION}" STATUS "")
+
+find_package(OpenCV)
+log_pkg_found(OpenCV "${OpenCV_FOUND}" "${OpenCV_VERSION}" STATUS "")
+
+find_package(OpenZWave)
+log_pkg_found(OpenZWave "${OpenZWave_FOUND}" "${OpenZWave_VERSION}" STATUS "")
+
+find_package(EibClient)
+log_pkg_found(EibClient "${EibClient_FOUND}" "${EibClient_VERSION}" STATUS "")
+
+pkg_check_modules(OpenLighting libola)
+log_pkg_found(OpenLighting "${OpenLighting_FOUND}" "${OpenLighting_VERSION}" STATUS "")
 
 include_directories(${Boost_INCLUDE_DIRS})
 
@@ -135,21 +169,8 @@ IF(Boost_VERSION VERSION_LESS 105600)
 	)
 ENDIF()
 
-FIND_PACKAGE(Boost COMPONENTS log)
-IF (Boost_LOG_FOUND)
-	ADD_DEFINITIONS(-DHAVE_BOOST_LOG)
-ELSE()
-	FIND_PACKAGE(Boost COMPONENTS REQUIRED date_time)
-ENDIF()
-
-FIND_PACKAGE(CppUnit)
-IF (CPPUNIT_FOUND)
-    message(STATUS "CppUnit found, building unit-tests by default")
-    set(BUILD_TESTS_DEFAULT ON)
-ELSE()
-    message(STATUS "CppUnit not found, NOT building unit-tests by default")
-    set(BUILD_TESTS_DEFAULT OFF)
-ENDIF()
+find_package(CppUnit)
+log_pkg_found(CppUnit "${CPPUNIT_FOUND}" "${CPPUNIT_VERSION}" STATUS "not building unit-tests")
 
 check_include_files("xlocale.h" HAVE_XLOCALE_H)
 
@@ -175,8 +196,8 @@ if (BUILD_SHARED)
   add_subdirectory (shared)
 endif()
 
-OPTION(BUILD_TESTS "Build the unittests" ${BUILD_TESTS_DEFAULT})
-if (BUILD_TESTS)
+OPTION(BUILD_TESTS "Build the unittests" ON)
+if (BUILD_TESTS AND CPPUNIT_FOUND)
 	# These are only for Shared right now, so add them right after.
 	enable_testing()
 	add_subdirectory (unittest)

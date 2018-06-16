@@ -26,7 +26,7 @@ set (AGOCLIENT_LIBRARIES
     qpidmessaging
     qpidtypes
     uuid
-    augeas
+    ${AUGEAS_LIBRARIES}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
@@ -41,6 +41,8 @@ ELSE()
 ENDIF()
 
 target_link_libraries (agoclient ${AGOCLIENT_LIBRARIES})
+
+include_directories("${AUGEAS_INCLUDE_DIRS}")
 
 set_property(
     TARGET agoclient
