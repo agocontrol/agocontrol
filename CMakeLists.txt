@@ -4,11 +4,16 @@ project (agocontrol)
 # The version number.
 set (AGOCONTROL_VERSION 0.1)
 
+set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+
 find_package(PkgConfig REQUIRED)
 
 include (CheckIncludeFiles)
 
 include(cmake/AgoFileHelpers.cmake)
+
+find_package(PythonNaive)
+
 
 # FreeBSD have some differences in building, mainly 
 # that non-base libs/includes are located in /usr/local.
@@ -51,15 +56,11 @@ ELSE (FREEBSD)
 	set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
 	set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
 	set (AUGEASLENSEDIR /usr/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
-	set (PYTHON2DIST /usr/lib/python2.7/dist-packages CACHE STRING "Directory for Python 2.7 packages")
-	set (PYTHON3DIST /usr/lib/python3/dist-packages CACHE STRING "Directory for Python 3 packages")
 	set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
 ENDIF (FREEBSD)
 
-set_property( DIRECTORY
-	APPEND PROPERTY
-	COMPILE_OPTIONS
-	-Wall -DBOOST_LOG_DYN_LINK)
+set (PYTHON2DIST ${LOCALDIR}/${Python2_SITELIB} CACHE STRING "Directory for Python 2.7 packages")
+set (PYTHON3DIST ${LOCALDIR}/${Python3_SITELIB} CACHE STRING "Directory for Python 3 packages")
 
 # Enable C++11
 if (CMAKE_VERSION VERSION_LESS "3.1")
@@ -72,21 +73,19 @@ else ()
 	set (CMAKE_CXX_STANDARD 11)
 endif ()
 
-
 set_property( DIRECTORY
 	APPEND PROPERTY
 	COMPILE_OPTIONS
+	-Wall
+	-DBOOST_LOG_DYN_LINK
 	-DBOOST_FILESYSTEM_VERSION=3
 	-DBOOST_FILESYSTEM_NO_DEPRECATED
-	)
 
-# Workaround for bug in Boost on Clang which tries to add pragma warning group keyward-warning
-# which does not exists in clang:
-# http://lists.boost.org/Archives/boost/2016/07/230350.php
-set_property( DIRECTORY
-	APPEND PROPERTY
-	COMPILE_OPTIONS
-	-Wno-error=unknown-pragmas)
+	# Workaround for bug in Boost on Clang which tries to add pragma warning group keyward-warning
+	# which does not exists in clang:
+	# http://lists.boost.org/Archives/boost/2016/07/230350.php
+	-Wno-error=unknown-pragmas
+	)
 
 # add the binary tree to the search path for include files
 # so that we will find version.h and other configured files
@@ -100,7 +99,6 @@ include_directories("${PROJECT_SOURCE_DIR}/shared/jsoncpp")
 # fix augeas bug
 include_directories("${LOCALDIR}/include/libxml2")
 
-set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 find_package(CppDb REQUIRED)
 if (CPPDB_FOUND)
