@@ -14,14 +14,10 @@ set (AGOHTTP_LIBRARIES
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${CMAKE_THREAD_LIBS_INIT} # for pthread
-    qpidtypes
-    ssl crypto
+    ssl
+    crypto
     ${JSONCPP_LIBRARIES}
 )
-
-#IF (Boost_LOG_FOUND)
-#    LIST(APPEND AGOHTTP_LIBRARIES ${Boost_LOG_LIBRARY})
-#endif()
 
 target_link_libraries (agohttp ${AGOHTTP_LIBRARIES})
 
