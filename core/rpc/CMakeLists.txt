@@ -15,8 +15,8 @@ set (RPCPASSWD_LIBRARIES
 )
 
 IF (NOT FREEBSD)
-	list(APPEND RPC_LIBRARIES dl )
-	list(APPEND RPCPASSWD_LIBRARIES dl )
+    list(APPEND RPC_LIBRARIES dl )
+    list(APPEND RPCPASSWD_LIBRARIES dl )
 ENDIF (NOT FREEBSD)
 
 # add the executable
@@ -29,9 +29,9 @@ add_executable (rpc-htpasswd rpc-htpasswd.cpp)
 target_link_libraries (rpc-htpasswd ${RPCPASSWD_LIBRARIES})
 
 set_property(
-	TARGET agorpc
-	PROPERTY COMPILE_DEFINITIONS
-	DEFAULT_HTMLDIR=${HTMLDIR}
+    TARGET agorpc
+    PROPERTY COMPILE_DEFINITIONS
+    DEFAULT_HTMLDIR=${HTMLDIR}
 )
 
 

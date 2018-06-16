@@ -2,9 +2,9 @@ cmake_minimum_required (VERSION 3.0)
 
 set(TEST_SOURCE_FILES
     runner.cpp
-	shared/test_agoconfig.cpp
-	shared/test_config_namelist.cpp
-	shared/test_agojson.cpp
+    shared/test_agoconfig.cpp
+    shared/test_config_namelist.cpp
+    shared/test_agojson.cpp
 )
 
 set (TEST_LIBRARIES

@@ -75,7 +75,7 @@ IF (NOT OpenLighting_FOUND)
 ENDIF ()
 
 if(NOT HAVE_I2C_SMBUS)
-	list(REMOVE_ITEM AGODEVICES i2c blinkm)
+    list(REMOVE_ITEM AGODEVICES i2c blinkm)
     MESSAGE(STATUS "Linux i2c smbus not found, not building i2c & blinkm devices")
 endif()
 
@@ -85,13 +85,13 @@ if(NOT LIBCURL_FOUND)
 endif()
 
 IF (FREEBSD)
-	# These does not build on FreeBSD currently
-	list(REMOVE_ITEM AGODEVICES
-		firmata # S_IRUSR
-		PLCBUS # TCIFLUSH / TCIOFLUSH
-		MySensors # TCIFLUSH / TCIOFLUSH
-		zmcam # error: member access into incomplete type 'struct sockaddr_in'
-	)
+    # These does not build on FreeBSD currently
+    list(REMOVE_ITEM AGODEVICES
+        firmata # S_IRUSR
+        PLCBUS # TCIFLUSH / TCIOFLUSH
+        MySensors # TCIFLUSH / TCIOFLUSH
+        zmcam # error: member access into incomplete type 'struct sockaddr_in'
+    )
 ENDIF (FREEBSD)
 
 AgoPythonProgram(simulator DESCRIPTION "ago control Device simulator")

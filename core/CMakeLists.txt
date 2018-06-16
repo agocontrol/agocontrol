@@ -9,9 +9,9 @@ cmake_minimum_required (VERSION 3.0)
 # )
 
 set_property( DIRECTORY
-	APPEND PROPERTY
-	COMPILE_OPTIONS
-	-Werror)
+    APPEND PROPERTY
+    COMPILE_OPTIONS
+    -Werror)
 
 install (PROGRAMS myavahi.py agoctrl.sh DESTINATION ${BINDIR})
 install (DIRECTORY DESTINATION ${CONFDIR}/schema.d)

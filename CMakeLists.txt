@@ -18,45 +18,45 @@ find_package(PythonNaive)
 # FreeBSD have some differences in building, mainly
 # that non-base libs/includes are located in /usr/local.
 IF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-	set (FREEBSD YES)
-	set (LOCALDIR /usr/local)
-	include_directories("${LOCALDIR}/include")
-	LINK_DIRECTORIES(${LOCALDIR}/lib)
+    set (FREEBSD YES)
+    set (LOCALDIR /usr/local)
+    include_directories("${LOCALDIR}/include")
+    LINK_DIRECTORIES(${LOCALDIR}/lib)
 ELSE (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-	set (LOCALDIR /usr)
+    set (LOCALDIR /usr)
 ENDIF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
 
 # See README.OSX
 IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-	include_directories("./local-include")
+    include_directories("./local-include")
 ENDIF ()
 
 # some configurable values
 IF (FREEBSD)
-	set (BASEDIR ${LOCALDIR}/agocontrol CACHE STRING "Directory to store agocontrol installation")
-	set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
-	set (ETCDIR ${LOCALDIR}/etc CACHE STRING "Directory for system-wide settings")
-	set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
-	set (CONFDIR ${ETCDIR}/agocontrol CACHE STRING "Directory for agocontrol settings")
-	set (INCDIR ${LOCALDIR}/include/agocontrol CACHE STRING "Directory for include files")
-	# XXX: Not sure what "variable" data is, but only .sql files are installed currently,
-	# and those should be stored in share.
-	set (DATADIR ${LOCALDIR}/share/agocontrol CACHE STRING "Directory for variable data")
-	set (LOCALSTATEDIR ${LOCALDIR}/var/agocontrol CACHE STRING "Directory for state info")
-	set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
-	set (AUGEASLENSEDIR ${LOCALDIR}/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
+    set (BASEDIR ${LOCALDIR}/agocontrol CACHE STRING "Directory to store agocontrol installation")
+    set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
+    set (ETCDIR ${LOCALDIR}/etc CACHE STRING "Directory for system-wide settings")
+    set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
+    set (CONFDIR ${ETCDIR}/agocontrol CACHE STRING "Directory for agocontrol settings")
+    set (INCDIR ${LOCALDIR}/include/agocontrol CACHE STRING "Directory for include files")
+    # XXX: Not sure what "variable" data is, but only .sql files are installed currently,
+    # and those should be stored in share.
+    set (DATADIR ${LOCALDIR}/share/agocontrol CACHE STRING "Directory for variable data")
+    set (LOCALSTATEDIR ${LOCALDIR}/var/agocontrol CACHE STRING "Directory for state info")
+    set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
+    set (AUGEASLENSEDIR ${LOCALDIR}/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
 ELSE (FREEBSD)
-	set (BASEDIR /opt/agocontrol CACHE STRING "Directory to store agocontrol installation")
-	set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
-	set (ETCDIR /etc CACHE STRING "Directory for system-wide settings")
-	set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
-	set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
-	set (INCDIR /usr/include/agocontrol CACHE STRING "Directory for include files")
-	set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
-	set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
-	set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
-	set (AUGEASLENSEDIR /usr/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
-	set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
+    set (BASEDIR /opt/agocontrol CACHE STRING "Directory to store agocontrol installation")
+    set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
+    set (ETCDIR /etc CACHE STRING "Directory for system-wide settings")
+    set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
+    set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
+    set (INCDIR /usr/include/agocontrol CACHE STRING "Directory for include files")
+    set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
+    set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
+    set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
+    set (AUGEASLENSEDIR /usr/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
+    set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
 ENDIF (FREEBSD)
 
 set (PYTHON2DIST ${LOCALDIR}/${Python2_SITELIB} CACHE STRING "Directory for Python 2.7 packages")
@@ -64,28 +64,28 @@ set (PYTHON3DIST ${LOCALDIR}/${Python3_SITELIB} CACHE STRING "Directory for Pyth
 
 # Enable C++11
 if (CMAKE_VERSION VERSION_LESS "3.1")
-	# Used on Debian Jessie builders
+    # Used on Debian Jessie builders
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-		# Note: must ont set for CFLAGS!
+        # Note: must ont set for CFLAGS!
         set (CMAKE_CXX_FLAGS "-std=gnu++11 ${CMAKE_CXX_FLAGS}")
     endif ()
 else ()
-	set (CMAKE_CXX_STANDARD 11)
+    set (CMAKE_CXX_STANDARD 11)
 endif ()
 
 set_property( DIRECTORY
-	APPEND PROPERTY
-	COMPILE_OPTIONS
-	-Wall
-	-DBOOST_LOG_DYN_LINK
-	-DBOOST_FILESYSTEM_VERSION=3
-	-DBOOST_FILESYSTEM_NO_DEPRECATED
+    APPEND PROPERTY
+    COMPILE_OPTIONS
+    -Wall
+    -DBOOST_LOG_DYN_LINK
+    -DBOOST_FILESYSTEM_VERSION=3
+    -DBOOST_FILESYSTEM_NO_DEPRECATED
 
-	# Workaround for bug in Boost on Clang which tries to add pragma warning group keyward-warning
-	# which does not exists in clang:
-	# http://lists.boost.org/Archives/boost/2016/07/230350.php
-	-Wno-error=unknown-pragmas
-	)
+    # Workaround for bug in Boost on Clang which tries to add pragma warning group keyward-warning
+    # which does not exists in clang:
+    # http://lists.boost.org/Archives/boost/2016/07/230350.php
+    -Wno-error=unknown-pragmas
+    )
 
 # add the binary tree to the search path for include files
 # so that we will find version.h and other configured files
@@ -133,8 +133,8 @@ pkg_search_module(LIBRRD librrd)
 log_pkg_found(librrd "${LIBRRD_FOUND}" "${LIBRRD_VERSION}" WARNING ", parts of core will not be built")
 
 if(NOT FREEBSD)
-	# used by agosystem
-	pkg_search_module(LIBPROCPS REQUIRED libprocps)
+    # used by agosystem
+    pkg_search_module(LIBPROCPS REQUIRED libprocps)
     log_pkg_found(libprocps "${LIBPROCPS_FOUND}" "${LIBPROCPS_VERSION}" WARNING "")
 
     find_package(LinuxI2C)
@@ -161,12 +161,12 @@ include_directories(${Boost_INCLUDE_DIRS})
 # https://stackoverflow.com/questions/35007134/c-boost-undefined-reference-to-boostfilesystemdetailcopy-file
 # https://chaste.cs.ox.ac.uk/trac/wiki/ChasteGuides/ModernCpp#Boostscopedenumsforboost1.56
 IF(Boost_VERSION VERSION_LESS 105600)
-	message(STATUS "Boost version < 1.56, building with BOOST_NO_CXX11_SCOPED_ENUMS")
-	set_property( DIRECTORY
-		APPEND PROPERTY
-		COMPILE_OPTIONS
-		-DBOOST_NO_CXX11_SCOPED_ENUMS
-	)
+    message(STATUS "Boost version < 1.56, building with BOOST_NO_CXX11_SCOPED_ENUMS")
+    set_property( DIRECTORY
+        APPEND PROPERTY
+        COMPILE_OPTIONS
+        -DBOOST_NO_CXX11_SCOPED_ENUMS
+    )
 ENDIF()
 
 find_package(CppUnit)
@@ -181,10 +181,10 @@ set (RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${BINDIR}")
 get_filename_component(CMAKE_CURRENT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
 get_filename_component(CMAKE_CURRENT_BINARY_DIR_REAL "${CMAKE_CURRENT_BINARY_DIR}" REALPATH)
 if ("${CMAKE_CURRENT_SOURCE_DIR_REAL}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR_REAL}")
-	set (IN_SOURCE_BUILD TRUE)
-	message(WARNING "In-Source build is not recommended. Instead, create a separate directory and run cmake /path/to/source")
+    set (IN_SOURCE_BUILD TRUE)
+    message(WARNING "In-Source build is not recommended. Instead, create a separate directory and run cmake /path/to/source")
 else()
-	set (IN_SOURCE_BUILD FALSE)
+    set (IN_SOURCE_BUILD FALSE)
 endif()
 
 # Shared for all
@@ -198,9 +198,9 @@ endif()
 
 OPTION(BUILD_TESTS "Build the unittests" ON)
 if (BUILD_TESTS AND CPPUNIT_FOUND)
-	# These are only for Shared right now, so add them right after.
-	enable_testing()
-	add_subdirectory (unittest)
+    # These are only for Shared right now, so add them right after.
+    enable_testing()
+    add_subdirectory (unittest)
 endif()
 
 OPTION(BUILD_CORE "Build the CORE" ON)
@@ -233,7 +233,7 @@ endif()
 # configure a header file to pass some of the CMake settings
 # to the source code
 configure_file (
-		"${PROJECT_SOURCE_DIR}/build_config.h.in"
-		"${PROJECT_BINARY_DIR}/build_config.h"
-		@ONLY
+        "${PROJECT_SOURCE_DIR}/build_config.h.in"
+        "${PROJECT_BINARY_DIR}/build_config.h"
+        @ONLY
 )

@@ -9,8 +9,8 @@ configure_file (
 file (GLOB_RECURSE AGOLUA_SOURCE_FILES *.cpp)
 set (LUA_LIBRARIES
     agoclient
-	${Boost_REGEX_LIBRARY}
-	${LUA_LIBRARIES}
+    ${Boost_REGEX_LIBRARY}
+    ${LUA_LIBRARIES}
 )
 
 include_directories(${LUA_INCLUDE_DIRS})

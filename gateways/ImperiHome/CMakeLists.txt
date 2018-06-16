@@ -10,7 +10,7 @@ set (IMPERIHOME_LIBRARIES
 )
 
 IF (NOT FREEBSD)
-	list(APPEND IMPERIHOME_LIBRARIES dl )
+    list(APPEND IMPERIHOME_LIBRARIES dl )
 ENDIF (NOT FREEBSD)
 
 # add the executable
@@ -18,9 +18,9 @@ add_executable (agoImperiHome agoImperiHome.cpp)
 target_link_libraries (agoImperiHome ${IMPERIHOME_LIBRARIES})
 
 set_property(
-	TARGET agoImperiHome
-	PROPERTY COMPILE_DEFINITIONS
-	DEFAULT_HTMLDIR=${HTMLDIR}
+    TARGET agoImperiHome
+    PROPERTY COMPILE_DEFINITIONS
+    DEFAULT_HTMLDIR=${HTMLDIR}
 )
 
 install (TARGETS agoImperiHome RUNTIME DESTINATION ${BINDIR})
