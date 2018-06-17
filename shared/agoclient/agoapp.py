@@ -195,9 +195,9 @@ class AgoApp:
             # Try to autodetect OS syslog unix socket. For example in docker
             # this wont be found.
             syslog_kwargs = dict(facility=SysLogHandler.facility_names[syslog_fac])
-            for f in ["/dev/log", "/var/run/log"]:
-                if os.path.exists(f):
-                    syslog_kwargs[address] = syslog_path
+            for syslog_path in ["/dev/log", "/var/run/log"]:
+                if os.path.exists(syslog_path):
+                    syslog_kwargs['address'] = syslog_path
                     break
             else:
                 print("Warning: no well-known syslog file found; logging via UDP", file=sys.stderr)
