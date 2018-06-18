@@ -38,7 +38,7 @@ Description: python client routines and utility functions for ago control device
 
 Package: agocontrol-owfs
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-ow, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-ow, python-agoclient
 Description: 1wire device
 
 Package: agocontrol-webcam
@@ -48,17 +48,17 @@ Description: webcam device
 
 Package: agocontrol-x10
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: x10 device
 
 Package: agocontrol-mqtt
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: MQTT device
 
 Package: agocontrol-meloware
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: meloware lightswitch app gateway
 
 Package: agocontrol-zwave
@@ -74,27 +74,27 @@ Description: KNX interface driver
 
 Package: agocontrol-iscp
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: Onkyo EISCP protocol support
 
 Package: agocontrol-enigma2
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-avahi, python-gobject, python-dbus
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-avahi, python-gobject, python-dbus
 Description: Enigma2/Dreambox interface
 
 Package: agocontrol-asterisk
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-twisted, python-starpy
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-twisted, python-starpy
 Description: Asterisk PBX interface
 
 Package: agocontrol-apc
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-pysnmp4
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-pysnmp4
 Description: APC Switched Rack PDU interface
 
 Package: agocontrol-jointspace
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: JointSpace interface
 
 Package: agocontrol-rain8net
@@ -129,7 +129,7 @@ Description: i2c interface driver
 
 Package: agocontrol-onvif
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-opencv, python-numpy
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-opencv, python-numpy
 Description: ONVIF interface driver
 
 Package: agocontrol-enocean
@@ -149,17 +149,17 @@ Description: media streaming proxy
 
 Package: agocontrol-raspigpio
 Architecture: armhf
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: raspberry pi GPIO driver
 
 Package: agocontrol-raspi1w
 Architecture: armhf
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: raspberry pi 1-wire GPIO driver
 
 Package: agocontrol-raspimcp
 Architecture: armhf
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: raspberry pi MCP3xxx ADC GPIO driver
 
 Package: agocontrol-gc100
@@ -169,32 +169,32 @@ Description: gc100 interface support
 
 Package: agocontrol-alert
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-xmpp, python-tweepy, python-simplejson, python-requests, python-openssl
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-xmpp, python-tweepy, python-simplejson, python-requests, python-openssl
 Description: agocontrol alerts
 
 Package: agocontrol-squeezebox
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: squeezeboxes
 
 Package: agocontrol-mopidy
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-requests, python-websocket
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-requests, python-websocket
 Description: Mopidy music players
 
 Package: agocontrol-ipx800
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: IPX800 relay boards
 
 Package: agocontrol-raspicamera
 Architecture: armhf
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-picamera, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-picamera, python-agoclient
 Description: raspberry pi camera device
 
 Package: agocontrol-ping
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: Host IP Pinger
 
 Package: agocontrol-mysensors
@@ -204,7 +204,7 @@ Description: MySensors interface driver
 
 Package: agocontrol-rrdtool
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-rrdtool
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-rrdtool
 Description: agocontrol advanced graphing system based on rrdtool
 
 Package: agocontrol-zmcam
@@ -214,12 +214,12 @@ Description: zmcam device
 
 Package: agocontrol-eta
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description:  ETAtouch REST API device for ago control
  
 Package: agocontrol-gammu
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-gammu
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-gammu
 Description: Gammu based SMS gateway for ago control
 
 Package: agocontrol-imperihome
@@ -229,17 +229,17 @@ Description: ImperiHome App gateway for agocontrol
 
 Package: agocontrol-tellstick
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: Tellstick Duo & Tellstick Net interface driver d
 
 Package: agocontrol-axisaudiotransmit
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-requests
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-requests
 Description: Plays audio samples via built in speaker of an Axis IP Camera
 
 Package: agocontrol-weatherreporter
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-configparser, python-requests
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-configparser, python-requests
 Description: Reports weather conditions to crowd sourced weather sites
 
 Package: agocontrol-nvr
@@ -249,10 +249,10 @@ Description: Ago Network Video Recorder
 
 Package: agocontrol-lifx
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient, python-requests, python-pip
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient, python-requests, python-pip
 Description: Ago LIFX light interface driver
 
 Package: agocontrol-scheduler
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-agoclient
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-agoclient
 Description: Ago Scheduler
