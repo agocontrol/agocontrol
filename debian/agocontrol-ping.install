@@ -1,0 +1,5 @@
+etc/opt/agocontrol/conf.d/agoping.conf
+lib/systemd/system/agoping.service
+opt/agocontrol/bin/agoping
+opt/agocontrol/python/agoping
+opt/agocontrol/python/agoping/agoping.py

@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 # This program is used to monitor hosts through TCP/IP ping.
 # The code for this originated from the wifi_detect_device
 # module written by dinki. That plugin's code originated from
