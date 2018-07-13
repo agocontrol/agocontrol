@@ -550,7 +550,7 @@ agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string
         }
         recvsession.acknowledge();
 
-    } catch (qpid::messaging::NoMessageAvailable) {
+    } catch (const qpid::messaging::NoMessageAvailable&) {
         AGO_WARNING() << "No reply for message sent to subject " << subject;
 
         r.init(responseError(RESPONSE_ERR_NO_REPLY, "Timeout"));
