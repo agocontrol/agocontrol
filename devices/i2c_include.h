@@ -10,9 +10,15 @@
 #if HAVE_I2C_SMBUS_VIA_I2C_TOOLS
 #include <i2c-tools/i2c-dev.h>
 #elif HAVE_I2C_SMBUS_VIA_LINUX_I2C_DEV
+// Fedora 27 etc
 #include <linux/i2c-dev.h>
+#elif HAVE_I2C_SMBUS_VIA_LIBI2C
+extern "C" {
+#include <linux/i2c-dev.h>
+#include <i2c/smbus.h>
+};
 #else
-#error "i2c-dev.h not found"
+#error "No i2c smbus support"
 #endif
 
 #endif //AGOCONTROL_I2C_INCLUDE_H

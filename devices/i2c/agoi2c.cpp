@@ -29,8 +29,8 @@ private:
     Json::Value commandHandler(const Json::Value& content);
 
     void readBMP085();
-    bool i2ccommand(const char *device, int i2caddr, int command, size_t size, __u8  *buf);
-    bool i2cread(const char *device, int i2caddr, int command, size_t size, __u8 &buf);
+    bool i2ccommand(const char *device, int i2caddr, __u8 command, size_t size, const __u8  *buf);
+    bool i2cread(const char *device, int i2caddr, __u8 command, size_t size, __u8 *buf);
     bool set_pcf8574_output(const char *device, int i2caddr, int output, bool state);
     bool get_pcf8574_state(const char *device, int i2caddr, uint8_t &state);
 public:
@@ -57,7 +57,7 @@ void AgoI2c::readBMP085(){
     }
 }
 
-bool AgoI2c::i2ccommand(const char *device, int i2caddr, int command, size_t size, __u8  *buf) {
+bool AgoI2c::i2ccommand(const char *device, int i2caddr, __u8 command, size_t size, const __u8  *buf) {
     int file = open(device, O_RDWR);
     if (file < 0) {
         AGO_FATAL() << "Cannot open device: " << device << " - error: " << file;
@@ -72,13 +72,14 @@ bool AgoI2c::i2ccommand(const char *device, int i2caddr, int command, size_t siz
     }
     else
         AGO_DEBUG() << "Open i2c slave succeeded: 0x" << std::hex << i2caddr;
-    int result = i2c_smbus_write_i2c_block_data(file, command, size,buf);
+
+    int result = i2c_smbus_write_i2c_block_data(file, command, size, buf);
     AGO_DEBUG() << "result: " << result;
 
     return true;
 }
 
-bool AgoI2c::i2cread(const char *device, int i2caddr, int command, size_t size, __u8 &buf) {
+bool AgoI2c::i2cread(const char *device, int i2caddr, __u8 command, size_t size, __u8 *buf) {
     int file = open(device, O_RDWR);
     if (file < 0) {
         AGO_FATAL() << "Cannot open device: " << device << " - error: " << file;
@@ -94,9 +95,10 @@ bool AgoI2c::i2cread(const char *device, int i2caddr, int command, size_t size, 
     else
         AGO_DEBUG() << "Open i2c slave succeeded: 0x" << std::hex << i2caddr;
 
-    int result = i2c_smbus_read_i2c_block_data(file, command, size,&buf);
+    int result = i2c_smbus_read_i2c_block_data(file, command, size, buf);
     AGO_DEBUG() << "result: " << result;
 
+    close(file);
     return true;
 }
 

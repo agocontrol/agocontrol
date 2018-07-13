@@ -17,14 +17,14 @@ class AgoBlinkm: public AgoApp {
 private:
     std::string devicefile;
 
-    bool i2ccommand(const char *device, int i2caddr, int command, size_t size, __u8  *buf);
+    bool i2ccommand(const char *device, int i2caddr, __u8 command, size_t size, const __u8 *buf);
     Json::Value  commandHandler(const Json::Value& content);
     void setupApp();
 public:
     AGOAPP_CONSTRUCTOR(AgoBlinkm);
 };
 
-bool AgoBlinkm::i2ccommand(const char *device, int i2caddr, int command, size_t size, __u8  *buf) {
+bool AgoBlinkm::i2ccommand(const char *device, int i2caddr, __u8 command, size_t size, const __u8 *buf) {
     int file = open(device, O_RDWR);
     if (file < 0) {
         AGO_ERROR() << "cannot open " << file << " - error: " << file;
@@ -39,9 +39,11 @@ bool AgoBlinkm::i2ccommand(const char *device, int i2caddr, int command, size_t 
     }
     else
         AGO_DEBUG() << "open i2c slave succeeded: 0x" << std::hex << i2caddr;
-    int result = i2c_smbus_write_i2c_block_data(file, command, size,buf);
+
+    int result = i2c_smbus_write_i2c_block_data(file, command, size, buf);
     AGO_DEBUG() << "result: " << result;
 
+    close(file);
     return true;
 }
 

@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.0)
 file (GLOB_RECURSE DEVICE_SOURCE_FILES *.cpp)
 
 set (DEVICE_EXTRA_LIBRARIES
-     agoclient
+     agoclient ${I2C_LIBRARIES}
 )
 
 set (DEVICE "agoi2c")
