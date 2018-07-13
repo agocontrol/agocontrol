@@ -797,8 +797,12 @@ void AgoRpc::setupApp() {
     for(tokenizer::iterator gen=tok.begin(); gen != tok.end(); ++gen) {
         std::string addr(*gen);
         if(addr[addr.length() -1] == 's') {
+#if MG_ENABLE_SSL
             addr.assign(addr, 0, addr.length()-1);
             agoHttp.addBinding(addr, certificate);
+#else
+            throw ConfigurationError("Not compiled with https support, cannot use binding "+addr);
+#endif
         }else
             agoHttp.addBinding(addr);
     }

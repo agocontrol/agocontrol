@@ -123,6 +123,13 @@ log_pkg_found(yamlcpp "${YAML_CPP_FOUND}" "${YAML_CPP_VERSION}" FATAL_ERROR "")
 pkg_search_module(AUGEAS REQUIRED augeas)
 log_pkg_found(augeas "${AUGEAS_FOUND}" "${AUGEAS_VERSION}" FATAL_ERROR "")
 
+pkg_search_module(SQLITE REQUIRED sqlite3)
+log_pkg_found(augeas "${SQLITE_FOUND}" "${SQLITE_VERSION}" FATAL_ERROR "")
+
+# Mongoose may use openssl
+pkg_search_module(OPENSSL openssl)
+log_pkg_found(openssl "${OPENSSL_FOUND}" "${OPENSSL_VERSION}" STATUS ", building without https support")
+
 # Linux/debian has lua5.x, FreeBSD has lua-5.x, fedora has just lua
 pkg_search_module(LUA lua5.3 lua-5.3 lua5.2 lua-5.2 lua5.1 lua-5.1 lua)
 log_pkg_found(lua "${LUA_FOUND}" "${LUA_VERSION}" WARNING ", parts of core will not be built")
@@ -158,6 +165,11 @@ log_pkg_found(OpenLighting "${OpenLighting_FOUND}" "${OpenLighting_VERSION}" STA
 
 include_directories(${Boost_INCLUDE_DIRS})
 
+find_program(INTLTOOL_MERGE intltool-merge)
+if(NOT INTLTOOL_MERGE)
+    message(FATAL_ERROR "Program 'intltool-merge' is required to build web UI")
+endif()
+
 # Fix for Boost < 1.56 built without C++, when we build with C++11
 # https://stackoverflow.com/questions/35007134/c-boost-undefined-reference-to-boostfilesystemdetailcopy-file
 # https://chaste.cs.ox.ac.uk/trac/wiki/ChasteGuides/ModernCpp#Boostscopedenumsforboost1.56
@@ -171,7 +183,7 @@ if(Boost_VERSION VERSION_LESS 105600)
 endif()
 
 find_package(CppUnit)
-log_pkg_found(CppUnit "${CPPUNIT_FOUND}" "${CPPUNIT_VERSION}" STATUS "not building unit-tests")
+log_pkg_found(CppUnit "${CPPUNIT_FOUND}" "${CPPUNIT_VERSION}" STATUS ", not building unit-tests")
 
 check_include_files("xlocale.h" HAVE_XLOCALE_H)
 
