@@ -934,7 +934,7 @@ bool AgoDataLogger::getGraphDataFromRrd(const Json::Value& uuids, int start, int
     unsigned long ds = 0;
     //rrd_fetch_r example found here https://github.com/pldimitrov/Rrd/blob/master/src/Rrd.c
     int res = rrd_fetch_r(filenamestr.c_str(), "AVERAGE", &startTimet, &endTimet, &step, &ds_cnt, &ds_namv, &data);
-    if( res==0 && data!=NULL )
+    if( res==0 )
     {
         int size = (endTimet - startTimet) / step - 1;
         double level = 0;
@@ -955,21 +955,20 @@ bool AgoDataLogger::getGraphDataFromRrd(const Json::Value& uuids, int start, int
             }   
         }
         AGO_TRACE() << "rrd_fetch returns: step=" << step << " datasource_count=" << ds_cnt << " data_count=" << count;
+
+        if( data )
+            free(data);
+
+        for( unsigned int i=0; (unsigned long) i < ds_cnt; i++ )
+            free(ds_namv[i]);
+
+        free(ds_namv);
     }
     else
     {
-        AGO_DEBUG() << "Fetch failed: " << rrd_get_error();
+        AGO_WARNING() << "rrd_fetch failed: " << rrd_get_error();
         error = true;
     }
-
-    //free memory
-    if( data )
-        free(data);
-    for( unsigned int i=0; i<sizeof(ds_namv)/sizeof(char*); i++ )
-        free(ds_namv[i]);
-    free(ds_namv);
-
-    AGO_TRACE() << "RRD query returns " << values.size() << " values";
 
     result["values"] = values;
     return !error;
