@@ -651,6 +651,19 @@ string AgoZwave::getHRNotification(Notification::NotificationType notificationTy
         case Notification::Type_ControllerCommand:
             output="Type_ControllerCommand";
             break;
+        case Notification::Type_NodeReset:
+            output="Type_NodeReset";
+            break;
+#endif
+#if HAVE_ZWAVE_VERSION(1,5,208)
+        case Notification::Type_UserAlerts:
+            output="Type_UserAlerts";
+            break;
+#endif
+#if HAVE_ZWAVE_VERSION(1,5,214)
+        case Notification::Type_ManufacturerSpecificDBReady:
+            output="Type_ManufacturerSpecificDBReady";
+            break;
 #endif
         default:
             output="Type_Unknown";
@@ -1638,6 +1651,17 @@ void AgoZwave::_OnNotification (Notification const* _notification)
             break;
         }
 
+        case Notification::Type_NodeNew:
+        {
+            // A brand new node was just beginning to be added.
+            // NodeAdded will be sent right after this, but that is sent on zwave init too.
+            eventmap["description"]="New node added";
+            eventmap["nodeid"] = _notification->GetNodeId();
+            eventmap["homeid"] = _notification->GetHomeId();
+            agoConnection->emitEvent("zwavecontroller", "event.zwave.nodenew", eventmap);
+            break;
+        }
+
         case Notification::Type_NodeAdded:
         {
             // Add the new node to our list
@@ -1844,11 +1868,21 @@ void AgoZwave::_OnNotification (Notification const* _notification)
             }
             break;
         }
+        case Notification::Type_DriverRemoved:
+            break;
 #if HAVE_ZWAVE_VERSION(1,3,397)
         case Notification::Type_ControllerCommand:
-        {
             break;
-        }
+        case Notification::Type_NodeReset:
+            break;
+#endif
+#if HAVE_ZWAVE_VERSION(1,5,208)
+        case Notification::Type_UserAlerts:
+            break;
+#endif
+#if HAVE_ZWAVE_VERSION(1,5,214)
+        case Notification::Type_ManufacturerSpecificDBReady:
+            break;
 #endif
         default:
         {
