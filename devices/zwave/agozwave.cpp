@@ -549,7 +549,7 @@ string AgoZwave::getHRCommandClassId(uint8_t commandClassId)
             break;
         default:
             std::stringstream temp;
-            temp << "COMMAND_UNKNOWN[" << commandClassId << "]";
+            temp << "COMMAND_UNKNOWN[" << (int)commandClassId << "]";
             output = temp.str();
     }
     return output;
@@ -1044,12 +1044,12 @@ bool AgoZwave::setCommandClassParameter(uint32 homeId, uint8 nodeId, uint8 comma
         if( nodeInfo==NULL )
         {
             //node not found!
-            AGO_ERROR() << "Node not found! (homeId=" << homeId << " nodeId=" << nodeId << " commandClassId=" << commandClassId << " index=" << index << ")";
+            AGO_ERROR() << "Node not found! (homeId=" << homeId << " nodeId=" << (int)nodeId << " commandClassId=" << (int)commandClassId << " index=" << (int)index << ")";
         }
         else
         {
             //ValueID not found!
-            AGO_ERROR() << "ValueID not found! (homeId=" << homeId << " nodeId=" << nodeId << " commandClassId=" << commandClassId << " index=" << index << ")";
+            AGO_ERROR() << "ValueID not found! (homeId=" << homeId << " nodeId=" << (int)nodeId << " commandClassId=" << (int)commandClassId << " index=" << (int)index << ")";
         }
     }
 
@@ -1106,7 +1106,14 @@ void AgoZwave::_OnNotification (Notification const* _notification)
 
                 if (id.GetGenre() == ValueID::ValueGenre_Config)
                 {
-                    AGO_INFO() << "Configuration parameter Value Added: Home=" << std::hex <<  _notification->GetHomeId() << " Node=" << std::dec << (int) _notification->GetNodeId() << " Genre=" << std::dec << (int) id.GetGenre() << " Class=" << getHRCommandClassId(id.GetCommandClassId())  << " Instance=" << (int)id.GetInstance() << " Index=" << (int)id.GetIndex() << " Type=" << (int)id.GetType() << " Label=" << label;
+                    AGO_INFO() << "Configuration parameter Value Added: Home=" << std::hex <<  _notification->GetHomeId()
+                        << " Node=" << std::dec << (int) _notification->GetNodeId()
+                        << " Genre=" << std::dec << (int) id.GetGenre()
+                        << " Class=" << getHRCommandClassId(id.GetCommandClassId())
+                        << " Instance=" << (int)id.GetInstance()
+                        << " Index=" << (int)id.GetIndex()
+                        << " Type=" << (int)id.GetType()
+                        << " Label=" << label;
                 }
                 else if (basic == BASIC_TYPE_CONTROLLER)
                 {
@@ -1175,7 +1182,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                             if (label == "Color")
                             {
                                 if ((device = devices.findId(nodeinstance)) != NULL)
-                                {   
+                                {
                                     device->addValue(label, id);
                                     device->setDevicetype("dimmerrgb");
                                     agoConnection->addDevice(device->getId(), device->getDevicetype());
@@ -1200,7 +1207,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                                 }
                                 else
                                 {
-                                    device = new ZWaveNode(nodeinstance, "dimmer");	
+                                    device = new ZWaveNode(nodeinstance, "dimmer");
                                     device->addValue(label, id);
                                     devices.add(device);
                                     AGO_DEBUG() << "Switch multilevel: add new dimmer [" << device->getId() << ", " << device->getDevicetype() << "]";
@@ -1218,7 +1225,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                                 }
                                 else
                                 {
-                                    device = new ZWaveNode(nodeinstance, "switch");	
+                                    device = new ZWaveNode(nodeinstance, "switch");
                                     device->addValue(label, id);
                                     devices.add(device);
                                     AGO_DEBUG() << "Switch binary: add new switch [" << device->getId() << ", " << device->getDevicetype() << "]";
@@ -1236,7 +1243,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                                 }
                                 else
                                 {
-                                    device = new ZWaveNode(tempstring, "binarysensor");	
+                                    device = new ZWaveNode(tempstring, "binarysensor");
                                     device->addValue(label, id);
                                     devices.add(device);
                                     AGO_DEBUG() << "Sensor binary: add new binarysensor [" << device->getId() << ", " << device->getDevicetype() << "]";
@@ -1423,10 +1430,24 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                             }
                             break;
                         default:
-                            AGO_INFO() << "Notification: Unassigned Value Added Home=" << std::hex << _notification->GetHomeId() << " Node=" << std::dec << (int)_notification->GetNodeId() << " Genre=" << std::dec << (int)id.GetGenre() << " Class=" << getHRCommandClassId(id.GetCommandClassId()) << " Instance=" << std::dec << (int)id.GetInstance() << " Index=" << std::dec << (int)id.GetIndex() << " Type=" << (int)id.GetType() << " Label: " << label;
+                            AGO_INFO() << "Notification: Unassigned Value Added Home=" << std::hex << _notification->GetHomeId()
+                            << " Node=" << std::dec << (int)_notification->GetNodeId()
+                            << " Genre=" << std::dec << (int)id.GetGenre()
+                            << " Class=" << getHRCommandClassId(id.GetCommandClassId())
+                            << " Instance=" << std::dec << (int)id.GetInstance()
+                            << " Index=" << std::dec << (int)id.GetIndex()
+                            << " Type=" << (int)id.GetType()
+                            << " Label: " << label;
 
                     }
                 }
+            }else{
+                ValueID id = _notification->GetValueID();
+                string label = Manager::Get()->GetValueLabel(id);
+                AGO_DEBUG() << "ValueAdded for unknown node Home="
+                    << _notification->GetHomeId()
+                    << ", Node=" <<  (int)_notification->GetNodeId()
+                    << " Label= " << label;
             }
             break;
         }
@@ -1460,7 +1481,11 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                 // nodeInfo = nodeInfo;
                 ValueID id = _notification->GetValueID();
                 std::string str;
-                AGO_INFO() << "Notification='Value Changed' Home=" << std::hex << _notification->GetHomeId() << " Node=" << std::dec << (int)_notification->GetNodeId() << " Genre=" << std::dec << (int)id.GetGenre() << " Class=" << getHRCommandClassId(id.GetCommandClassId()) << std::dec << " Type=" << id.GetType() << " Genre=" << id.GetGenre();
+                AGO_INFO() << "Notification='Value Changed' Home=" << std::hex << _notification->GetHomeId()
+                    << " Node=" << std::dec << (int)_notification->GetNodeId()
+                    << " Genre=" << std::dec << (int)id.GetGenre()
+                    << " Class=" << getHRCommandClassId(id.GetCommandClassId()) << std::dec
+                    << " Type=" << id.GetType();
 
                 if (Manager::Get()->GetValueAsString(id, &str))
                 {
@@ -1661,7 +1686,14 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                 // We have received an event from the node, caused by a
                 // basic_set or hail message.
                 ValueID id = _notification->GetValueID();
-                AGO_DEBUG() << "NodeEvent: HomeId=" << id.GetHomeId() << " NodeId=" << id.GetNodeId() << " Genre=" << id.GetGenre() << " CommandClassId=" << getHRCommandClassId(id.GetCommandClassId()) << " Instance=" << id.GetInstance() << " Index="<< id.GetIndex() << " Type="<< id.GetType() << " Id="<< id.GetId();
+                AGO_DEBUG() << "NodeEvent: HomeId=" << id.GetHomeId()
+                    << " NodeId=" << id.GetNodeId()
+                    << " Genre=" << id.GetGenre()
+                    << " CommandClassId=" << getHRCommandClassId(id.GetCommandClassId())
+                    << " Instance=" << (int)id.GetInstance()
+                    << " Index="<< id.GetIndex()
+                    << " Type="<< id.GetType()
+                    << " Id="<< id.GetId();
                 std::string label = Manager::Get()->GetValueLabel(id);
                 std::stringstream level;
                 level << (int) _notification->GetByte();
@@ -1762,8 +1794,8 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                     //update lastseen
                     break;
                 case Notification::Code_Timeout:
-                    AGO_ERROR() << "Z-wave command did time out for nodeid " << _notification->GetNodeId();
-                    message << "Z-wave command did time out for nodeid " << _notification->GetNodeId();
+                    AGO_ERROR() << "Z-wave command did time out for nodeid " << (int)_notification->GetNodeId();
+                    message << "Z-wave command did time out for nodeid " << (int)_notification->GetNodeId();
                     eventmap["message"] = message.str();
                     if( device )
                     {
@@ -1777,21 +1809,21 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                 case Notification::Code_Sleep:
                     break;
                 case Notification::Code_Dead:
-                    AGO_ERROR() << "Z-wave nodeid " << _notification->GetNodeId() << " is presumed dead!";
+                    AGO_ERROR() << "Z-wave nodeid " << (int)_notification->GetNodeId() << " is presumed dead!";
                     if( device )
                     {
                         agoConnection->suspendDevice(device->getId());
                     }
                     break;
                 case Notification::Code_Alive:
-                    AGO_ERROR() << "Z-wave nodeid " << _notification->GetNodeId() << " is alive again";
+                    AGO_ERROR() << "Z-wave nodeid " << (int)_notification->GetNodeId() << " is alive again";
                     if( device )
                     {
                         agoConnection->resumeDevice(device->getId());
                     }
                     break;
                 default:
-                    AGO_INFO() << "Z-wave reports an uncatch notification for nodeid " << _notification->GetNodeId();
+                    AGO_INFO() << "Z-wave reports an uncatch notification for nodeid " << (int)_notification->GetNodeId();
                     break;
             }
             break;
