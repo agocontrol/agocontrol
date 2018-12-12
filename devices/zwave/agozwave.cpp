@@ -1741,11 +1741,10 @@ void AgoZwave::_OnNotification (Notification const* _notification)
             if( /*NodeInfo* nodeInfo =*/ getNodeInfo( _notification ) )
             {
                 int scene = _notification->GetSceneId();
-                ValueID id = _notification->GetValueID();
-                std::string label = Manager::Get()->GetValueLabel(id);
                 std::stringstream tempstream;
                 tempstream << (int) _notification->GetNodeId();
                 tempstream << "/1";
+
                 std::string nodeinstance = tempstream.str();
                 std::string eventtype = "event.device.scenechanged";
                 ZWaveNode *device;
