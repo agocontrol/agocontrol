@@ -1519,7 +1519,7 @@ void AgoZwave::_OnNotification (Notification const* _notification)
                     {
                         level="0";
                     }
-                    AGO_DEBUG() << "Value=" << str << " Label=" << label << " Units=" << units;
+                    AGO_DEBUG() << "Value='" << str << "' Label='" << label << "' Units=" << units;
                     if ((label == "Basic") || (label == "Switch") || (label == "Level"))
                     {
                         eventtype="event.device.statechanged";
@@ -2019,7 +2019,7 @@ Json::Value AgoZwave::commandHandler(const Json::Value& content)
                     }
                     delete [] neighbors;
                 }
-                node["neighbors"]=neighborsList;	
+                node["neighbors"]=neighborsList;
 
                 for (list<ValueID>::iterator it2 = (*it)->m_values.begin(); it2 != (*it)->m_values.end(); it2++ )
                 {
@@ -2548,7 +2548,11 @@ Json::Value AgoZwave::commandHandler(const Json::Value& content)
 
                 }
             }
+
+            AGO_WARNING() << "Recieved unknown command for device " << content << " of type " << devicetype;
         }
+        else
+            AGO_WARNING() << "Recieved command for unknown device " << content;
     }
     return responseUnknownCommand();
 }
