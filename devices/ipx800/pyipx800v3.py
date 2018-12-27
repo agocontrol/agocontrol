@@ -50,6 +50,7 @@ class Ipx800v3Telnet(threading.Thread):
         """
         threading.Thread.__init__(self)
         self.logger = logging.getLogger('Ipx800v3Telnet')
+        self.logger.setLevel(logging.INFO)
         self.ip = ip
         self.port = port
         self.__callback = callback
@@ -210,7 +211,7 @@ class Ipx800v3(threading.Thread):
     OUTPUT_SETPULSE = 'http://%s/leds.cgi?'
     OUTPUT_SETNOPULSE = 'http://%s/preset.htm?'
     OUTPUT_CONFIGURE = 'http://%s/protect/settings/output1.htm?'
-    COUNTER_SET = 'http://%s/protect/assignio/counter.htm?'
+    COUNTER_SET = 'http://%s/protect/assignio/counter1.htm?'
     PINGWATCHDOG = 'http://%s/protect/settings/ping.htm?'
     STATUS = 'http://%s/status.xml'
 
@@ -358,10 +359,10 @@ class Ipx800v3(threading.Thread):
         """
         try:
             url += urllib.urlencode(params)
+            self.logger.info(url)
             req = urllib2.urlopen(url)
             lines = req.readlines()
             req.close()
-            self.logger.debug(url)
             #self.logger.debug('\n'.join(lines))
             return True, lines
         except Exception as e:
@@ -622,7 +623,7 @@ class Ipx800v3(threading.Thread):
         return self.__sendUrl(url, params)
 
     """----------COUNTERS----------"""
-    def setCounter(self, ipx, counterId, value, name='counter'):
+    def setCounter(self, ipx, counterId, value, name=None):
         """
         Set counter value and/or name
         @info: /!\ name if mandatory otherwise command doesn't work :S 
@@ -647,9 +648,12 @@ class Ipx800v3(threading.Thread):
 
         #prepare and send url
         url = Ipx800v3.COUNTER_SET % (ipx)
-        params = {'counter%d'%counterId:value}
+        params = {
+            'num': counterId,
+            'counter': value
+        }
         if name and len(name)>0:
-            params['countername%d'%counterId] = name.strip()
+            params['cname'] = name.strip()
         return self.__sendUrl(url, params)
 
     """----------PING----------"""

@@ -272,28 +272,17 @@ function ipxConfig(agocontrol)
             content.uuid = self.selectedBoardUuid;
             content.command = 'status';
             self.agocontrol.sendCommand(content, function(res) {
-                if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+                if( !res.error )
                 {
-                    if( res.result.error===0 )
-                    {
-                        //console.log('STATUS res:', res);
-                        $('#currentoutputs').html(res.result.status.outputs);
-                        $('#currentanalogs').html(res.result.status.analogs);
-                        $('#currentcounters').html(res.result.status.counters);
-                        $('#currentdigitals').html(res.result.status.digitals);
+                    //console.log('STATUS res:', res);
+                    $('#currentoutputs').html(res.result.data.status.outputs);
+                    $('#currentanalogs').html(res.result.data.status.analogs);
+                    $('#currentcounters').html(res.result.data.status.counters);
+                    $('#currentdigitals').html(res.result.data.status.digitals);
 
-                        //console.log('BOARD DEVICES:', res.result.devices);
-                        self.updateDevices(res.result.devices, res.result.links);
-                        //console.log("ALLDEVICES", self.allDevices());
-                    }
-                    else
-                    {
-                        notif.error(res.result.msg);
-                    }
-                }
-                else
-                {
-                    notif.fatal('#nr');
+                    //console.log('BOARD DEVICES:', res.result.data.devices);
+                    self.updateDevices(res.result.data.devices, res.result.data.links);
+                    //console.log("ALLDEVICES", self.allDevices());
                 }
             });
         }
@@ -340,22 +329,11 @@ function ipxConfig(agocontrol)
     {
         self.agocontrol.sendCommand(content, function(res)
         {
-            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+            if( !res.error )
             {
-                if( res.result.error===0 )
-                {
-                    notif.success(res.result.msg);
-                    if( callback!==undefined )
-                        callback();
-                }
-                else
-                {
-                    notif.error(res.result.msg);
-                }
-            }
-            else
-            {
-                notif.fatal('#nr');
+                notif.success(res.result.result.message);
+                if( callback!==undefined )
+                  callback();
             }
         });
     };
@@ -369,11 +347,11 @@ function ipxConfig(agocontrol)
             content.uuid = self.controllerUuid;
             content.command = 'getboards';
             self.agocontrol.sendCommand(content, function(res) {
-                if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+                if( !res.error )
                 {
                     self.boards.removeAll();
-                    self.boards(res.result.boards);
-                    //console.log("BOARDS:", res.result.boards);
+                    self.boards(res.result.data.boards);
+                    //console.log("BOARDS:", res.result.databoards);
     
                     //select first board
                     if( self.boards().length>0 )
@@ -396,23 +374,11 @@ function ipxConfig(agocontrol)
             content.uuid = self.selectedBoardUuid;
             content.command = 'getdevices';
             self.agocontrol.sendCommand(content, function(res) {
-                if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+                if( !res.error )
                 {
-                    //console.log('BOARD DEVICES:', res.result.devices);
-                    
-                    if( res.result.error===0 )
-                    {
-                        //update devices
-                        self.updateDevices(res.result.devices, null);
-                    }
-                    else
-                    {
-                        notif.error(res.result.msg);
-                    }
-                }
-                else
-                {
-                    notif.fatal('#nr');
+                    console.log('BOARD DEVICES:', res.result.data.devices);
+                    //update devices
+                    self.updateDevices(res.result.data.devices, null);
                 }
             });
         }
@@ -558,21 +524,10 @@ function ipxConfig(agocontrol)
                 content.digital = self.selectedLinkToDelete().binary.internalid;
                 content.command = 'deletelink';
                 self.agocontrol.sendCommand(content, function(res) {
-                    if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+                    if( !res.error )
                     {
-                        if( !res.result.error )
-                        {
-                            notif.success('Link deleted');
-                            self.updateUi();
-                        }
-                        else
-                        {
-                            notif.error(res.result.msg);
-                        }
-                    }
-                    else
-                    {
-                        notif.error('Internal error');
+                        notif.success('Link deleted');
+                        self.updateUi();
                     }
                 });
             }
@@ -590,16 +545,8 @@ function ipxConfig(agocontrol)
             content.command = 'forcestate';
             content.state = self.selectedDeviceState();
             self.agocontrol.sendCommand(content, function(res) {
-                if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
-                {
-                    if( res.result.error===0 )
-                        notif.success('State forced successfully');
-                    else
-                        notif.error(res.result.msg);
-                }
-                else
-                {
-                    notif.fatal('#nr');
+                if( !res.error ) {
+                    notif.success('State forced successfully');
                 }
             });
         }
@@ -645,21 +592,10 @@ function ipxConfig(agocontrol)
                 content.command = 'deleteboard';
                 content.ip = self.selectedBoardUuid;
                 self.agocontrol.sendCommand(content, function(res) {
-                    if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+                    if( !res.error )
                     {
-                        if( res.result.error==0 )
-                        {
-                            notif.success(res.result.msg);
-                            self.getBoards();
-                        }
-                        else
-                        {
-                            notif.error(res.result.msg);
-                        }
-                    }
-                    else
-                    {
-                        notif.fatal('#nr');
+                        notif.success(res.result.message);
+                        self.getBoards();
                     }
                 });
             }
@@ -678,21 +614,10 @@ function ipxConfig(agocontrol)
                 content.device = self.selectedDeviceToDelete().internalid;
                 content.command = 'deletedevice';
                 self.agocontrol.sendCommand(content, function(res) {
-                    if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+                    if( !res.error )
                     {
-                        if( !res.result.error )
-                        {
-                            notif.success('Device deleted');
-                            self.updateUi();
-                        }
-                        else
-                        {
-                            notif.error(res.result.msg);
-                        }
-                    }
-                    else
-                    {
-                        notif.error('Internal error');
+                        notif.success('Device deleted');
+                        self.updateUi();
                     }
                 });
             }
@@ -709,20 +634,9 @@ function ipxConfig(agocontrol)
             content.device = self.selectedCounterToReset().internalid;
             content.command = 'reset';
             self.agocontrol.sendCommand(content, function(res) {
-                if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
+                if( !res.error )
                 {
-                    if( !res.result.error )
-                    {
-                        notif.success('Counter reseted');
-                    }
-                    else
-                    {
-                        notif.error(res.result.msg);
-                    }
-                }
-                else
-                {
-                    notif.error('Internal error');
+                    notif.success('Counter reseted');
                 }
             });
         }
