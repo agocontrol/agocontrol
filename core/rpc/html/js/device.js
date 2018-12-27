@@ -317,7 +317,7 @@ function device(agocontrol, obj, uuid) {
             content.command = 'mediainfos';
             self.agocontrol.sendCommand(content)
                 .then(function(resp) {
-                    self.updateMediaInfos(resp);
+                    self.updateMediaInfos(resp.data);
                 });
         };
         this.requestMediaInfos();
