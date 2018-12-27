@@ -68,14 +68,21 @@ function ipxConfig(agocontrol)
     //edit row
     self.makeEditable = function(item, td, tr)
     {
+        var realDevice = self.getRealDevice(item);
+        if( !realDevice )
+        {
+            console.error('Real device not found for', item);
+            notif.error('Unable to rename not found device');
+            return;
+        }
         if( $(td).hasClass('change_name') )
         {
-            self.agocontrol.makeFieldDeviceNameEditable(td, item);
+            self.agocontrol.makeFieldDeviceNameEditable(td, realDevice);
         }
             
         if( $(td).hasClass('change_room') )
         {
-            self.agocontrol.makeFieldDeviceRoomEditable(td, item);
+            self.agocontrol.makeFieldDeviceRoomEditable(td, realDevice);
         }
     };
 
@@ -160,6 +167,19 @@ function ipxConfig(agocontrol)
         var binaryName = self.getDeviceName(obj.binary);
         return binaryName+' => '+outputName;
     };
+
+    //get real device (agocontrol instance)
+    self.getRealDevice = function(device)
+    {
+        for( var i=0; i<self.agocontrol.devices().length; i++)
+        {
+            if( self.agocontrol.devices()[i].uuid==device.uuid )
+            {
+                return self.agocontrol.devices()[i];
+            }
+        }
+        return null;
+    }
 
     //update devices
     self.updateDevices = function(devices, links)
@@ -280,9 +300,7 @@ function ipxConfig(agocontrol)
                     $('#currentcounters').html(res.result.data.status.counters);
                     $('#currentdigitals').html(res.result.data.status.digitals);
 
-                    //console.log('BOARD DEVICES:', res.result.data.devices);
                     self.updateDevices(res.result.data.devices, res.result.data.links);
-                    //console.log("ALLDEVICES", self.allDevices());
                 }
             });
         }
@@ -331,7 +349,7 @@ function ipxConfig(agocontrol)
         {
             if( !res.error )
             {
-                notif.success(res.result.result.message);
+                notif.success(res.result.message);
                 if( callback!==undefined )
                   callback();
             }
