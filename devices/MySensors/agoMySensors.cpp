@@ -906,6 +906,7 @@ void AgoMySensors::sendcommandV13(std::string internalid, int messageType, int s
  */
 qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map command)
 {
+    std::string errorMessage = "";
     qpid::types::Variant::Map returnval;
     qpid::types::Variant::Map infos;
     std::string deviceType = "";
@@ -922,8 +923,7 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
         if( cmd=="getcounters" )
         {
             //return devices counters
-            returnval["error"] = 0;
-            returnval["msg"] = "";
+            errorMessage = "";
             qpid::types::Variant::Map counters;
             if( !devicemap["devices"].isVoid() )
             {
@@ -978,8 +978,7 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                     }
                 }
             }
-            returnval["error"] = 0;
-            returnval["msg"] = "";
+            errorMessage = "";
         }
         else if( cmd=="resetcounters" )
         {
@@ -999,21 +998,18 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                         setDeviceInfos(device["internalid"].asString(), &infos);
                     }
                 }
-                returnval["error"] = 0;
-                returnval["msg"] = "";
+                errorMessage = "";
             }
             else
             {
                 //invalid command format
-                returnval["error"] = 6;
-                returnval["msg"] = "Invalid command received";
+                errorMessage = "Invalid command received";
             }
         }
         else if( cmd=="getport" )
         {
             //get serial port
-            returnval["error"] = 0;
-            returnval["msg"] = "";
+            errorMessage = "";
             returnval["port"] = serialDevice;
         }
         else if( cmd=="setport" )
@@ -1023,33 +1019,28 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                 //restart communication
                 closeSerialPort();
                 if( !openSerialPort(command["port"].asString()) ) {
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Unable to open specified port";
+                    errorMessage = "Unable to open specified port";
                 }
                 else {
                     //everything looks good, save port
                     serialDevice = command["port"].asString();
                     if( !setConfigSectionOption("mysensors", "device", serialDevice.c_str()) ) {
-                        returnval["error"] = 2;
-                        returnval["msg"] = "Unable to save serial port to config file";
+                        errorMessage = "Unable to save serial port to config file";
                     }
                     else {
-                        returnval["error"] = 0;
-                        returnval["msg"] = "";
+                        errorMessage = "";
                     }
                 }
             }
             else {
                 //port is missing
-                returnval["error"] = 3;
-                returnval["msg"] = "No port specified";
+                errorMessage = "No port specified";
             }
         }
         else if( cmd=="getdevices" )
         {
             //return list of devices (with device type too!!)
-            returnval["error"] = 0;
-            returnval["msg"] = "";
+            errorMessage = "";
             qpid::types::Variant::List devicesList;
             if( !devicemap["devices"].isVoid() )
             {
@@ -1083,26 +1074,22 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                 {
                     if( deleteDevice(device["internalid"].asString()) )
                     {
-                        returnval["error"] = 0;
-                        returnval["msg"] = "";
+                        errorMessage = "";
                     }
                     else {
-                        returnval["error"] = 7;
-                        returnval["msg"] = "Unable to delete sensor";
+                        errorMessage = "Unable to delete sensor";
                     }
                 }
                 else
                 {
                     //invalid command format
-                    returnval["error"] = 6;
-                    returnval["msg"] = "Invalid command received";
+                    errorMessage = "Invalid command received";
                 }
             }
             else
             {
                 //device id is missing
-                returnval["error"] = 4;
-                returnval["msg"] = "Device is missing";
+                errorMessage = "Device is missing";
             }
         }
         else if( cmd=="setcustomvariable" )
@@ -1118,8 +1105,7 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                 if( infos.size()==0 )
                 {
                     //specified device is surely not handled by mysensors
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Device not handled by this controller";
+                    errorMessage = "Device not handled by this controller";
                 }
                 else
                 {
@@ -1127,8 +1113,7 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                     {
                         //reserved customvar
                         AGO_WARNING() << "Reserved customvar '" << customvar << "'. Nothing processed";
-                        returnval["error"] = 1;
-                        returnval["msg"] = "Reserved customvar";
+                        errorMessage = "Reserved customvar";
                     }
                     else if( customvar=="VAR2" )
                     {
@@ -1147,8 +1132,7 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                         else
                         {
                             AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                            returnval["error"] = 1;
-                            returnval["msg"] = "Customvar is supported from protocol v1.4";
+                            errorMessage = "Customvar is supported from protocol v1.4";
                         }
                     }
                     else if( customvar=="VAR3" )
@@ -1168,8 +1152,7 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                         else
                         {
                             AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                            returnval["error"] = 1;
-                            returnval["msg"] = "Customvar is supported from protocol v1.4";
+                            errorMessage = "Customvar is supported from protocol v1.4";
                         }
                     }
                     else if( customvar=="VAR4" )
@@ -1189,8 +1172,7 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                         else
                         {
                             AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                            returnval["error"] = 1;
-                            returnval["msg"] = "Customvar is supported from protocol v1.4";
+                            errorMessage = "Customvar is supported from protocol v1.4";
                         }
                     }
                     else if( customvar=="VAR5" )
@@ -1210,24 +1192,21 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                         else
                         {
                             AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                            returnval["error"] = 1;
-                            returnval["msg"] = "Customvar is supported from protocol v1.4";
+                            errorMessage = "Customvar is supported from protocol v1.4";
                         }
                     }
                     else
                     {
                         //unknown customvar
                         AGO_ERROR() << "Unsupported customvar '" << customvar << "'. Nothing processed";
-                        returnval["error"] = 1;
-                        returnval["msg"] = "Unsupported specified customvar";
+                        errorMessage = "Unsupported specified customvar";
                     }
                 }
             }
             else
             {
                 //missing parameter
-                returnval["error"] = 1;
-                returnval["msg"] = "Missing parameter";
+                errorMessage = "Missing parameter";
             }
         }
         else
@@ -1237,8 +1216,7 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
             //check if device found
             if( infos.size()>0 )
             {
-                returnval["error"] = 0;
-                returnval["msg"] = "";
+                errorMessage = "";
 
                 deviceType = infos["type"].asString();
                 //switch according to specific device type
@@ -1287,19 +1265,23 @@ qpid::types::Variant::Map AgoMySensors::commandHandler(qpid::types::Variant::Map
                 {
                     //unhandled case
                     AGO_ERROR() << "Unhandled case for device " << internalid << "[" << deviceType << "]";
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Unhandled case";
+                    errorMessage = "Unhandled case";
                 }
             }
             else
             {
                 //internalid doesn't belong to this controller
-                returnval["error"] = 5;
-                returnval["msg"] = "Unhandled internalid";
+                errorMessage = "Unhandled internalid";
             }
         }
     }
-    return returnval;
+
+    if( errorMessage.length()>0 )
+    {
+        return responseFailed(errorMessage);
+    }
+
+    return responseSuccess(returnval);
 }
 
 /**
