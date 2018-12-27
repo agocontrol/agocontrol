@@ -255,17 +255,17 @@ function device(agocontrol, obj, uuid) {
         this.updateMediaInfos = function(infos)
         {
             //update cover first only if album is different
-            if( infos.cover && this.album()!=infos.album )
+            if( infos.data.cover && this.album()!=infos.data.album )
             {
-                this.cover('data:image/jpeg;base64,'+infos.cover);
+                this.cover('data:image/jpeg;base64,' + infos.data.cover);
             }
 
             //update other infos
-            if( infos.title && infos.album && infos.artist )
+            if( infos.data.title && infos.data.album && infos.data.artist )
             {
-                this.title(infos.title.substring(0,55));
-                this.album(infos.album);
-                this.artist(infos.artist);
+                this.title(infos.data.title.substring(0,55));
+                this.album(infos.data.album);
+                this.artist(infos.data.artist);
             }
         };
 
