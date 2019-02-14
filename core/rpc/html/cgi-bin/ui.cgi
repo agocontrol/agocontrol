@@ -16,7 +16,7 @@ import json
 import os
 import re
 
-UI_DIR = os.path.join(agoclient.CONFDIR, '/ui')
+UI_DIR = os.path.join(agoclient.CONFDIR, 'ui')
 
 def loadFile(f):
     content = {}

@@ -996,8 +996,7 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
                     setDeviceInfos(device["internalid"].asString(), infos);
                 }
             }
-            returnval["error"] = 0;
-            returnval["msg"] = "";
+            errorMessage = "";
         }
         else
         {
@@ -1091,8 +1090,7 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
             else
             {
                 //invalid command format
-                returnval["error"] = 6;
-                returnval["msg"] = "Invalid command received";
+                errorMessage = "Invalid command received";
             }
         }
         else
@@ -1295,7 +1293,13 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
             returnval["msg"] = "Unhandled internalid";
         }
     }
-    return returnval;
+
+    if( errorMessage.length()>0 )
+    {
+        return responseFailed(errorMessage);
+    }
+
+    return responseSuccess(returnval);
 }
 
 /**

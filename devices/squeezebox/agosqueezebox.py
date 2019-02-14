@@ -199,94 +199,108 @@ def messageHandler(internalid, content):
     #check parameters
     if not content.has_key("command"):
         logging.error('No command specified in content')
-        return None
+        return client.response_unknown_command(message='No command specified')
 
     if internalid==host:
+
         #server command
         if content["command"]=="allon":
             logging.info("Command ALLON: %s" % internalid)
             for player in getPlayers():
                 player.on()
-            return True
+            return client.response_success()
+
         elif content["command"]=="alloff":
             logging.info("Command ALLOFF: %s" % internalid)
             for player in getPlayers():
                 player.off()
-            return True
+            return client.response_success()
+
         elif content["command"]=="displaymessage":
             if content.has_key('line1') and content.has_key('line2') and content.has_key('duration'):
                 logging.info("Command DISPLAYMESSAGE: %s" % internalid)
                 for player in getPlayers():
                     player.display(content['line1'], content['line2'], content['duration'])
-                return True
+                return client.response_success()
             else:
                 logging.error('Missing parameters to command DISPLAYMESSAGE')
-                return False
+                return client.response_missing_parameters(data={'command': 'displaymessage', 'params': ['line1', 'line2', 'duration']})
 
         #unhandled command
         logging.warn('Unhandled server command')
-        return False
+        return client.response_unknown_command(message='Unhandled server command', data=content["command"])
+
     else:
+
         #player command
         #get player
         player = getPlayer(internalid)
         logging.info('Found player: %s' % player)
         if not player:
             logging.error('Player %s not found!' % internalid)
-            return False
+            return client.response_failed('Player "%s" not found!' % internalid)
     
         if content["command"] == "on":
             logging.info("Command ON: %s" % internalid)
             player.on()
-            return True
+            return client.response_success()
+
         elif content["command"] == "off":
             logging.info("Command OFF: %s" % internalid)
             player.off()
-            return True
+            return client.response_success()
+
         elif content["command"] == "play":
             logging.info("Command PLAY: %s" % internalid)
             player.play()
-            return True
+            return client.response_success()
+
         elif content["command"] == "pause":
             logging.info("Command PAUSE: %s" % internalid)
             player.pause()
-            return True
+            return client.response_success()
+
         elif content["command"] == "stop":
             logging.info("Command STOP: %s" % internalid)
             player.stop()
-            return True
+            return client.response_success()
+
         elif content["command"] == "next":
             logging.info("Command NEXT: %s" % internalid)
             player.next()
-            return True
+            return client.response_success()
+
         elif content["command"] == "previous":
             logging.info("Command PREVIOUS: %s" % internalid)
             player.prev()
-            return True
+            return client.response_success()
+
         elif content["command"] == "setvolume":
             logging.info("Command SETVOLUME: %s" % internalid)
             if content.has_key('volume'):
                 player.set_volume(content['volume'])
-                return True
+                return client.response_success()
             else:
                 logging.error('Missing parameter "volume" to command SETVOLUME')
-                return False
+                return client.response_missing_parameters(data={'command': 'setvolume', 'params': ['volume']})
+
         elif content["command"] == "displaymessage":
             if content.has_key('line1') and content.has_key('line2') and content.has_key('duration'):
                 logging.info("Command DISPLAYMESSAGE: %s" % internalid)
                 player.display(content['line1'], content['line2'], content['duration'])
-                return True
+                return client.response_success()
             else:
                 logging.error('Missing parameters to command DISPLAYMESSAGE')
-                return False
+                return client.response_missing_parameters(data={'command': 'displaymessage', 'params': ['line1', 'line2', 'duration']})
+                
         elif content["command"] == "mediainfos":
             infos = get_media_infos(internalid, None)
             logging.info(infos)
-            return infos
+            return client.response_success(infos)
 
         #unhandled device command
         logging.warn('Unhandled device command')
-        return False
+        return client.response_unknown_command(message='Unhandled device command', data=content["command"])
 
 
 #init
