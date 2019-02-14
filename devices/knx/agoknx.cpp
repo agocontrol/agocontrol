@@ -255,9 +255,9 @@ void AgoKnx::listener() {
                         } else if (type == "windspeed") {
                             agoConnection->emitEvent(uuid, "event.environment.windspeedchanged", tl.getFloatData(), "m/s");
                         } else if (type == "energy") {
-                            agoConnection->emitEvent(uuid, "event.environment.energychanged", tl.getFloatData(), "kWh");
+                            agoConnection->emitEvent(uuid, "event.environment.energychanged", tl.getIntData(), "kWh");
                         } else if (type == "power") {
-                            agoConnection->emitEvent(uuid, "event.environment.powerchanged", tl.getFloatData(), "kWh");
+                            agoConnection->emitEvent(uuid, "event.environment.powerchanged", tl.getFloatData(), "kW");
                         } else if (type == "flow") {
                             agoConnection->emitEvent(uuid, "event.environment.flowchanged", tl.getFloatData(), "l/h");
                         } else if (type == "counter") {
