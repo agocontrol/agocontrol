@@ -90,7 +90,7 @@ bool AgoKnx::loadDevicesXML(fs::path &filename, Json::Value& _deviceMap) {
 
     AGO_DEBUG() << "trying to open device file: " << filename;
     returncode = devicesFile.LoadFile(filename.c_str());
-    if (returncode != XML_NO_ERROR) {
+    if (returncode != XML_SUCCESS) {
         AGO_ERROR() << "error loading XML file, code: " << returncode;
         return false;
     }
@@ -452,11 +452,11 @@ Json::Value AgoKnx::commandHandler(const Json::Value& content) {
             std::string etsdata = content["filepath"].asString();
             AGO_TRACE() << "parse ets export request:" << etsdata;
             /*
-            if (etsExport.Parse(etsdata.c_str()) != XML_NO_ERROR)
+            if (etsExport.Parse(etsdata.c_str()) != XML_SUCCESS)
                 return responseFailed("Failed to parse XML input data");
             */
             int returncode = etsExport.LoadFile(etsdata.c_str());
-            if (returncode != XML_NO_ERROR) {
+            if (returncode != XML_SUCCESS) {
                 AGO_ERROR() << "error loading XML file '" << etsdata << "', code: " << returncode;
                 return responseFailed("Failed to parse XML input data");
             }
