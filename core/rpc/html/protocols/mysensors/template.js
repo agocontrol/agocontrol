@@ -51,9 +51,21 @@ function MySensors(devices, agocontrol)
 
         self.agocontrol.sendCommand(content, function(res)
         {
-            if( !res.error )
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
             {
-                notif.success('#sp');
+                if( res.result.error==0 )
+                {
+                    notif.success('#sp');
+                }
+                else 
+                {
+                    //error occured
+                    notif.error(res.result.msg);
+                }
+            }
+            else
+            {
+                notif.fatal('#nr', 0);
             }
         });
     };
@@ -67,9 +79,13 @@ function MySensors(devices, agocontrol)
 
         self.agocontrol.sendCommand(content, function(res)
         {
-            if( !res.error )
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
             {
                 self.port(res.result.port);
+            }
+            else
+            {
+                notif.fatal('#nr', 0);
             }
         });
     };
@@ -85,9 +101,13 @@ function MySensors(devices, agocontrol)
     
             self.agocontrol.sendCommand(content, function(res)
             {
-                if( !res.error )
+                if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
                 {
                     notif.success('#rc');
+                }
+                else
+                {
+                    notif.fatal('#nr', 0);
                 }
             });
         }
@@ -105,9 +125,13 @@ function MySensors(devices, agocontrol)
     
             self.agocontrol.sendCommand(content, function(res)
             {
-                if( !res.error )
+                if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
                 {
                     notif.success('#rc');
+                }
+                else
+                {
+                    notif.fatal('#nr', 0);
                 }
             });
         }
@@ -122,9 +146,13 @@ function MySensors(devices, agocontrol)
 
         self.agocontrol.sendCommand(content, function(res)
         {
-            if( !res.error )
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
             {
                 self.devices(res.result.devices);
+            }
+            else
+            {
+                notif.fatal('#nr', 0);
             }
         });
     };
@@ -141,13 +169,24 @@ function MySensors(devices, agocontrol)
     
             self.agocontrol.sendCommand(content, function(res)
             {
-                if( !res.error )
+                if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
                 {
-                    notif.success('#ds');
-
-                    //refresh devices list
-                    self.getDevices();
-                    self.getCounters();
+                    if( res.result.error==0 )
+                    {
+                        notif.success('#ds');
+                        //refresh devices list
+                        self.getDevices();
+                        self.getCounters();
+                    }
+                    else 
+                    {
+                        //error occured
+                        notif.error(res.result.msg);
+                    }
+                }
+                else
+                {
+                    notif.fatal('#nr', 0);
                 }
             });
         }
@@ -163,12 +202,16 @@ function MySensors(devices, agocontrol)
         self.agocontrol.sendCommand(content, function(res)
         {
             var counters = [];
-            if( !res.error )
+            if( res!==undefined && res.result!==undefined && res.result!=='no-reply')
             {
                 for( device in res.result.counters )
                 {
                     counters.push(res.result.counters[device]);
                 }
+            }
+            else
+            {
+                notif.fatal('#nr', 0);
             }
             self.counters(counters);
         });
