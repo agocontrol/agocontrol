@@ -76,7 +76,7 @@ bool AgoDmx::loadChannels(std::string filename, Json::Value& _channelMap) {
 
     AGO_INFO() << "trying to open channel file: " << filename;
     returncode = channelsFile.LoadFile(filename.c_str());
-    if (returncode != XML_NO_ERROR) {
+    if (returncode != XML_SUCCESS) {
         AGO_ERROR() << "error loading XML file, code: " << returncode;
         return false;
     }
