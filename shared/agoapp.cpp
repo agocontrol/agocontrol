@@ -14,9 +14,6 @@
 #include "agoclient.h"
 #include "options_validator.hpp"
 
-using namespace qpid::types;
-using namespace qpid::messaging;
-
 using namespace agocontrol::log;
 using namespace boost_options_validator;
 namespace po = boost::program_options;
@@ -152,7 +149,7 @@ void AgoApp::setup() {
     //Send event app is started
     //This is useful to monitor app (most of the time systemd restarts app before agosystem find it has crashed)
     //And it fix enhancement #143
-    qpid::types::Variant::Map content;
+    Json::Value content;
     content["process"] = appShortName;
     //no internalid specified, processname is in event content
     agoConnection->emitEvent("", "event.monitoring.processstarted", content);

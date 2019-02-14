@@ -4,83 +4,89 @@ project (agocontrol)
 # The version number.
 set (AGOCONTROL_VERSION 0.1)
 
+set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+
 find_package(PkgConfig REQUIRED)
 
-# FreeBSD have some differences in building, mainly 
-# that non-base libs/includes are located in /usr/local.
-IF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-	set (FREEBSD YES)
-	set (LOCALDIR /usr/local)
-	include_directories("${LOCALDIR}/include")
-	LINK_DIRECTORIES(${LOCALDIR}/lib)
-ELSE (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
-	set (LOCALDIR /usr)
-ENDIF (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+include (CheckIncludeFiles)
 
-# See README.OSX
-IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-	include_directories("./local-include")
-ENDIF ()
+include(cmake/AgoFileHelpers.cmake)
+
+find_package(PythonNaive)
+
+
+set (INSTALL_PREFIX /usr)
+
+# FreeBSD have some differences in building, mainly
+# that non-base libs/includes are located in /usr/local.
+if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+    set (OS_FREEBSD YES)
+    set (INSTALL_PREFIX /usr/local)
+    include_directories("${INSTALL_PREFIX}/include")
+    link_directories(${INSTALL_PREFIX}/lib)
+elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
+    set (OS_LINUX YES)
+    set (INSTALL_PREFIX /usr)
+elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    # See README.OSX. Does not actually build.
+    set (OS_DARWIN YES)
+    include_directories("./local-include")
+else()
+    message(STATUS "Unknown OS ${CMAKE_SYSTEM_NAME}, expect issues!")
+endif()
 
 # some configurable values
-IF (FREEBSD)
-	set (BINDIR ${LOCALDIR}/bin CACHE STRING "Directory to store Binaries")
-	set (ETCDIR ${LOCALDIR}/etc CACHE STRING "Directory for system-wide settings")
-	set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
-	set (CONFDIR ${ETCDIR}/agocontrol CACHE STRING "Directory for agocontrol settings")
-	set (INCDIR ${LOCALDIR}/include/agocontrol CACHE STRING "Directory for include files")
-	# XXX: Not sure what "variable" data is, but only .sql files are installed currently,
-	# and those should be stored in share.
-	set (DATADIR ${LOCALDIR}/share/agocontrol CACHE STRING "Directory for variable data")
-	set (LOCALSTATEDIR ${LOCALDIR}/var/agocontrol CACHE STRING "Directory for state info")
-	set (HTMLDIR ${LOCALDIR}/share/agocontrol/html CACHE STRING "Directory for rpc HTML files")
-	set (AUGEASLENSEDIR ${LOCALDIR}/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
-ELSE (FREEBSD)
-	set (BINDIR /opt/agocontrol/bin CACHE STRING "Directory to store Binaries")
-	set (ETCDIR /etc CACHE STRING "Directory for system-wide settings")
-	set (LIBDIR /usr/lib CACHE STRING "Directory for libraries")
-	set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
-	set (INCDIR /usr/include/agocontrol CACHE STRING "Directory for include files")
-	set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
-	set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
-	set (HTMLDIR /opt/agocontrol/html CACHE STRING "Directory for rpc HTML files")
-	set (AUGEASLENSEDIR /usr/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
-	set (PYTHON2DIST /usr/lib/python2.7/dist-packages CACHE STRING "Directory for Python 2.7 packages")
-	set (PYTHON3DIST /usr/lib/python3/dist-packages CACHE STRING "Directory for Python 3 packages")
-	set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
-ENDIF (FREEBSD)
+if (OS_FREEBSD)
+    set (BASEDIR ${INSTALL_PREFIX}/agocontrol CACHE STRING "Directory to store agocontrol installation")
+    set (ETCDIR ${INSTALL_PREFIX}/etc CACHE STRING "Directory for system-wide settings")
+    set (CONFDIR ${ETCDIR}/agocontrol CACHE STRING "Directory for agocontrol settings")
+    # XXX: Not sure what "variable" data is, but only .sql files are installed currently,
+    # and those should be stored in share.
+    set (DATADIR ${INSTALL_PREFIX}/share/agocontrol CACHE STRING "Directory for variable data")
+    set (LOCALSTATEDIR ${INSTALL_PREFIX}/var/agocontrol CACHE STRING "Directory for state info")
+else()
+    set (BASEDIR /opt/agocontrol CACHE STRING "Directory to store agocontrol installation")
+    set (ETCDIR /etc CACHE STRING "Directory for system-wide settings")
+    set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
+    set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
+    set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
+    set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
+endif()
 
-set_property( DIRECTORY
-	APPEND PROPERTY
-	COMPILE_OPTIONS
-	-Wall -DBOOST_LOG_DYN_LINK)
+# Common structure
+set (BINDIR ${BASEDIR}/bin CACHE STRING "Directory to store Binaries")
+set (LIBDIR ${INSTALL_PREFIX}/lib CACHE STRING "Directory for libraries")
+set (INCDIR ${INSTALL_PREFIX}/include/agocontrol CACHE STRING "Directory for include files")
+set (HTMLDIR ${BASEDIR}/html CACHE STRING "Directory for rpc HTML files")
+set (AUGEASLENSEDIR ${INSTALL_PREFIX}/share/augeas/lenses CACHE STRING "Directory for augeas lenses")
+
+set (PYTHON2DIST ${INSTALL_PREFIX}/${Python2_SITELIB} CACHE STRING "Directory for Python 2.7 packages")
+set (PYTHON3DIST ${INSTALL_PREFIX}/${Python3_SITELIB} CACHE STRING "Directory for Python 3 packages")
 
 # Enable C++11
 if (CMAKE_VERSION VERSION_LESS "3.1")
-	# Used on Debian Jessie builders
+    # Used on Debian Jessie builders
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-		# Note: must ont set for CFLAGS!
+        # Note: must ont set for CFLAGS!
         set (CMAKE_CXX_FLAGS "-std=gnu++11 ${CMAKE_CXX_FLAGS}")
     endif ()
 else ()
-	set (CMAKE_CXX_STANDARD 11)
+    set (CMAKE_CXX_STANDARD 11)
 endif ()
 
-
 set_property( DIRECTORY
-	APPEND PROPERTY
-	COMPILE_OPTIONS
-	-DBOOST_FILESYSTEM_VERSION=3
-	-DBOOST_FILESYSTEM_NO_DEPRECATED
-	)
+    APPEND PROPERTY
+    COMPILE_OPTIONS
+    -Wall
+    -DBOOST_LOG_DYN_LINK
+    -DBOOST_FILESYSTEM_VERSION=3
+    -DBOOST_FILESYSTEM_NO_DEPRECATED
 
-# Workaround for bug in Boost on Clang which tries to add pragma warning group keyward-warning
-# which does not exists in clang:
-# http://lists.boost.org/Archives/boost/2016/07/230350.php
-set_property( DIRECTORY
-	APPEND PROPERTY
-	COMPILE_OPTIONS
-	-Wno-error=unknown-pragmas)
+    # Workaround for bug in Boost on Clang which tries to add pragma warning group keyward-warning
+    # which does not exists in clang:
+    # http://lists.boost.org/Archives/boost/2016/07/230350.php
+    -Wno-error=unknown-pragmas
+    )
 
 # add the binary tree to the search path for include files
 # so that we will find version.h and other configured files
@@ -91,60 +97,95 @@ include_directories("${PROJECT_SOURCE_DIR}/shared")
 # We have an amalgamated version of jsoncpp, ensure we can include <json/json.h>
 include_directories("${PROJECT_SOURCE_DIR}/shared/jsoncpp")
 
-# fix augeas bug
-include_directories("${LOCALDIR}/include/libxml2")
+macro(log_pkg_found PKG_NAME PKG_FOUND PKG_VERSION NOTFOUND_LEVEL NOTFOUND_EXTRA)
+    if("${PKG_FOUND}" AND "${PKG_VERSION}" STREQUAL "")
+        message(STATUS "${PKG_NAME} found")
+    elseif(${PKG_FOUND})
+        message(STATUS "${PKG_NAME} version: ${PKG_VERSION}")
+    else()
+        message(${NOTFOUND_LEVEL} "${PKG_NAME} not found${NOTFOUND_EXTRA}")
+    endif()
+endmacro()
 
-set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-
-find_package(CppDb REQUIRED)
-if (CPPDB_FOUND)
-	include_directories(${CPPDB_INCLUDE_DIRS})
-else()
-	IF (NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
-		# TEMP: Disable this requirement on OS X, not in brew.
-		message(FATAL_ERROR "Could not find cppdb")
-	endif ()
-endif (CPPDB_FOUND)
 
 find_package(Threads REQUIRED)
 find_package(Boost COMPONENTS system filesystem thread program_options date_time regex chrono REQUIRED)
-
-pkg_check_modules(YAML_CPP yaml-cpp)
-if (NOT YAML_CPP_FOUND)
-    # FreeBSD user might also have 0.3 installed.
-    pkg_check_modules(YAML_CPP REQUIRED yaml-cpp03)
+find_package(Boost COMPONENTS log)
+if(Boost_LOG_FOUND)
+    ADD_DEFINITIONS(-DHAVE_BOOST_LOG)
+else()
+    find_package(Boost COMPONENTS REQUIRED date_time)
 endif()
 
+pkg_search_module(YAML_CPP REQUIRED yaml-cpp yaml-cpp03)
+log_pkg_found(yamlcpp "${YAML_CPP_FOUND}" "${YAML_CPP_VERSION}" FATAL_ERROR "")
+
+pkg_search_module(AUGEAS REQUIRED augeas)
+log_pkg_found(augeas "${AUGEAS_FOUND}" "${AUGEAS_VERSION}" FATAL_ERROR "")
+
+pkg_search_module(SQLITE REQUIRED sqlite3)
+log_pkg_found(augeas "${SQLITE_FOUND}" "${SQLITE_VERSION}" FATAL_ERROR "")
+
+# Mongoose may use openssl
+pkg_search_module(OPENSSL openssl)
+log_pkg_found(openssl "${OPENSSL_FOUND}" "${OPENSSL_VERSION}" STATUS ", building without https support")
+
+# Linux/debian has lua5.x, FreeBSD has lua-5.x, fedora has just lua
+pkg_search_module(LUA lua5.3 lua-5.3 lua5.2 lua-5.2 lua5.1 lua-5.1 lua)
+log_pkg_found(lua "${LUA_FOUND}" "${LUA_VERSION}" WARNING ", parts of core will not be built")
+
+find_package(CppDb)
+log_pkg_found(cppdb "${CPPDB_FOUND}" "" WARNING ", parts of core will not be built")
+
+pkg_search_module(LIBRRD librrd)
+log_pkg_found(librrd "${LIBRRD_FOUND}" "${LIBRRD_VERSION}" WARNING ", parts of core will not be built")
+
+if(OS_LINUX)
+    # used by agosystem
+    pkg_search_module(LIBPROCPS REQUIRED libprocps)
+    log_pkg_found(libprocps "${LIBPROCPS_FOUND}" "${LIBPROCPS_VERSION}" WARNING "")
+
+    find_package(LinuxI2C)
+endif()
+
+pkg_search_module(LIBCURL libcurl)
+log_pkg_found(libcurl "${LIBCURL_FOUND}" "${LIBCURL_VERSION}" STATUS "")
+
+find_package(OpenCV)
+log_pkg_found(OpenCV "${OpenCV_FOUND}" "${OpenCV_VERSION}" STATUS "")
+
+find_package(OpenZWave)
+log_pkg_found(OpenZWave "${OpenZWave_FOUND}" "${OpenZWave_VERSION}" STATUS "")
+
+find_package(EibClient)
+log_pkg_found(EibClient "${EibClient_FOUND}" "${EibClient_VERSION}" STATUS "")
+
+pkg_check_modules(OpenLighting libola)
+log_pkg_found(OpenLighting "${OpenLighting_FOUND}" "${OpenLighting_VERSION}" STATUS "")
 
 include_directories(${Boost_INCLUDE_DIRS})
+
+find_program(INTLTOOL_MERGE intltool-merge)
+if(NOT INTLTOOL_MERGE)
+    message(FATAL_ERROR "Program 'intltool-merge' is required to build web UI")
+endif()
 
 # Fix for Boost < 1.56 built without C++, when we build with C++11
 # https://stackoverflow.com/questions/35007134/c-boost-undefined-reference-to-boostfilesystemdetailcopy-file
 # https://chaste.cs.ox.ac.uk/trac/wiki/ChasteGuides/ModernCpp#Boostscopedenumsforboost1.56
-IF(Boost_VERSION VERSION_LESS 105600)
-	message(STATUS "Boost version < 1.56, building with BOOST_NO_CXX11_SCOPED_ENUMS")
-	set_property( DIRECTORY
-		APPEND PROPERTY
-		COMPILE_OPTIONS
-		-DBOOST_NO_CXX11_SCOPED_ENUMS
-	)
-ENDIF()
+if(Boost_VERSION VERSION_LESS 105600)
+    message(STATUS "Boost version < 1.56, building with BOOST_NO_CXX11_SCOPED_ENUMS")
+    set_property( DIRECTORY
+        APPEND PROPERTY
+        COMPILE_OPTIONS
+        -DBOOST_NO_CXX11_SCOPED_ENUMS
+    )
+endif()
 
-FIND_PACKAGE(Boost COMPONENTS log)
-IF (Boost_LOG_FOUND)
-	ADD_DEFINITIONS(-DHAVE_BOOST_LOG)
-ELSE()
-	FIND_PACKAGE(Boost COMPONENTS REQUIRED date_time)
-ENDIF()
+find_package(CppUnit)
+log_pkg_found(CppUnit "${CPPUNIT_FOUND}" "${CPPUNIT_VERSION}" STATUS ", not building unit-tests")
 
-FIND_PACKAGE(CppUnit)
-IF (CPPUNIT_FOUND)
-    message(STATUS "CppUnit found, building unit-tests by default")
-    set(BUILD_TESTS_DEFAULT ON)
-ELSE()
-    message(STATUS "CppUnit not found, NOT building unit-tests by default")
-    set(BUILD_TESTS_DEFAULT OFF)
-ENDIF()
+check_include_files("xlocale.h" HAVE_XLOCALE_H)
 
 set (ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
 set (LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${LIBDIR}")
@@ -153,56 +194,59 @@ set (RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${BINDIR}")
 get_filename_component(CMAKE_CURRENT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
 get_filename_component(CMAKE_CURRENT_BINARY_DIR_REAL "${CMAKE_CURRENT_BINARY_DIR}" REALPATH)
 if ("${CMAKE_CURRENT_SOURCE_DIR_REAL}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR_REAL}")
-	set (IN_SOURCE_BUILD TRUE)
-	message(WARNING "In-Source build is not recommended. Instead, create a separate directory and run cmake /path/to/source")
+    set (IN_SOURCE_BUILD TRUE)
+    message(WARNING "In-Source build is not recommended. Instead, create a separate directory and run cmake /path/to/source")
 else()
-	set (IN_SOURCE_BUILD FALSE)
+    set (IN_SOURCE_BUILD FALSE)
 endif()
+
+# Shared for all
+install(DIRECTORY DESTINATION ${BINDIR})
+
+# add sub directories
+option(BUILD_SHARED "Build the agoclient shared library" ON)
+if (BUILD_SHARED)
+  add_subdirectory (shared)
+endif()
+
+option(BUILD_TESTS "Build the unittests" ON)
+if (BUILD_TESTS AND CPPUNIT_FOUND)
+    # These are only for Shared right now, so add them right after.
+    enable_testing()
+    add_subdirectory (unittest)
+endif()
+
+option(BUILD_CORE "Build the CORE" ON)
+if (BUILD_CORE)
+  add_subdirectory (core)
+  install (FILES data/inventory.sql data/datalogger.sql DESTINATION ${DATADIR})
+endif()
+
+option(BUILD_GATEWAYS "Build the gateways" ON)
+if (BUILD_GATEWAYS)
+  add_subdirectory (gateways)
+endif()
+
+option(BUILD_DEVICES "Build the devices" ON)
+if (BUILD_DEVICES)
+  add_subdirectory (devices)
+endif()
+
+option(BUILD_CONF "Build the configs" ON)
+if (BUILD_CONF)
+  add_subdirectory (conf)
+endif()
+
+option(BUILD_SCRIPTS "Build the scripts" ON)
+if (BUILD_SCRIPTS)
+  add_subdirectory (scripts)
+endif()
+
 
 # configure a header file to pass some of the CMake settings
 # to the source code
 configure_file (
-		"${PROJECT_SOURCE_DIR}/build_config.h.in"
-		"${PROJECT_BINARY_DIR}/build_config.h"
-		@ONLY
+        "${PROJECT_SOURCE_DIR}/build_config.h.in"
+        "${PROJECT_BINARY_DIR}/build_config.h"
+        @ONLY
 )
-
-# add sub directories
-OPTION(BUILD_SHARED "Build the agoclient shared library" ON)
-if (BUILD_SHARED)
-  add_subdirectory (shared) 
-endif()
-
-OPTION(BUILD_TESTS "Build the unittests" ${BUILD_TESTS_DEFAULT})
-if (BUILD_TESTS)
-	# These are only for Shared right now, so add them right after.
-	enable_testing()
-	add_subdirectory (unittest)
-endif()
-
-OPTION(BUILD_CORE "Build the CORE" ON)
-if (BUILD_CORE)
-  add_subdirectory (core) 
-  install (PROGRAMS gateways/agomeloware.py DESTINATION ${BINDIR})
-  install (FILES data/inventory.sql data/datalogger.sql DESTINATION ${DATADIR})
-endif()
-
-OPTION(BUILD_GATEWAYS "Build the gateways" ON)
-if (BUILD_GATEWAYS)
-  add_subdirectory (gateways) 
-endif()
-
-OPTION(BUILD_DEVICES "Build the devices" ON)
-if (BUILD_DEVICES)
-  add_subdirectory (devices) 
-endif()
-
-OPTION(BUILD_CONF "Build the configs" ON)
-if (BUILD_CONF)
-  add_subdirectory (conf) 
-endif()
-
-OPTION(BUILD_SCRIPTS "Build the scripts" ON)
-if (BUILD_SCRIPTS)
-  add_subdirectory (scripts)
-endif()

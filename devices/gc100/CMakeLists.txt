@@ -1,3 +1,3 @@
 cmake_minimum_required (VERSION 3.0)
 
-install (PROGRAMS agogc100.py DESTINATION ${BINDIR})
+AgoPythonProgram(gc100 DESCRIPTION "ago control gc100 interface")

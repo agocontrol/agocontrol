@@ -11,7 +11,7 @@
 
 namespace fs = ::boost::filesystem;
 
-bool Inventory::createTableIfNotExist(std::string tablename, std::string createquery) {
+bool Inventory::createTableIfNotExist(const std::string& tablename, const std::string& createquery) {
     std::string query = "SELECT name FROM sqlite_master WHERE type='table' AND name = ?";
     if (getFirst(query.c_str(), 1, tablename.c_str()) != tablename) {
         AGO_INFO() << "Creating missing table '" << tablename << "'";
@@ -41,39 +41,35 @@ Inventory::Inventory(const fs::path &dbfile) {
 }
 
 Inventory::~Inventory() {
-    close();
-}
-
-void Inventory::close() {
     if(db) {
         sqlite3_close(db);
         db = NULL;
     }
 }
 
-std::string Inventory::getDeviceName(std::string uuid) {
+std::string Inventory::getDeviceName(const std::string& uuid) {
     std::string query = "SELECT name FROM devices WHERE uuid = ?";
     return getFirst(query.c_str(), 1, uuid.c_str());
 }
 
-std::string Inventory::getDeviceRoom(std::string uuid) {
+std::string Inventory::getDeviceRoom(const std::string& uuid) {
     std::string query = "SELECT room FROM devices WHERE uuid = ?";
     return getFirst(query.c_str(), 1, uuid.c_str());
 }
 
-bool Inventory::isDeviceRegistered(std::string uuid) {
+bool Inventory::isDeviceRegistered(const std::string& uuid) {
     std::string query = "SELECT name FROM devices WHERE uuid = ?";
     bool found = false;
     getFirstFound(query.c_str(), found, 1, uuid.c_str());
     return found;
 }
 
-void Inventory::deleteDevice(std::string uuid) {
+void Inventory::deleteDevice(const std::string& uuid) {
     std::string query = "DELETE FROM devices WHERE uuid = ?";
     getFirst(query.c_str(), 1, uuid.c_str());
 }
 
-bool Inventory::setDeviceName(std::string uuid, std::string name) {
+bool Inventory::setDeviceName(const std::string& uuid, const std::string& name) {
     if (!isDeviceRegistered(uuid)) {
         std::string query = "INSERT INTO devices (name, uuid) VALUES (?, ?)";
         AGO_DEBUG() << "creating device: " << query.c_str();
@@ -86,12 +82,12 @@ bool Inventory::setDeviceName(std::string uuid, std::string name) {
     return getDeviceName(uuid) == name;
 }
 
-std::string Inventory::getRoomName(std::string uuid) {
+std::string Inventory::getRoomName(const std::string& uuid) {
     std::string query = "SELECT name from rooms WHERE uuid = ?";
     return getFirst(query.c_str(), 1, uuid.c_str());
 }
 
-bool Inventory::setRoomName(std::string uuid, std::string name) {
+bool Inventory::setRoomName(const std::string& uuid, const std::string& name) {
     if (getRoomName(uuid) == "") { // does not exist, create
         std::string query = "INSERT INTO rooms (name, uuid) VALUES (?, ?)";
         AGO_DEBUG() << "creating room: " << query.c_str();
@@ -103,19 +99,19 @@ bool Inventory::setRoomName(std::string uuid, std::string name) {
     return getRoomName(uuid) == name;
 } 
 
-bool Inventory::setDeviceRoom(std::string deviceuuid, std::string roomuuid) {
+bool Inventory::setDeviceRoom(const std::string& deviceuuid, const std::string& roomuuid) {
     std::string query = "UPDATE devices SET room = ? WHERE uuid = ?";
     getFirst(query.c_str(), 2, roomuuid.c_str(), deviceuuid.c_str());
     return getDeviceRoom(deviceuuid) == roomuuid;
 }
 
-std::string Inventory::getDeviceRoomName(std::string uuid) {
+std::string Inventory::getDeviceRoomName(const std::string& uuid) {
     std::string query = "SELECT room FROM devices WHERE uuid = ?";
     return getRoomName(getFirst(query.c_str(), 1, uuid.c_str()));
 } 
 
-Variant::Map Inventory::getRooms() {
-    Variant::Map result;
+Json::Value Inventory::getRooms() {
+    Json::Value result;
     sqlite3_stmt *stmt;
     int rc;
 
@@ -125,7 +121,7 @@ Variant::Map Inventory::getRooms() {
         return result;
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        Variant::Map entry;
+        Json::Value entry;
         const char *roomname = (const char*)sqlite3_column_text(stmt, 1);
         const char *location = (const char*)sqlite3_column_text(stmt, 2);
         const char *uuid = (const char*)sqlite3_column_text(stmt, 0);
@@ -150,7 +146,7 @@ Variant::Map Inventory::getRooms() {
     return result;
 }
 
-bool Inventory::deleteRoom(std::string uuid) {
+bool Inventory::deleteRoom(const std::string& uuid) {
     getFirst("BEGIN");
     std::string query = "update devices set room = '' WHERE room = ?";
     getFirst(query.c_str(), 1, uuid.c_str());
@@ -223,12 +219,12 @@ std::string Inventory::getFirstArgs(const char *query, bool &found, int n, va_li
     return result;
 }
 
-std::string Inventory::getFloorplanName(std::string uuid) {
+std::string Inventory::getFloorplanName(const std::string& uuid) {
     std::string query = "SELECT name from floorplans WHERE uuid = ?";
     return getFirst(query.c_str(), 1, uuid.c_str());
 }
 
-bool Inventory::setFloorplanName(std::string uuid, std::string name) {
+bool Inventory::setFloorplanName(const std::string& uuid, const std::string& name) {
     if (getFloorplanName(uuid) == "") { // does not exist, create
         std::string query = "insert into floorplans (name, uuid) VALUES (?, ?)";
         AGO_DEBUG() << "creating floorplan: " << query;
@@ -241,7 +237,7 @@ bool Inventory::setFloorplanName(std::string uuid, std::string name) {
     return getFloorplanName(uuid) == name;
 }
 
-bool Inventory::setDeviceFloorplan(std::string deviceuuid, std::string floorplanuuid, int x, int y) {
+bool Inventory::setDeviceFloorplan(const std::string& deviceuuid, const std::string& floorplanuuid, int x, int y) {
     std::stringstream xstr, ystr;
     xstr << x;
     ystr << y;
@@ -264,13 +260,13 @@ bool Inventory::setDeviceFloorplan(std::string deviceuuid, std::string floorplan
 /**
  * Delete device from floorplan
  */
-void Inventory::delDeviceFloorplan(std::string deviceuuid, std::string floorplanuuid)
+void Inventory::delDeviceFloorplan(const std::string& deviceuuid, const std::string& floorplanuuid)
 {
     std::string query = "delete from devicesfloorplan WHERE floorplan = ? and device = ?";
     getFirst(query.c_str(), 2, floorplanuuid.c_str(), deviceuuid.c_str());
 }
 
-bool Inventory::deleteFloorplan(std::string uuid) {
+bool Inventory::deleteFloorplan(const std::string& uuid) {
     getFirst("BEGIN");
     std::string query = "delete from devicesfloorplan WHERE floorplan = ?";
     getFirst(query.c_str(), 1, uuid.c_str());
@@ -285,8 +281,8 @@ bool Inventory::deleteFloorplan(std::string uuid) {
     }
 }
 
-Variant::Map Inventory::getFloorplans() {
-    Variant::Map result;
+Json::Value Inventory::getFloorplans() {
+    Json::Value result;
     sqlite3_stmt *stmt;
     int rc;
 
@@ -297,7 +293,7 @@ Variant::Map Inventory::getFloorplans() {
     }
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        Variant::Map entry;
+        Json::Value entry;
         const char *floorplanname = (const char*)sqlite3_column_text(stmt, 1);
         const char *uuid = (const char*)sqlite3_column_text(stmt, 0);
         if (floorplanname != NULL) {
@@ -317,7 +313,7 @@ Variant::Map Inventory::getFloorplans() {
         }
         sqlite3_bind_text(stmt2, 1, uuid, -1, NULL);
         while (sqlite3_step(stmt2) == SQLITE_ROW) {
-            Variant::Map device;
+            Json::Value device;
             const char *deviceuuid = (const char*)sqlite3_column_text(stmt2, 0);
             const char *x = (const char*)sqlite3_column_text(stmt2, 1);
             const char *y = (const char*)sqlite3_column_text(stmt2, 2);
@@ -338,17 +334,17 @@ Variant::Map Inventory::getFloorplans() {
     return result;
 }
 
-std::string Inventory::getLocationName(std::string uuid) {
+std::string Inventory::getLocationName(const std::string& uuid) {
     std::string query = "SELECT name from locations WHERE uuid = ?";
     return getFirst(query.c_str(), 1, uuid.c_str());
 }
 
-std::string Inventory::getRoomLocation(std::string uuid) {
+std::string Inventory::getRoomLocation(const std::string& uuid) {
     std::string query = "SELECT location from rooms WHERE uuid = ?";
     return getFirst(query.c_str(), 1, uuid.c_str());
 }
 
-bool Inventory::setLocationName(std::string uuid, std::string name) {
+bool Inventory::setLocationName(const std::string& uuid, const std::string& name) {
     if (getLocationName(uuid) == "") { // does not exist, create
         std::string query = "insert into locations (name, uuid) VALUES (?, ?)";
         AGO_DEBUG() << "creating location: " << query.c_str();
@@ -361,7 +357,7 @@ bool Inventory::setLocationName(std::string uuid, std::string name) {
     return getLocationName(uuid) == name;
 }
 
-bool Inventory::setRoomLocation(std::string roomuuid, std::string locationuuid) {
+bool Inventory::setRoomLocation(const std::string& roomuuid, const std::string& locationuuid) {
     std::string query = "update rooms set location = ? WHERE uuid = ?";
     getFirst(query.c_str(), 2, locationuuid.c_str(), roomuuid.c_str());
     if (getRoomLocation(roomuuid) == locationuuid) {
@@ -370,7 +366,7 @@ bool Inventory::setRoomLocation(std::string roomuuid, std::string locationuuid) 
     return false;
 }
 
-bool Inventory::deleteLocation(std::string uuid) {
+bool Inventory::deleteLocation(const std::string& uuid) {
     std::string query = "update rooms set location = '' WHERE location = ?";
     getFirst(query.c_str(), 1, uuid.c_str());
     query = "delete from locations WHERE uuid = ?";
@@ -379,8 +375,8 @@ bool Inventory::deleteLocation(std::string uuid) {
     return getLocationName(uuid) == "";
 }
 
-Variant::Map Inventory::getLocations() {
-    Variant::Map result;
+Json::Value Inventory::getLocations() {
+    Json::Value result;
     sqlite3_stmt *stmt;
     int rc;
 
@@ -390,7 +386,7 @@ Variant::Map Inventory::getLocations() {
         return result;
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        Variant::Map entry;
+        Json::Value entry;
         const char *locationname = (const char*)sqlite3_column_text(stmt, 1);
         const char *uuid = (const char*)sqlite3_column_text(stmt, 0);
         if (locationname != NULL) {
@@ -408,35 +404,35 @@ Variant::Map Inventory::getLocations() {
     return result;
 }
 
-bool Inventory::createUser(std::string uuid, std::string username, std::string password, std::string pin, std::string description) {
+bool Inventory::createUser(const std::string& uuid, const std::string& username, const std::string& password, const std::string& pin, const std::string& description) {
     return false;
 }
-bool Inventory::deleteUser(std::string uuid){
+bool Inventory::deleteUser(const std::string& uuid){
     return false;
 }
-bool Inventory::authUser(std::string uuid){
+bool Inventory::authUser(const std::string& uuid){
     return false;
 }
-bool Inventory::setPassword(std::string uuid){
+bool Inventory::setPassword(const std::string& uuid){
     return false;
 }
-bool Inventory::setPin(std::string uuid){
+bool Inventory::setPin(const std::string& uuid){
     return false;
 }
-bool Inventory::setPermission(std::string uuid, std::string permission){
+bool Inventory::setPermission(const std::string& uuid, const std::string& permission){
     return false;
 }
-bool Inventory::deletePermission(std::string uuid, std::string permission){
+bool Inventory::deletePermission(const std::string& uuid, const std::string& permission){
     return false;
 }
-Variant::Map Inventory::getPermissions(std::string uuid){
-    Variant::Map permissions;
+Json::Value Inventory::getPermissions(const std::string& uuid){
+    Json::Value permissions;
     return permissions;
 }
 
 
 #ifdef INVENTORY_TEST
-// gcc -DINVENTORY_TEST inventory.cpp -lqpidtypes -lsqlite3
+// gcc -DINVENTORY_TEST inventory.cpp -lsqlite3
 int main(int argc, char **argv){
     Inventory inv("inventory.db");
     cout << inv.setdevicename("1234", "1235") << endl;

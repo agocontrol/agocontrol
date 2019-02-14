@@ -34,7 +34,7 @@ set (AGODEVICES
   alert
   ipx800
   raspiCamera
-  scheduler
+  schedulerold
   tellstick
   lifx
   knx
@@ -51,50 +51,54 @@ set (AGODEVICES
   MQTT
   NVR
   harmonyhub
+  agoping
 )
 
-FIND_PACKAGE(OpenCV)
-
-IF (NOT OpenCV_FOUND)
+if(NOT OpenCV_FOUND)
     list(REMOVE_ITEM AGODEVICES NVR)
-    MESSAGE(STATUS "OpenCV not found, NOT building NVR device")
+    message(STATUS "OpenCV not found, not building NVR device")
 ENDIF (NOT OpenCV_FOUND)
 
-FIND_PACKAGE(OpenZWave)
-IF (NOT OpenZWave_FOUND)
-	list(REMOVE_ITEM AGODEVICES zwave)
-	MESSAGE(STATUS "OpenZWave not found, NOT building zwave device")
+if(NOT OpenZWave_FOUND)
+    list(REMOVE_ITEM AGODEVICES zwave)
+    message(STATUS "OpenZWave not found, not building zwave device")
 ENDIF ()
 
-FIND_PACKAGE(EibClient)
-IF (NOT EibClient_FOUND)
-	list(REMOVE_ITEM AGODEVICES knx)
-	MESSAGE(STATUS "eibclient not found, NOT building knx device")
+if(NOT EibClient_FOUND)
+    list(REMOVE_ITEM AGODEVICES knx)
+    message(STATUS "eibclient not found, not building knx device")
 ENDIF ()
 
-FIND_PACKAGE(OpenLighting)
-IF (NOT OpenLighting_FOUND)
-	list(REMOVE_ITEM AGODEVICES agodmx)
-	MESSAGE(STATUS "OpenLighting (ola) not found, NOT building agodmx device")
+if(NOT OpenLighting_FOUND)
+    list(REMOVE_ITEM AGODEVICES agodmx)
+    message(STATUS "OpenLighting (ola) not found, not building agodmx device")
 ENDIF ()
 
-IF (FREEBSD)
-	# These does not build on FreeBSD currently
-	list(REMOVE_ITEM AGODEVICES
-		blinkm # linux/i2c-dev.h
-		firmata # S_IRUSR
-		i2c # linux/i2c-dev.h
-		PLCBUS # TCIFLUSH / TCIOFLUSH
-		MySensors # TCIFLUSH / TCIOFLUSH
-		zmcam # error: member access into incomplete type 'struct sockaddr_in'
-	)
-ENDIF (FREEBSD)
+if(NOT HAVE_I2C_SMBUS)
+    list(REMOVE_ITEM AGODEVICES i2c blinkm)
+    message(STATUS "Linux i2c smbus not found, not building i2c & blinkm devices")
+endif()
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/agosimulator.py ${CMAKE_CURRENT_BINARY_DIR}/agosimulator.py COPYONLY)
+if(NOT LIBCURL_FOUND)
+    list(REMOVE_ITEM AGODEVICES zmcam webcam)
+    message(STATUS "libcurl not found, not building zmcam & webcam devices")
+endif()
+
+if(OS_FREEBSD)
+    # These does not build on FreeBSD currently
+    list(REMOVE_ITEM AGODEVICES
+        firmata # S_IRUSR
+        PLCBUS # TCIFLUSH / TCIOFLUSH
+        MySensors # TCIFLUSH / TCIOFLUSH
+        zmcam # error: member access into incomplete type 'struct sockaddr_in'
+    )
+ENDIF (OS_FREEBSD)
+
+AgoPythonProgram(simulator DESCRIPTION "ago control Device simulator")
 
 foreach (device ${AGODEVICES})
     # options what to build
-    OPTION(BUILD_DEVICE_${device} "Build the device ${device}" ON)
+    option(BUILD_DEVICE_${device} "Build the device ${device}" ON)
     if (BUILD_DEVICE_${device})
         add_subdirectory(${device})
     endif()

@@ -1,4 +1,3 @@
-#!/usr/bin/python
 '''ONVIF Client Command Line Interface'''
 
 import re

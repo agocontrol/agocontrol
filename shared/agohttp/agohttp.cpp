@@ -1,4 +1,3 @@
-#include <qpid/messaging/Message.h>
 #include <boost/foreach.hpp>
 
 #include "agolog.h"
@@ -461,18 +460,23 @@ void AgoHttp::addPrefixHandler(const std::string& path, agohttp_url_handler_fn h
     urlPrefixHandlers[path] = handler;
 }
 
-void AgoHttp::addBinding(const std::string& address,
-        const boost::filesystem::path& certFile,
+void AgoHttp::addBinding(const std::string& address
+#if MG_ENABLE_SSL
+        , const boost::filesystem::path& certFile,
         const boost::filesystem::path& keyFile,
-        const boost::filesystem::path& caCertFile) {
+        const boost::filesystem::path& caCertFile
+#endif
+        ) {
     if(state != Stopped)
         throw std::runtime_error("Cannot change settings when running");
 
     HttpBindOptions opts;
     opts.address = address;
+#if MG_ENABLE_SSL
     opts.sslCertFile = certFile.native();
     opts.sslKeyFile = keyFile.native();
     opts.sslCaCertFile = caCertFile.native();
+#endif
     bindings.push_back(opts);
 }
 
@@ -491,6 +495,7 @@ void AgoHttp::start() {
         const char *err;
         bindopts.error_string = &err;
 
+#if MG_ENABLE_SSL
         // If empty, they are ignored.
         if(!opts.sslCertFile.empty())
             bindopts.ssl_cert = opts.sslCertFile.c_str();
@@ -498,6 +503,7 @@ void AgoHttp::start() {
             bindopts.ssl_key = opts.sslKeyFile.c_str();
         if(!opts.sslCaCertFile.empty())
             bindopts.ssl_ca_cert = opts.sslCaCertFile.c_str();
+#endif
 
         AGO_INFO() << "Binding HTTP on " << opts.address;
         struct mg_connection *lc = mg_bind_opt(&mongooseMgr, opts.address.c_str(),

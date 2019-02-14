@@ -13,3 +13,4 @@ add_executable (${DEVICE} ${DEVICE_SOURCE_FILES})
 target_link_libraries (${DEVICE} ${DEVICE_EXTRA_LIBRARIES})
 
 install (TARGETS ${DEVICE} RUNTIME DESTINATION ${BINDIR})
+AgoService(rain8net DESCRIPTION "ago control rain8net Device")

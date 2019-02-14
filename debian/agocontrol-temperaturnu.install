@@ -1,2 +1,4 @@
 lib/systemd/system/agotemperaturnu.service
-opt/agocontrol/bin/agotemperaturnu.py
+opt/agocontrol/bin/agotemperaturnu
+opt/agocontrol/python/agotemperaturnu
+opt/agocontrol/python/agotemperaturnu/agotemperaturnu.py

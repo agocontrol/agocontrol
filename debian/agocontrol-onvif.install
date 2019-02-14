@@ -1,6 +1,8 @@
 lib/systemd/system/agoonvif.service
-opt/agocontrol/bin/agoonvif.py
-opt/agocontrol/bin/onvif
-opt/agocontrol/bin/suds
-opt/agocontrol/bin/suds_passworddigest
+opt/agocontrol/bin/agoonvif
 etc/onvif/wsdl
+opt/agocontrol/python/agoonvif
+opt/agocontrol/python/agoonvif/agoonvif.py
+opt/agocontrol/python/agoonvif/onvif
+opt/agocontrol/python/agoonvif/suds
+opt/agocontrol/python/agoonvif/suds_passworddigest

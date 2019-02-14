@@ -1,15 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
 
-# only set these variables if you actually have the files
-# set (my_device_schema "example.yaml")
-# set (my_device_service "example.service.in")
-# set (my_device_config "example.conf.in")
-
-# include this after you set your device variables to
-# automatically configure the files and install into
-# their proper directories
-#include(${CMAKE_SOURCE_DIR}/cmake/CMake_Device_Common.cmake)
-
 # select your source files
 file (GLOB_RECURSE DEVICE_SOURCE_FILES
     agoyamaha.cpp

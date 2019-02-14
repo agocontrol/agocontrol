@@ -1,2 +1,2 @@
-lib/systemd/system/agoirtransethernet.service
+lib/systemd/system/agoirtrans_ethernet.service
 opt/agocontrol/bin/agoirtrans_ethernet

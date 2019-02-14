@@ -1,2 +1,2 @@
-lib/systemd/system/agoimperihome.service
+lib/systemd/system/agoImperiHome.service
 opt/agocontrol/bin/agoImperiHome

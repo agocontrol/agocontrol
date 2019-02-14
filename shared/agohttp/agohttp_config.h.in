@@ -1,0 +1,5 @@
+#ifndef AGOHTTP_CONFIG_H
+
+#cmakedefine MG_ENABLE_SSL @MG_ENABLE_SSL@
+
+#endif

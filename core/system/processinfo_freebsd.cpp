@@ -63,13 +63,13 @@ void AgoSystem::getProcessInfo()
     if(nentries > 0) {
         for (int i = nentries; --i >= 0; ++kp) {
             std::string procName(kp->ki_comm);
-            if( processes.find(procName) == processes.end() )
+            if( !processes.isMember(procName) )
                 continue;
 
             AGO_DEBUG() << "Found process " << kp->ki_pid << ": " << procName;
-            qpid::types::Variant::Map stats = processes[procName].asMap();
-            qpid::types::Variant::Map cs = stats["currentStats"].asMap();
-            qpid::types::Variant::Map ls = stats["lastStats"].asMap();
+            Json::Value stats = processes[procName];
+            Json::Value cs = stats["currentStats"];
+            Json::Value ls = stats["lastStats"];
 
             // update current stats
             // In FreeBSD we can get CPU as percentage directly. The linux version

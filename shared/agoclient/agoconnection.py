@@ -582,6 +582,10 @@ class AgoConnection:
                                 message.content["uuid"])
                             if (myid is not None and self.handler):
                                 returnval = self.handler(myid, message.content)
+                                if returnval is None:
+                                    logging.error("No return value from Handler for %s, not valid behaviour", message.content)
+                                    returnval = self.response_failed(message='Component "%s" has not been update properly, please contact developers with logs' % self.instance)
+
                                 if (message.reply_to):
                                     replydata = {}
                                     if (isinstance(returnval, dict)):

@@ -72,7 +72,7 @@ function Applications(agocontrol)
             method : "GET",
             async : true,
         }).done(function(result) {
-            if( !result || result.error.length>0 )
+            if( !result || !result.result || result.result===0 )
             {
                 //revert changes
                 $(el).bootstrapSwitch('toggleState', true);

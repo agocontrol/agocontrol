@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.0)
 
 set (MESSAGESEND_LIBRARIES
     agoclient
-    qpidtypes
 )
 
 # add the executable

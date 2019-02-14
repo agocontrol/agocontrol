@@ -25,16 +25,15 @@
 #define DEVICEMAPFILE "/maps/enocean3.json"
 #endif
 
-using namespace qpid::types;
 using namespace agocontrol;
 
 class AgoEnocean3: public AgoApp {
 private:
     esp3::ESP3 *myESP3;
     bool learnmode;
-    qpid::types::Variant::Map devicemap;
+    Json::Value devicemap;
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 public:
     AGOAPP_CONSTRUCTOR_HEAD(AgoEnocean3)
         , learnmode(false)
@@ -69,17 +68,17 @@ void AgoEnocean3::_handler(esp3::Notification const* message) {
                 devicemap[internalid.str()]="remoteswitch";
                 agoConnection->addDevice(internalid.str(), "remoteswitch");
             }
-            variantMapToJSONFile(devicemap, getConfigPath(DEVICEMAPFILE));
+            writeJsonFile(devicemap, getConfigPath(DEVICEMAPFILE));
         } else {
             if (switchNotif->getIsPressed()) {
                 std::stringstream internalid;
                 internalid << id.str() << "-" << switchNotif->getRockerId();
                 agoConnection->emitEvent(internalid.str(), "event.device.statechanged", 255, "");
             } else {
-                for (qpid::types::Variant::Map::iterator it = devicemap.begin(); it!=devicemap.end(); it++) {
-                    AGO_DEBUG() << "matching id: " << it->first;
-                    if (it->first.find(id.str()) != std::string::npos) {
-                        agoConnection->emitEvent(it->first, "event.device.statechanged", 0, "");
+                for (auto it = devicemap.begin(); it!=devicemap.end(); it++) {
+                    AGO_DEBUG() << "matching id: " << it.name();
+                    if (it.name().find(id.str()) != std::string::npos) {
+                        agoConnection->emitEvent(it.name(), "event.device.statechanged", 0, "");
                     }
                 }
             }
@@ -87,14 +86,14 @@ void AgoEnocean3::_handler(esp3::Notification const* message) {
     }
 }
 
-qpid::types::Variant::Map AgoEnocean3::commandHandler(qpid::types::Variant::Map content) {
+Json::Value AgoEnocean3::commandHandler(const Json::Value& content) {
     std::string internalid = content["internalid"].asString();
     if (internalid == "enoceancontroller") {
         if (content["command"] == "teachframe") {
-            checkMsgParameter(content, "channel", VAR_INT32);
-            // this is optional - checkMsgParameter(content, "profile", VAR_STRING);
-            int channel = content["channel"];
-            std::string profile = content["profile"];
+            checkMsgParameter(content, "channel", Json::intValue);
+            // this is optional - checkMsgParameter(content, "profile", Json::stringValue);
+            int channel = content["channel"].asInt();
+            std::string profile = content["profile"].asString();
             if (profile == "central command dimming") {
                 myESP3->fourbsCentralCommandDimTeachin(channel);
             } else {
@@ -103,7 +102,7 @@ qpid::types::Variant::Map AgoEnocean3::commandHandler(qpid::types::Variant::Map 
             return responseSuccess();
         } else if (content["command"] == "setlearnmode") {
             checkMsgParameter(content, "mode");
-            if (content["mode"]=="start") {
+            if (content["mode"].asString() == "start") {
                 learnmode = true;
             } else {
                 learnmode = false;
@@ -129,9 +128,9 @@ qpid::types::Variant::Map AgoEnocean3::commandHandler(qpid::types::Variant::Map 
             }
             return responseSuccess();
         } else if (content["command"] == "setlevel") {
-            checkMsgParameter(content, "level", VAR_INT32);
+            checkMsgParameter(content, "level", Json::intValue);
             uint8_t level = 0;
-            level = content["level"];
+            level = content["level"].asInt();
             myESP3->fourbsCentralCommandDimLevel(rid,level,1);
             return responseSuccess();
         }
@@ -166,10 +165,10 @@ void AgoEnocean3::setupApp() {
         AGO_DEBUG() << "adding rid " << switchdevice << " as switch";
     } 
 
-    devicemap = jsonFileToVariantMap(getConfigPath(DEVICEMAPFILE));
-    for (qpid::types::Variant::Map::iterator it = devicemap.begin(); it!=devicemap.end(); it++) {
-        AGO_DEBUG() << "Found id in devicemap file: " << it->first;
-        agoConnection->addDevice(it->first, it->second.asString());
+    readJsonFile(devicemap, getConfigPath(DEVICEMAPFILE));
+    for (auto it = devicemap.begin(); it!=devicemap.end(); it++) {
+        AGO_DEBUG() << "Found id in devicemap file: " << it.name();
+        agoConnection->addDevice(it.name(), it->asString());
     }
 }
 

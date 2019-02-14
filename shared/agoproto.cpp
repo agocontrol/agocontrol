@@ -1,29 +1,28 @@
 #include <stdexcept>
 #include <sstream>
 #include "agoproto.h"
+#include "agojson.h"
 
-using namespace qpid::types;
-
-static const qpid::types::Variant::Map EMPTY_DATA = Variant::Map();
+static const Json::Value EMPTY_DATA = Json::Value();
 static const std::string EMPTY_STRING;
-qpid::types::Variant::Map agocontrol::responseResult(const std::string& identifier)
+Json::Value agocontrol::responseResult(const std::string& identifier)
 {
     return responseResult(identifier, EMPTY_STRING, EMPTY_DATA);
 }
 
-qpid::types::Variant::Map agocontrol::responseResult(const std::string& identifier, const std::string& message)
+Json::Value agocontrol::responseResult(const std::string& identifier, const std::string& message)
 {
     return responseResult(identifier, message, EMPTY_DATA);
 }
 
-qpid::types::Variant::Map agocontrol::responseResult(const std::string& identifier, const qpid::types::Variant::Map& data)
+Json::Value agocontrol::responseResult(const std::string& identifier, const Json::Value& data)
 {
     return responseResult(identifier, EMPTY_STRING, data);
 }
 
-qpid::types::Variant::Map agocontrol::responseResult(const std::string& identifier, const std::string& message, const qpid::types::Variant::Map& data)
+Json::Value agocontrol::responseResult(const std::string& identifier, const std::string& message, const Json::Value& data)
 {
-    qpid::types::Variant::Map result;
+    Json::Value result;
 
     if (identifier.empty())
         throw std::invalid_argument("Response without identifier not permitted");
@@ -36,20 +35,20 @@ qpid::types::Variant::Map agocontrol::responseResult(const std::string& identifi
     if(!data.empty())
         result["data"] = data;
 
-    qpid::types::Variant::Map response;
+    Json::Value response;
     response["result"] = result;
     response["_newresponse"] = true; // TODO: remove thits after everything is using new response style
     return response;
 }
 
-qpid::types::Variant::Map agocontrol::responseError(const std::string& identifier, const std::string& message)
+Json::Value agocontrol::responseError(const std::string& identifier, const std::string& message)
 {
     return responseError(identifier, message, EMPTY_DATA);
 }
 
-qpid::types::Variant::Map agocontrol::responseError(const std::string& identifier, const std::string& message, const qpid::types::Variant::Map& data)
+Json::Value agocontrol::responseError(const std::string& identifier, const std::string& message, const Json::Value& data)
 {
-    qpid::types::Variant::Map error;
+    Json::Value error;
 
     if (identifier.empty())
         throw std::invalid_argument("Response without identifier not permitted");
@@ -63,7 +62,7 @@ qpid::types::Variant::Map agocontrol::responseError(const std::string& identifie
     if(!data.empty())
         error["data"] = data;
 
-    qpid::types::Variant::Map response;
+    Json::Value response;
     response["error"] = error;
     response["_newresponse"] = true; // TODO: remove thits after everything is using new response style
     return response;
@@ -72,98 +71,63 @@ qpid::types::Variant::Map agocontrol::responseError(const std::string& identifie
 
 /* Shortcuts to respond with basic FAILED error */
 
-qpid::types::Variant::Map agocontrol::responseFailed(const std::string& message)
+Json::Value agocontrol::responseFailed(const std::string& message)
 {
     return responseError(RESPONSE_ERR_FAILED, message, EMPTY_DATA);
 }
 
-qpid::types::Variant::Map agocontrol::responseFailed(const std::string& message, const qpid::types::Variant::Map& data)
+Json::Value agocontrol::responseFailed(const std::string& message, const Json::Value& data)
 {
     return responseError(RESPONSE_ERR_FAILED, message, data);
 }
 
 /* Shortcuts to respond with basic SUCCESS result */
-qpid::types::Variant::Map agocontrol::responseSuccess()
+Json::Value agocontrol::responseSuccess()
 {
     return responseResult(RESPONSE_SUCCESS, EMPTY_STRING, EMPTY_DATA);
 }
 
-qpid::types::Variant::Map agocontrol::responseSuccess(const std::string& message)
+Json::Value agocontrol::responseSuccess(const char * message)
+{
+    return responseResult(RESPONSE_SUCCESS, std::string(message), EMPTY_DATA);
+}
+
+Json::Value agocontrol::responseSuccess(const std::string& message)
 {
     return responseResult(RESPONSE_SUCCESS, message, EMPTY_DATA);
 }
 
-qpid::types::Variant::Map agocontrol::responseSuccess(const qpid::types::Variant::Map& data)
+Json::Value agocontrol::responseSuccess(const Json::Value& data)
 {
     return responseResult(RESPONSE_SUCCESS, EMPTY_STRING, data);
 }
 
-qpid::types::Variant::Map agocontrol::responseSuccess(const std::string& message, const qpid::types::Variant::Map& data)
+Json::Value agocontrol::responseSuccess(const std::string& message, const Json::Value& data)
 {
     return responseResult(RESPONSE_SUCCESS, message, data);
 }
 
 
 /* Helper to check incoming messages */
-void agocontrol::checkMsgParameter(/*const */qpid::types::Variant::Map& content, const std::string& key) {
-    if(!content.count(key) || content[key].isVoid()) {
+void agocontrol::checkMsgParameter(const Json::Value& content, const std::string& key) {
+    if(!content.isMember(key)) {
         std::stringstream err;
         err << "Parameter " << key << " is required";
         throw AgoCommandException(RESPONSE_ERR_PARAMETER_MISSING, err.str());
     }
 }
-void agocontrol::checkMsgParameter(/*const */qpid::types::Variant::Map& content, const std::string& key,
-        qpid::types::VariantType type, bool allowEmpty) {
+void agocontrol::checkMsgParameter(const Json::Value& content, const std::string& key,
+        Json::ValueType type, bool allowEmpty) {
     checkMsgParameter(content, key);
 
-    qpid::types::VariantType msgType = content[key].getType();
-    try {
-        // For INT types, try to make an actual conversion to the target
-        // type. If it is not possible, an InvalidConversion will be thrown.
-        // We could re-implement the QPID probe code ourselfs, but this is easier..
-        switch(type) {
-            case VAR_UINT8:
-                content[key].asUint8();
-                return;
-            case VAR_UINT16:
-                content[key].asUint16();
-                return;
-            case VAR_UINT32:
-                content[key].asUint32();
-                return;
-            case VAR_UINT64:
-                content[key].asUint64();
-                return;
-            case VAR_INT8:
-                content[key].asInt8();
-                return;
-            case VAR_INT16:
-                content[key].asInt16();
-                return;
-            case VAR_INT32:
-                content[key].asInt32();
-                return;
-            case VAR_INT64:
-                content[key].asInt64();
-                return;
-            case VAR_BOOL:
-                content[key].asBool();
-                return;
-            default:
-                // Not an int type
-                if(msgType != type) {
-                    std::stringstream err;
-                    err << "Parameter " << key << " has invalid type";
-                    throw AgoCommandException(RESPONSE_ERR_PARAMETER_INVALID, err.str());
-                }
-        }
-    }catch(const qpid::types::InvalidConversion& ex) {
+    Json::ValueType msgType = content[key].type();
+    if(!content[key].isConvertibleTo(type)) {
         std::stringstream err;
-        err << "Parameter " << key << " has invalid integer type: " << ex.what();
+        err << "Parameter " << key << " has invalid type";
         throw AgoCommandException(RESPONSE_ERR_PARAMETER_INVALID, err.str());
     }
 
-    if(msgType == VAR_STRING && !allowEmpty && content[key].getString().empty()) {
+    if(msgType == Json::stringValue && !allowEmpty && content[key].asString().empty()) {
         std::stringstream err;
         err << "Parameter " << key << " must not be empty";
         throw AgoCommandException(RESPONSE_ERR_PARAMETER_INVALID, err.str());
@@ -181,20 +145,7 @@ agocontrol::AgoResponse& agocontrol::AgoResponse::operator=(agocontrol::AgoRespo
     return *this;
 }
 
-
-void agocontrol::AgoResponse::init(const qpid::messaging::Message& message) {
-    if (message.getContentSize() > 3) {
-        decode(message, response);
-    }else{
-        qpid::types::Variant::Map err;
-        err["message"] = "invalid.response";
-        response["error"] = err;
-    }
-
-    validate();
-}
-
-void agocontrol::AgoResponse::init(const qpid::types::Variant::Map& response_) {
+void agocontrol::AgoResponse::init(const Json::Value& response_) {
     response = response_;
     validate();
 }
@@ -204,40 +155,40 @@ void agocontrol::AgoResponse::validate() {
         throw std::invalid_argument("error and result are mutually exclusive");
 
     if(isOk()) {
-        if(response["result"].getType() != VAR_MAP)
+        if(response["result"].type() != Json::objectValue)
             throw std::invalid_argument("result must be map");
 
-        root = response["result"].asMap();
+        root = response["result"];
     }
     else if(isError()) {
-        if(response["error"].getType() != VAR_MAP)
+        if(response["error"].type() != Json::objectValue)
             throw std::invalid_argument("error must be map");
 
-        root = response["error"].asMap();
+        root = response["error"];
     }
     else {
         throw std::invalid_argument("error or result must be set");
     }
 
-    if(!root.count("identifier"))
+    if(!root.isMember("identifier"))
         throw std::invalid_argument("identifier must be set");
 
     if(isError()) {
-        if(!root.count("message"))
+        if(!root.isMember("message"))
             throw std::invalid_argument("error.message must be set");
     }
 
-    if(root.count("data") && root["data"].getType() != VAR_MAP)
+    if(root.isMember("data") && root["data"].type() != Json::objectValue)
         throw std::invalid_argument("data must be a map");
 }
 
 
 bool agocontrol::AgoResponse::isError() const {
-    return response.count("error") == 1;
+    return response.isMember("error") == 1;
 }
 
 bool agocontrol::AgoResponse::isOk() const {
-    return response.count("result") == 1;
+    return response.isMember("result") == 1;
 }
 
 std::string agocontrol::AgoResponse::getIdentifier() /*const*/ {
@@ -245,16 +196,16 @@ std::string agocontrol::AgoResponse::getIdentifier() /*const*/ {
 }
 
 std::string agocontrol::AgoResponse::getMessage() /*const*/ {
-    if(root.count("message"))
+    if(root.isMember("message"))
         return root["message"].asString();
     else
         return std::string();
 }
 
 
-const qpid::types::Variant::Map& agocontrol::AgoResponse::getData() /*const*/ {
-    if(root.count("data"))
-        return root["data"].asMap();
+const Json::Value& agocontrol::AgoResponse::getData() /*const*/ {
+    if(root.isMember("data"))
+        return root["data"];
     else
         return EMPTY_DATA;
 }

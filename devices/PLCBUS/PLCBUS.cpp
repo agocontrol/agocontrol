@@ -8,10 +8,10 @@
    See the GNU General Public License for more details.
 
 */
-#include "PLCBUS.h"
 
 #include <iostream>
 #include <sstream>
+#include <deque>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -22,16 +22,34 @@
 
 #include "agoapp.h"
 
-using namespace qpid::types;
+
+// Private member variables
+struct PLCBUSJob {
+    char buffer[1024];
+    size_t len;
+    time_t timeout;
+    int sendcount;
+    int usercode;
+    int homeunit;
+    int command;
+    int data1;
+    int data2;
+};
+
 using namespace agocontrol;
 
 class AgoPlcbus: public AgoApp {
 private:
     int reprq;
     bool announce;
+    int fd; // file desc for device
+
+    pthread_mutex_t mutexSendQueue;
+
+    std::deque < PLCBUSJob *>PLCBUSSendQueue;
 
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command);
+    Json::Value commandHandler(const Json::Value& command);
 
     int serial_write (int dev,uint8_t pnt[],int len);
     int serial_read (int dev,uint8_t pnt[],int len,long timeout);
@@ -86,8 +104,13 @@ int AgoPlcbus::serial_read (int dev,uint8_t pnt[],int len,long timeout) {
 }
 
 // commandhandler
-qpid::types::Variant::Map AgoPlcbus::commandHandler(qpid::types::Variant::Map content) {
+Json::Value AgoPlcbus::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    checkMsgParameter(content, "internalid", Json::stringValue);
+
+    std::string command = content["command"].asString();
     std::string addr = content["internalid"].asString();
+
     int house = addr.substr(0,1).c_str()[0]-65;
     int unit = atoi(addr.substr(1,2).c_str())-1;
 
@@ -98,14 +121,14 @@ qpid::types::Variant::Map AgoPlcbus::commandHandler(qpid::types::Variant::Map co
     myjob->data1=0;
     myjob->data2=0;
 
-    if (content["command"] == "on") {
+    if (command == "on") {
         myjob->command=192;
-    } else if (content["command"] == "off") {
+    } else if (command == "off") {
         myjob->command=193;
-    } else if (content["command"] == "setlevel") {
+    } else if (command == "setlevel") {
         checkMsgParameter(content, "level");
         myjob->command=184;
-        myjob->data1 = atoi(content["level"].asString().c_str());
+        stringToInt(content["level"], myjob->data1);
     }
 
     pthread_mutex_lock (&mutexSendQueue);

@@ -10,7 +10,7 @@ class AgoYamaha: public AgoApp {
 private:
     void setupApp();
     void cleanupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command);
+    Json::Value commandHandler(const Json::Value& command);
 
     std::list<YamahaDevice *> devices;
 
@@ -18,8 +18,12 @@ public:
     AGOAPP_CONSTRUCTOR(AgoYamaha);
 };
 
-qpid::types::Variant::Map AgoYamaha::commandHandler(qpid::types::Variant::Map command) {
-    std::string internalid = command["internalid"].asString();
+Json::Value AgoYamaha::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    checkMsgParameter(content, "internalid", Json::stringValue);
+
+    std::string command = content["command"].asString();
+    std::string internalid = content["internalid"].asString();
 
     // Find device
     // XX Ugly
@@ -35,37 +39,31 @@ qpid::types::Variant::Map AgoYamaha::commandHandler(qpid::types::Variant::Map co
         return responseError(RESPONSE_ERR_INTERNAL, "Received command for unknown device");
     }
 
-    if (command["command"] == "on") {
+    if (command == "on") {
         AGO_INFO() << "Switch " << internalid << " ON";
         dev->powerOn();
-    } else if (command["command"] == "off") {
+    } else if (command == "off") {
         AGO_INFO() << "Switch " << internalid << " OFF";
         dev->powerOff();
-    } else if (command["command"] == "mute") {
+    } else if (command == "mute") {
         AGO_INFO() << "Muting " << internalid;
         dev->mute();
-    } else if (command["command"] == "unmute") {
+    } else if (command == "unmute") {
         AGO_INFO() << "Unmuting " << internalid;
         dev->unmute();
-    } else if (command["command"] == "mutetoggle") {
+    } else if (command == "mutetoggle") {
         AGO_INFO() << "Toggling mute on " << internalid;
         dev->muteToggle();
-    } else if (command["command"] == "vol+") {
+    } else if (command == "vol+") {
         AGO_INFO() << "Increasing volume on " << internalid;
         // XXX: Dangerous if we queue up alot which cannot raech!
         dev->volIncr();
-    } else if (command["command"] == "vol-") {
+    } else if (command == "vol-") {
         AGO_INFO() << "Decreasing volume on " << internalid;
         dev->volDecr();
-    } else if (command["command"] == "setlevel") {
-        if(command["level"].isVoid() ||
-                (command["level"].getType() != qpid::types::VAR_FLOAT &&
-                 command["level"].getType() != qpid::types::VAR_DOUBLE)) {
-
-            return responseError(RESPONSE_ERR_INTERNAL, "Parameter level of type float/double is required");
-        }
-
-        float level = command["level"].asFloat();
+    } else if (command == "setlevel") {
+        checkMsgParameter(content, "level", Json::realValue);
+        float level = content["level"].asFloat();
 
         if(level > -10)
             // XXX: Temp protect

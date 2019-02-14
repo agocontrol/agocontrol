@@ -20,3 +20,4 @@ add_executable (agonvr ${DEVICE_SOURCE_FILES})
 target_link_libraries (agonvr ${VIDEO_LIBRARIES})
 
 install (TARGETS agonvr RUNTIME DESTINATION ${BINDIR})
+AgoService(nvr DESCRIPTION "ago control NVR (Network Video Recorder)")

@@ -6,24 +6,30 @@ namespace po = boost::program_options;
 class AgoExample: public AgoApp {
 private:
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map command);
+    Json::Value commandHandler(const Json::Value& content);
     void appCmdLineOptions(boost::program_options::options_description &options);
 public:
     AGOAPP_CONSTRUCTOR(AgoExample);
 };
 
-qpid::types::Variant::Map AgoExample::commandHandler(qpid::types::Variant::Map command) {
-    std::string internalid = command["internalid"].asString();
-    if (command["command"] == "on") {
+Json::Value AgoExample::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    checkMsgParameter(content, "internalid", Json::stringValue);
+
+    std::string command = content["command"].asString();
+    std::string internalid = content["internalid"].asString();
+
+    if (command == "on") {
         AGO_DEBUG() << "Switch " << internalid << " ON";
         agoConnection->emitEvent(internalid, "event.device.statechanged", "255", "");
         return responseSuccess();
 
-    } else if (command["command"] == "off") {
+    } else if (command == "off") {
         AGO_DEBUG() << "Switch " << internalid << " OFF";
         agoConnection->emitEvent(internalid, "event.device.statechanged", "0", "");
         return responseSuccess();
-    }   
+    }
+
     return responseUnknownCommand();
 }
 

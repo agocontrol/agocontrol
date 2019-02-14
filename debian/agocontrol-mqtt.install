@@ -1,4 +1,6 @@
 lib/systemd/system/agomqtt.service
-opt/agocontrol/bin/agomqtt.py
-opt/agocontrol/bin/agomqttpahoclient.py
+opt/agocontrol/bin/agomqtt
 etc/opt/agocontrol/conf.d/mqtt.conf
+opt/agocontrol/python/agomqtt
+opt/agocontrol/python/agomqtt/agomqtt.py
+opt/agocontrol/python/agomqtt/agomqttpahoclient.py

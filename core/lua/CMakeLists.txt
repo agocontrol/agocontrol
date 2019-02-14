@@ -6,21 +6,18 @@ configure_file (
     @ONLY
 )
 
-if(FREEBSD)
-	set(LUA lua-5.2)
-else(FREEBSD)
-	set(LUA lua5.2)
-endif(FREEBSD)
-
 file (GLOB_RECURSE AGOLUA_SOURCE_FILES *.cpp)
 set (LUA_LIBRARIES
     agoclient
-	${Boost_REGEX_LIBRARY}
-	${LUA}
+    ${Boost_REGEX_LIBRARY}
+    ${LUA_LIBRARIES}
 )
+
+include_directories(${LUA_INCLUDE_DIRS})
 
 # add the executable
 add_executable (agolua ${AGOLUA_SOURCE_FILES})
 target_link_libraries (agolua ${LUA_LIBRARIES})
 
 install (TARGETS agolua RUNTIME DESTINATION ${BINDIR})
+AgoService(lua DESCRIPTION "ago control LUA script event handler")

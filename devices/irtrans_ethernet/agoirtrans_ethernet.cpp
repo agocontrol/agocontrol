@@ -29,7 +29,6 @@
 #include "agoapp.h"
 
 using namespace agocontrol;
-using namespace qpid::types;
 
 class AgoIrtrans_Ethernet: public AgoApp {
 private:
@@ -38,24 +37,33 @@ private:
     struct hostent *host;
 
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 public:
     AGOAPP_CONSTRUCTOR(AgoIrtrans_Ethernet);
 };
 
-qpid::types::Variant::Map AgoIrtrans_Ethernet::commandHandler(qpid::types::Variant::Map content) {
-    int internalid = atoi(content["internalid"].asString().c_str());
+Json::Value AgoIrtrans_Ethernet::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    std::string command = content["command"].asString();
+
+    checkMsgParameter(content, "internalid");
+    int internalid;
+    if(!stringToInt(content["internalid"], internalid))
+        return responseError(RESPONSE_ERR_PARAMETER_INVALID, "internalid must be integer");
+
     AGO_TRACE() << "Command: " << content["command"] << " internal id: " << internalid;
     if (content["command"] == "sendir" ) {
-        checkMsgParameter(content, "ircode", VAR_STRING);
+        checkMsgParameter(content, "ircode", Json::stringValue);
         AGO_DEBUG() << "sending IR code";
         std::string udpcommand;
         udpcommand.assign("sndccf ");
         udpcommand.append(content["ircode"].asString());
         sendto(irtrans_socket, udpcommand.c_str(), udpcommand.length(), 0, (struct sockaddr *)&server_addr, sizeof(struct sockaddr));
+        // TODO: Determine sane result code
+        return responseSuccess();
     }
-    // TODO: Determine sane result code
-    return responseSuccess();
+
+    return responseUnknownCommand();
 }
 
 void AgoIrtrans_Ethernet::setupApp() {

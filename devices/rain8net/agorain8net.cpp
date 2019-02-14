@@ -35,23 +35,32 @@ private:
     int rc;
 
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 public:
     AGOAPP_CONSTRUCTOR(AgoRain8net);
 };
 
-qpid::types::Variant::Map AgoRain8net::commandHandler(qpid::types::Variant::Map content) {
-    int valve = 0;
-    valve = atoi(content["internalid"].asString().c_str());
-    if (content["command"] == "on" ) {
-        if (rain8.zoneOn(1,valve) != 0) {
+Json::Value AgoRain8net::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "command", Json::stringValue);
+    checkMsgParameter(content, "internalid");
+
+    std::string command = content["command"].asString();
+    std::string internalid = content["internalid"].asString();
+
+    Json::Value returnval;
+    int valve;
+    if(!stringToInt(content["internalid"], valve))
+        return responseError(RESPONSE_ERR_PARAMETER_INVALID, "internalid must be integer");
+
+    if (command == "on" ) {
+        if (rain8.zoneOn(1, valve) != 0) {
             AGO_ERROR() << "can't switch on valve " << valve;
             return responseError(RESPONSE_ERR_INTERNAL, "Cannot switch on rain8net output");
         } else {
             return responseSuccess();
         }
-    } else if (content["command"] == "off") {
-        if (rain8.zoneOff(1,valve) != 0) {
+    } else if (command == "off") {
+        if (rain8.zoneOff(1, valve) != 0) {
             AGO_ERROR() << "can't switch off valve " << valve;
             return responseError(RESPONSE_ERR_INTERNAL, "Cannot switch on rain8net output");
         } else {
@@ -78,9 +87,7 @@ void AgoRain8net::setupApp() {
     AGO_INFO() << "connection to rain8net established";
 
     for (int i=1; i<9; i++) {
-        std::stringstream valve;
-        valve << i;
-        agoConnection->addDevice(valve.str(), "switch");
+        agoConnection->addDevice(std::to_string(i), "switch");
     }
     addCommandHandler();
 

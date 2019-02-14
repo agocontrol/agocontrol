@@ -8,6 +8,8 @@
 #include <boost/thread/mutex.hpp>
 #include <json/json.h>
 
+// Reference to binary dir
+#include "agohttp/agohttp_config.h"
 #include "mongoose.h"
 
 namespace agocontrol {
@@ -83,10 +85,14 @@ public:
     // https://docs.cesanta.com/mongoose/master/#/c-api/net.h/mg_bind_opt.md/
     // If SSL is desired on this particular port, specify certFile, and optionally keyFile & caCertFile.
     // SSL files should be in PEM format, certFile may hold both key & cert.
-    void addBinding(const std::string& address,
-            const boost::filesystem::path& certFile = boost::filesystem::path(),
+    // SSL support requires openssl to be installed
+    void addBinding(const std::string& address
+#if MG_ENABLE_SSL
+            , const boost::filesystem::path& certFile = boost::filesystem::path(),
             const boost::filesystem::path& keyFile = boost::filesystem::path(),
-            const boost::filesystem::path& caCertFile = boost::filesystem::path());
+            const boost::filesystem::path& caCertFile = boost::filesystem::path()
+#endif
+            );
 
     // Set a document root to serve documents from, if no handler have been registered for path.
     // If never called, we respond 404 to any unknown paths.

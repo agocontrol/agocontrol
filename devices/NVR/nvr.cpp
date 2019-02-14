@@ -8,12 +8,13 @@
 #include <algorithm>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/date_time/local_time/local_time.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/locks.hpp>
 #include <opencv2/opencv.hpp>
 #include <queue>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string.hpp>
-#include <sys/wait.h>
 
 #include "agoapp.h"
 #include "base64.h"
@@ -27,8 +28,6 @@
 #define RECORDINGSDIR "recordings/"
 #endif
 
-using namespace qpid::messaging;
-using namespace qpid::types;
 using namespace agocontrol;
 using namespace cv;
 using namespace std; // XXX: Ugly. Proper cleanup is in qpid-removal branch.
@@ -44,11 +43,12 @@ typedef struct TBox {
 
 class AgoSurveillance: public AgoApp {
 private:
-    std::string agocontroller;
-    qpid::types::Variant::Map videomap;
-    pthread_mutex_t videomapMutex;
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content);
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value videomap;
+    boost::mutex videomapMutex;
+
+    void eventHandler(const std::string& subject , const Json::Value& content);
+    Json::Value commandHandler(const Json::Value& content);
+
     bool stopProcess;
     bool stopTimelapses;
     int restartDelay;
@@ -56,31 +56,31 @@ private:
     void cleanupApp();
 
     //video
-    void getRecordings(std::string type, qpid::types::Variant::List& list, std::string process);
+    void getRecordings(std::string type, Json::Value& list, std::string process);
     std::string getDateTimeString(bool date, bool time, bool withSeparator=true, std::string fieldSeparator="_");
     std::map<std::string, AgoFrameProvider*> frameProviders;
     AgoFrameProvider* getFrameProvider(std::string uri);
-    pthread_mutex_t frameProvidersMutex;
+    boost::mutex frameProvidersMutex;
     bool frameToString(Mat& frame, std::string& image);
 
     //stream
-    void fillStream(qpid::types::Variant::Map* stream, qpid::types::Variant::Map* content);
+    void fillStream(Json::Value& stream, const Json::Value& content);
 
     //timelapse
     std::map<std::string, boost::thread*> timelapseThreads;
-    void fillTimelapse(qpid::types::Variant::Map* timelapse, qpid::types::Variant::Map* content);
-    void timelapseFunction(std::string internalid, qpid::types::Variant::Map timelapse);
+    void fillTimelapse(Json::Value& timelapse, const Json::Value& content);
+    void timelapseFunction(std::string internalid, Json::Value timelapse);
     void restartTimelapses();
     void launchTimelapses();
-    void launchTimelapse(std::string internalid, qpid::types::Variant::Map& timelapse);
+    void launchTimelapse(std::string internalid, const Json::Value& timelapse);
     void stopTimelapse(std::string internalid);
 
     //motion
     std::map<std::string, boost::thread*> motionThreads;
-    void fillMotion(qpid::types::Variant::Map* timelapse, qpid::types::Variant::Map* content);
-    void motionFunction(std::string internalid, qpid::types::Variant::Map timelapse);
+    void fillMotion(Json::Value& timelapse, const Json::Value& content);
+    void motionFunction(std::string internalid, Json::Value timelapse);
     void launchMotions();
-    void launchMotion(std::string internalid, qpid::types::Variant::Map& motion);
+    void launchMotion(std::string internalid, Json::Value& motion);
     void stopMotion(std::string internalid);
 
 public:
@@ -100,7 +100,7 @@ AgoFrameProvider* AgoSurveillance::getFrameProvider(std::string uri)
 {
     AgoFrameProvider* out = NULL;
 
-    pthread_mutex_lock(&frameProvidersMutex);
+    boost::lock_guard<boost::mutex> lock(frameProvidersMutex);
 
     //search existing frame provider
     std::map<std::string, AgoFrameProvider*>::iterator item = frameProviders.find(uri);
@@ -122,8 +122,6 @@ AgoFrameProvider* AgoSurveillance::getFrameProvider(std::string uri)
         AGO_DEBUG() << "Frame provider already exists for '" << uri << "'";
         out = item->second;
     }
-
-    pthread_mutex_unlock(&frameProvidersMutex);
 
     return out;
 }
@@ -156,33 +154,37 @@ bool AgoSurveillance::frameToString(Mat& frame, std::string& image)
  * @param stream: map to fill
  * @param content: map from request used to prefill output map
  */
-void AgoSurveillance::fillStream(qpid::types::Variant::Map* stream, qpid::types::Variant::Map* content=NULL)
+void AgoSurveillance::fillStream(Json::Value& stream, const Json::Value &content)
 {
+#if 0
     if( content==NULL )
     {
         //fill with default values
-        (*stream)["process"] = "";
-        (*stream)["uri"] = "";
+        stream["process"] = "";
+        stream["uri"] = "";
     }
     else
     {
+#endif
         //fill with specified content
-        if( !(*content)["process"].isVoid() )
-            (*stream)["process"] = (*content)["process"].asString();
+        if( content.isMember("process") )
+            stream["process"] = content["process"].asString();
         else
-            (*stream)["process"] = "";
+            stream["process"] = "";
 
-        if( !(*content)["uri"].isVoid() )
-            (*stream)["uri"] = (*content)["uri"].asString();
+        if( content.isMember("uri") )
+            stream["uri"] = content["uri"].asString();
         else
-            (*stream)["uri"] = "";
+            stream["uri"] = "";
+#if 0
     }
+#endif
 }
 
 /**
  * Timelapse function (threaded)
  */
-void AgoSurveillance::timelapseFunction(string internalid, qpid::types::Variant::Map timelapse)
+void AgoSurveillance::timelapseFunction(std::string internalid, Json::Value timelapse)
 {
     //init video reader (provider and consumer)
     std::string timelapseUri = timelapse["uri"].asString();
@@ -315,51 +317,55 @@ void AgoSurveillance::timelapseFunction(string internalid, qpid::types::Variant:
  * @param timelapse: map to fill
  * @param content: map from request used to prefill output map
  */
-void AgoSurveillance::fillTimelapse(qpid::types::Variant::Map* timelapse, qpid::types::Variant::Map* content=NULL)
+void AgoSurveillance::fillTimelapse(Json::Value& timelapse, const Json::Value& content)
 {
+#if 0
     if( content==NULL )
     {
         //fill with default values
-        (*timelapse)["process"] = "";
-        (*timelapse)["name"] = "noname";
-        (*timelapse)["uri"] = "";
-        (*timelapse)["fps"] = 1;
-        (*timelapse)["codec"] = "FMP4";
-        (*timelapse)["enabled"] = true;
+        timelapse["process"] = "";
+        timelapse["name"] = "noname";
+        timelapse["uri"] = "";
+        timelapse["fps"] = 1;
+        timelapse["codec"] = "FMP4";
+        timelapse["enabled"] = true;
     }
     else
     {
+#endif
         //fill with specified content
-        if( !(*content)["process"].isVoid() )
-            (*timelapse)["process"] = (*content)["process"].asString();
+        if( content.isMember("process") )
+            timelapse["process"] = content["process"].asString();
         else
-            (*timelapse)["process"] = "";
+            timelapse["process"] = "";
 
-        if( !(*content)["name"].isVoid() )
-            (*timelapse)["name"] = (*content)["name"].asString();
+        if( content.isMember("name") )
+            timelapse["name"] = content["name"].asString();
         else
-            (*timelapse)["name"] = "noname";
+            timelapse["name"] = "noname";
 
-        if( !(*content)["uri"].isVoid() )
-            (*timelapse)["uri"] = (*content)["uri"].asString();
+        if( content.isMember("uri") )
+            timelapse["uri"] = content["uri"].asString();
         else
-            (*timelapse)["uri"] = "";
+            timelapse["uri"] = "";
 
-        if( !(*content)["fps"].isVoid() )
-            (*timelapse)["fps"] = (*content)["fps"].asInt32();
+        if( content.isMember("fps") )
+            timelapse["fps"] = content["fps"].asInt();
         else
-            (*timelapse)["fps"] = 1;
+            timelapse["fps"] = 1;
 
-        if( !(*content)["codec"].isVoid() )
-            (*timelapse)["codec"] = (*content)["codec"].asString();
+        if( content.isMember("codec") )
+            timelapse["codec"] = content["codec"].asString();
         else
-            (*timelapse)["codec"] = "FMP4";
+            timelapse["codec"] = "FMP4";
 
-        if( !(*content)["enabled"].isVoid() )
-            (*timelapse)["enabled"] = (*content)["enabled"].asBool();
+        if( content.isMember("enabled") )
+            timelapse["enabled"] = content["enabled"].asBool();
         else
-            (*timelapse)["enabled"] = true;
+            timelapse["enabled"] = true;
+#if 0
     }
+#endif
 }
 
 /**
@@ -384,11 +390,11 @@ void AgoSurveillance::restartTimelapses()
  */
 void AgoSurveillance::launchTimelapses()
 {
-    qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
-    for( qpid::types::Variant::Map::iterator it=timelapses.begin(); it!=timelapses.end(); it++ )
+    const Json::Value& timelapses = videomap["timelapses"];
+    for( auto it = timelapses.begin(); it!=timelapses.end(); it++ )
     {
-        std::string internalid = it->first;
-        qpid::types::Variant::Map timelapse = it->second.asMap();
+        std::string internalid = it.name();
+        const Json::Value& timelapse = *it;
         launchTimelapse(internalid, timelapse);
     }
 }
@@ -396,7 +402,7 @@ void AgoSurveillance::launchTimelapses()
 /**
  * Launch specified timelapse
  */
-void AgoSurveillance::launchTimelapse(std::string internalid, qpid::types::Variant::Map& timelapse)
+void AgoSurveillance::launchTimelapse(std::string internalid, const Json::Value& timelapse)
 {
     //create timelapse device
     agoConnection->addDevice(internalid, "timelapse");
@@ -489,7 +495,7 @@ inline int detectMotion(const Mat& __motion, Mat& result, Box& area, int maxDevi
  * Motion function (threaded)
  * Based on Cédric Verstraeten source code: https://github.com/cedricve/motion-detection/blob/master/motion_src/src/motion_detection.cpp
  */
-void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Variant::Map motion)
+void AgoSurveillance::motionFunction(std::string internalid, Json::Value motion)
 {
     AGO_DEBUG() << "Motion '" << internalid << "': started";
 
@@ -515,7 +521,7 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
     AGO_DEBUG() << "fps=" << fps;*/
 
     //init buffer
-    //unsigned int maxBufferSize = motion["bufferduration"].asInt32() * fps;
+    //unsigned int maxBufferSize = motion["bufferduration"].asInt() * fps;
     std::queue<Mat> buffer;
 
     //get frames and convert to gray
@@ -549,16 +555,16 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
     int fourcc = CV_FOURCC('F', 'M', 'P', '4');
     int now = (int)time(NULL);
     int startup = now;
-    int onDuration = motion["onduration"].asInt32() - motion["bufferduration"].asInt32();
-    int recordDuration = motion["recordduration"].asInt32();
+    int onDuration = motion["onduration"].asInt() - motion["bufferduration"].asInt();
+    int recordDuration = motion["recordduration"].asInt();
     bool recordEnabled = motion["recordenabled"].asBool();
     bool isRecording, isTriggered = false;
     int triggerStart = 0;
     Mat d1, d2, _motion;
     int numberOfChanges = 0;
     Scalar color(0,0,255);
-    int thereIsMotion = motion["sensitivity"].asInt32();
-    int maxDeviation = motion["deviation"].asInt32();
+    int thereIsMotion = motion["sensitivity"].asInt();
+    int maxDeviation = motion["deviation"].asInt();
     AGO_TRACE() << "Motion '" << internalid << "': maxdeviation=" << maxDeviation << " sensitivity=" << thereIsMotion;
     Mat kernelErode = getStructuringElement(MORPH_RECT, Size(2,2));
     Box area = {0, currentFrame.cols, 0, currentFrame.rows};
@@ -668,7 +674,7 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
                         try
                         {
                             imwrite(picture.c_str(), result);
-                            qpid::types::Variant::Map content;
+                            Json::Value content;
                             content["filename"] = picture;
                             agoConnection->emitEvent(internalid, "event.device.pictureavailable", content);
                         }
@@ -734,7 +740,7 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
                         isRecording = false;
 
                         //emit video available event
-                        qpid::types::Variant::Map content;
+                        Json::Value content;
                         content["filename"] = recordPath.c_str();
                         agoConnection->emitEvent(internalid, "event.device.videoavailable", content);
                     }
@@ -784,75 +790,79 @@ void AgoSurveillance::motionFunction(std::string internalid, qpid::types::Varian
  * @param motion: map to fill
  * @param content: content from request. This map is used to prefill output map
  */
-void AgoSurveillance::fillMotion(qpid::types::Variant::Map* motion, qpid::types::Variant::Map* content=NULL)
+void AgoSurveillance::fillMotion(Json::Value& motion, const Json::Value& content)
 {
+#if 0
     if( content==NULL )
     {
         //fill with default parameters
-        (*motion)["process"] = "";
-        (*motion)["name"] = "noname";
-        (*motion)["uri"] = "";
-        (*motion)["deviation"] = 20;
-        (*motion)["sensitivity"] = 10;
-        (*motion)["bufferduration"] = 10;
-        (*motion)["onduration"] = 300;
-        (*motion)["recordduration"] = 30;
-        (*motion)["enabled"] = true;
-        (*motion)["recordenabled"] = true;
+        motion["process"] = "";
+        motion["name"] = "noname";
+        motion["uri"] = "";
+        motion["deviation"] = 20;
+        motion["sensitivity"] = 10;
+        motion["bufferduration"] = 10;
+        motion["onduration"] = 300;
+        motion["recordduration"] = 30;
+        motion["enabled"] = true;
+        motion["recordenabled"] = true;
     }
     else
     {
+#endif
         //fill with content
-        if( !(*content)["process"].isVoid() )
-            (*motion)["process"] = (*content)["process"].asString();
+        if( !content.isMember("process") )
+            motion["process"] = content["process"].asString();
         else
-            (*motion)["process"] = "";
+            motion["process"] = "";
 
-        if( !(*content)["name"].isVoid() )
-            (*motion)["name"] = (*content)["name"].asString();
+        if( !content.isMember("name") )
+            motion["name"] = content["name"].asString();
         else
-            (*motion)["name"] = "noname";
+            motion["name"] = "noname";
 
-        if( !(*content)["uri"].isVoid() )
-            (*motion)["uri"] = (*content)["uri"].asString();
+        if( !content.isMember("uri") )
+            motion["uri"] = content["uri"].asString();
         else
-            (*motion)["uri"] = "";
+            motion["uri"] = "";
 
-        if( !(*content)["deviation"].isVoid() )
-            (*motion)["deviation"] = (*content)["deviation"].asInt32();
+        if( !content.isMember("deviation") )
+            motion["deviation"] = content["deviation"].asInt();
         else
-            (*motion)["deviation"] = 20;
+            motion["deviation"] = 20;
 
-        if( !(*content)["sensitivity"].isVoid() )
-            (*motion)["sensitivity"] = (*content)["sensitivity"].asInt32();
+        if( !content.isMember("sensitivity") )
+            motion["sensitivity"] = content["sensitivity"].asInt();
         else
-            (*motion)["sensitivity"] = 10;
+            motion["sensitivity"] = 10;
 
-        if( !(*content)["bufferduration"].isVoid() )
-            (*motion)["bufferduration"] = (*content)["bufferduration"].asInt32();
+        if( !content.isMember("bufferduration") )
+            motion["bufferduration"] = content["bufferduration"].asInt();
         else
-            (*motion)["bufferduration"] = 1;
+            motion["bufferduration"] = 1;
 
-        if( !(*content)["onduration"].isVoid() )
-            (*motion)["onduration"] = (*content)["onduration"].asInt32();
+        if( !content.isMember("onduration") )
+            motion["onduration"] = content["onduration"].asInt();
         else
-            (*motion)["onduration"] = 300;
+            motion["onduration"] = 300;
 
-        if( !(*content)["recordduration"].isVoid() )
-            (*motion)["recordduration"] = (*content)["recordduration"].asInt32();
+        if( !content.isMember("recordduration") )
+            motion["recordduration"] = content["recordduration"].asInt();
         else
-            (*motion)["recordduration"] = 30;
+            motion["recordduration"] = 30;
 
-        if( !(*content)["enabled"].isVoid() )
-            (*motion)["enabled"] = (*content)["enabled"].asBool();
+        if( !content.isMember("enabled") )
+            motion["enabled"] = content["enabled"].asBool();
         else
-            (*motion)["enabled"] = true;
+            motion["enabled"] = true;
 
-        if( !(*content)["recordenabled"].isVoid() )
-            (*motion)["recordenabled"] = (*content)["recordenabled"].asBool();
+        if( !content.isMember("recordenabled") )
+            motion["recordenabled"] = content["recordenabled"].asBool();
         else
-            (*motion)["recordenabled"] = true;
+            motion["recordenabled"] = true;
+#if 0
     }
+#endif
 }
 
 /**
@@ -860,11 +870,11 @@ void AgoSurveillance::fillMotion(qpid::types::Variant::Map* motion, qpid::types:
  */
 void AgoSurveillance::launchMotions()
 {
-    qpid::types::Variant::Map motions = videomap["motions"].asMap();
-    for( qpid::types::Variant::Map::iterator it=motions.begin(); it!=motions.end(); it++ )
+    Json::Value& motions = videomap["motions"];
+    for( auto it = motions.begin(); it!=motions.end(); it++ )
     {
-        std::string internalid = it->first;
-        qpid::types::Variant::Map motion = it->second.asMap();
+        std::string internalid = it.name();
+        Json::Value& motion = *it;
         launchMotion(internalid, motion);
     }
 }
@@ -872,7 +882,7 @@ void AgoSurveillance::launchMotions()
 /**
  * Launch specified motion
  */
-void AgoSurveillance::launchMotion(std::string internalid, qpid::types::Variant::Map& motion)
+void AgoSurveillance::launchMotion(std::string internalid, Json::Value& motion)
 {
     //create motion device
     agoConnection->addDevice(internalid, "motionsensor");
@@ -905,10 +915,10 @@ void AgoSurveillance::stopMotion(std::string internalid)
 /**
  * Get recordings of specified type
  */
-void AgoSurveillance::getRecordings(std::string type, qpid::types::Variant::List& list, std::string process)
+void AgoSurveillance::getRecordings(std::string type, Json::Value& list, std::string process)
 {
-    qpid::types::Variant::Map motions = videomap["motions"].asMap();
-    qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
+    const Json::Value& motions = videomap["motions"];
+    const Json::Value& timelapses = videomap["timelapses"];
     fs::path recordingsPath = getLocalStatePath(RECORDINGSDIR);
     if( fs::exists(recordingsPath) )
     {
@@ -918,41 +928,48 @@ void AgoSurveillance::getRecordings(std::string type, qpid::types::Variant::List
         {
             if( fs::is_regular_file(*it) && it->path().extension().string()==".avi" && boost::algorithm::starts_with(it->path().filename().string(), type) )
             {
-                qpid::types::Variant::Map props;
-                props["filename"] = it->path().filename().string();
-                props["path"] = it->path().string();
-                props["size"] = fs::file_size(it->path());
-                props["date"] =(uint64_t) fs::last_write_time(it->path());
-                std::vector<string> splits;
+                std::vector<std::string> splits;
                 split(splits, it->path().filename().string(), boost::is_any_of("_"));
                 std::string internalid = std::string(splits[1]);
-                props["internalid"] = internalid;
+
+                bool match = false;
 
                 //check if file is for specified process
                 if( process.length()>0 )
                 {
-                    if( !motions[internalid].isVoid() )
+                    if( motions.isMember(internalid) )
                     {
-                        qpid::types::Variant::Map motion = motions[internalid].asMap();
+                        const Json::Value& motion = motions[internalid];
                         std::string p = motion["process"].asString();
                         if( p==process )
                         {
-                            list.push_back( props );
+                            match = true;
                         }
                     }
-                    else if( !timelapses[internalid].isVoid() )
+                    else if( timelapses.isMember(internalid) )
                     {
-                        qpid::types::Variant::Map timelapse = timelapses[internalid].asMap();
+                        const Json::Value& timelapse = timelapses[internalid];
                         std::string p = timelapse["process"].asString();
                         if( p==process )
                         {
-                            list.push_back( props );
+                            match = true;
                         }
                     }
                 }
                 else
                 {
-                    list.push_back( props );
+                    // TODO: This does not seem correct?
+                    match = true;
+                }
+
+                if(match) {
+                    Json::Value props;
+                    props["filename"] = it->path().filename().string();
+                    props["path"] = it->path().string();
+                    props["size"] = fs::file_size(it->path());
+                    props["date"] =(uint64_t) fs::last_write_time(it->path());
+                    props["internalid"] = internalid;
+                    list.append( props );
                 }
             }
             ++it;
@@ -1019,21 +1036,21 @@ std::string AgoSurveillance::getDateTimeString(bool date, bool time, bool withSe
 /**
  * Event handler
  */
-void AgoSurveillance::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
+void AgoSurveillance::eventHandler(const std::string& subject , const Json::Value& content)
 {
-    if( videomap["recordings"].isVoid() )
+    if( !videomap.isMember("recordings") )
     {
         //nothing configured, exit right now
         AGO_DEBUG() << "no config";
         return;
     }
 
-    if( subject=="event.environment.timechanged" && !content["minute"].isVoid() && !content["hour"].isVoid() )
+    if( subject=="event.environment.timechanged" && content.isMember("minute") && content.isMember("hour") )
     {
         //XXX: workaround to avoid process to crash because of opencv::VideoWriter memory leak
-        if( content["hour"].asInt8()%restartDelay==0 )
+        if( content["hour"].asInt()%restartDelay==0 )
         {
-            qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
+            Json::Value timelapses = videomap["timelapses"];
             if( timelapses.size()>0 )
             {
                 signalExit();
@@ -1041,7 +1058,7 @@ void AgoSurveillance::eventHandler(const std::string& subject , qpid::types::Var
         }
 
         //midnight, create new timelapse for new day
-        if( content["hour"].asInt8()==0 && content["minute"].asInt8()==0 )
+        if( content["hour"].asInt()==0 && content["minute"].asInt()==0 )
         {
             restartTimelapses();
         }
@@ -1053,33 +1070,31 @@ void AgoSurveillance::eventHandler(const std::string& subject , qpid::types::Var
         AGO_DEBUG() << "event.device.remove: " << internalid << " - " << content;
         bool found = false;
 
-        pthread_mutex_lock(&videomapMutex);
+        boost::lock_guard<boost::mutex> lock(videomapMutex);
 
         //search if device is handled by nvr controller
-        qpid::types::Variant::Map motions = videomap["motions"].asMap();
-        if( !motions[internalid].isVoid() )
+        Json::Value& motions = videomap["motions"];
+        if( motions.isMember(internalid) )
         {
             //its a motion device
             found = true;
-            motions.erase(internalid);
+            motions.removeMember(internalid);
         }
         
         if( !found )
         {
-            qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
-            if( !timelapses[internalid].isVoid() )
+            Json::Value& timelapses = videomap["timelapses"];
+            if( timelapses.isMember(internalid) )
             {
                 //its a timelapse device
                 found = true;
-                timelapses.erase(internalid);
+                timelapses.removeMember(internalid);
             }
         }
 
-        pthread_mutex_unlock(&videomapMutex);
-
         if( found )
         {
-            if( variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE)) )
+            if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
             {
                 AGO_DEBUG() << "Event 'device.remove': device deleted";
             }
@@ -1100,20 +1115,18 @@ void AgoSurveillance::eventHandler(const std::string& subject , qpid::types::Var
         std::string name = content["name"].asString();
         std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
 
-        pthread_mutex_lock(&videomapMutex);
+        boost::lock_guard<boost::mutex> lock(videomapMutex);
 
         //update motion device
-        qpid::types::Variant::Map motions = videomap["motions"].asMap();
-        if( !motions[internalid].isVoid() )
+        Json::Value& motions = videomap["motions"];
+        if( motions.isMember(internalid) )
         {
             //its a motion device
             found = true;
-            qpid::types::Variant::Map motion = motions[internalid].asMap();
-            if( !motion["name"].isVoid() )
+            Json::Value& motion = motions[internalid];
+            if( motion.isMember("name") )
             {
                 motion["name"] = name;
-                motions[internalid] = motion;
-                videomap["motions"] = motions;
 
                 //restart motion
                 stopMotion(internalid);
@@ -1124,17 +1137,15 @@ void AgoSurveillance::eventHandler(const std::string& subject , qpid::types::Var
         //update timelapse device
         if( !found )
         {
-            qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
-            if( !timelapses[internalid].isVoid() )
+            Json::Value& timelapses = videomap["timelapses"];
+            if( timelapses.isMember(internalid) )
             {
                 //its a timelapse device
                 found = true;
-                qpid::types::Variant::Map timelapse = timelapses[internalid].asMap();
-                if( !timelapse["name"].isVoid() )
+                Json::Value& timelapse = timelapses[internalid];
+                if( timelapse.isMember("name") )
                 {
                     timelapse["name"] = name;
-                    timelapses[internalid] = timelapse;
-                    videomap["timelapses"] = timelapses;
 
                     //restart timelapse
                     stopTimelapse(internalid);
@@ -1143,11 +1154,9 @@ void AgoSurveillance::eventHandler(const std::string& subject , qpid::types::Var
             }
         }
 
-        pthread_mutex_unlock(&videomapMutex);
-
         if( found )
         {
-            if( variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE)) )
+            if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
             {
                 AGO_DEBUG() << "Event 'devicenamechanged': motion name changed";
             }
@@ -1162,53 +1171,54 @@ void AgoSurveillance::eventHandler(const std::string& subject , qpid::types::Var
 /**
  * Command handler
  */
-qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::Map content)
+Json::Value AgoSurveillance::commandHandler(const Json::Value& content)
 {
     AGO_DEBUG() << "handling command: " << content;
-    qpid::types::Variant::Map returnData;
-    std::string command = content["command"].asString();
+    Json::Value returnData;
+    checkMsgParameter(content, "command", Json::stringValue);
 
+    std::string command = content["command"].asString();
     std::string internalid = content["internalid"].asString();
+
     if (internalid == "surveillancecontroller")
     {
         if( command=="addstream" )
         {
-            checkMsgParameter(content, "process", VAR_STRING);
-            checkMsgParameter(content, "uri", VAR_STRING);
+            checkMsgParameter(content, "process", Json::stringValue);
+            checkMsgParameter(content, "uri", Json::stringValue);
            
             //check if stream already exists or not
-            pthread_mutex_lock(&videomapMutex);
+            boost::lock_guard<boost::mutex> lock(videomapMutex);
             std::string uri = content["uri"].asString();
-            qpid::types::Variant::Map streams = videomap["streams"].asMap();
-            for( qpid::types::Variant::Map::iterator it=streams.begin(); it!=streams.end(); it++ )
+            Json::Value& streams = videomap["streams"];
+            for( auto it = streams.begin(); it!=streams.end(); it++ )
             {
-                qpid::types::Variant::Map stream = it->second.asMap();
-                if( !stream["uri"].isVoid() )
+                Json::Value& stream = *it;
+                if( stream.isMember("uri") )
                 {
                     std::string streamUri = stream["uri"].asString();
                     if( streamUri==uri )
                     {
                         //uri already exists, stop here
-                        pthread_mutex_unlock(&videomapMutex);
                         return responseError("error.security.addstream", "Stream already exists");
                     }
                 }
             }
 
             //fill new stream
-            qpid::types::Variant::Map stream;
-            fillStream(&stream, &content);
+            Json::Value stream(Json::objectValue);
+            fillStream(stream, content);
 
             //and save it
             std::string internalid = generateUuid();
             streams[internalid] = stream;
             videomap["streams"] = streams;
-            pthread_mutex_unlock(&videomapMutex);
-            if( variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE)) )
+
+            if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
             {
                 AGO_DEBUG() << "Command 'addstream': stream added " << stream;
 
-                qpid::types::Variant::Map result;
+                Json::Value result;
                 result["internalid"] = internalid;
                 return responseSuccess("Timelapse added", result);
             }
@@ -1220,48 +1230,46 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
         }
         else if( command=="addtimelapse" )
         {
-            checkMsgParameter(content, "process", VAR_STRING);
-            checkMsgParameter(content, "uri", VAR_STRING);
-            checkMsgParameter(content, "fps", VAR_INT32);
-            checkMsgParameter(content, "codec", VAR_STRING);
-            checkMsgParameter(content, "enabled", VAR_BOOL);
+            checkMsgParameter(content, "process", Json::stringValue);
+            checkMsgParameter(content, "uri", Json::stringValue);
+            checkMsgParameter(content, "fps", Json::intValue);
+            checkMsgParameter(content, "codec", Json::stringValue);
+            checkMsgParameter(content, "enabled", Json::booleanValue);
 
             //check if timelapse already exists or not
-            pthread_mutex_lock(&videomapMutex);
+            boost::lock_guard<boost::mutex> lock(videomapMutex);
             std::string uri = content["uri"].asString();
-            qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
-            for( qpid::types::Variant::Map::iterator it=timelapses.begin(); it!=timelapses.end(); it++ )
+            Json::Value& timelapses = videomap["timelapses"];
+            for( auto it = timelapses.begin(); it!=timelapses.end(); it++ )
             {
-                qpid::types::Variant::Map timelapse = it->second.asMap();
-                if( !timelapse["uri"].isVoid() )
+                const Json::Value& timelapse = *it;
+                if( timelapse.isMember("uri") )
                 {
                     std::string timelapseUri = timelapse["uri"].asString();
                     if( timelapseUri==uri )
                     {
                         //uri already exists, stop here
-                        pthread_mutex_unlock(&videomapMutex);
                         return responseError("error.security.addtimelapse", "Timelapse already exists");
                     }
                 }
             }
 
             //fill new timelapse
-            qpid::types::Variant::Map timelapse;
-            fillTimelapse(&timelapse, &content);
+            Json::Value timelapse(Json::objectValue);
+            fillTimelapse(timelapse, content);
 
             //and save it
             std::string internalid = generateUuid();
             timelapses[internalid] = timelapse;
             videomap["timelapses"] = timelapses;
-            pthread_mutex_unlock(&videomapMutex);
-            if( variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE)) )
+            if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
             {
                 AGO_DEBUG() << "Command 'addtimelapse': timelapse added " << timelapse;
 
                 //and finally launch timelapse thread
                 launchTimelapse(internalid, timelapse);
 
-                qpid::types::Variant::Map result;
+                Json::Value result;
                 result["internalid"] = internalid;
                 return responseSuccess("Timelapse added", result);
             }
@@ -1273,73 +1281,71 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
         }
         else if( command=="gettimelapses" )
         {
-            checkMsgParameter(content, "process", VAR_STRING);
+            checkMsgParameter(content, "process", Json::stringValue);
             std::string process = content["process"].asString();
 
-            qpid::types::Variant::List timelapses;
+            Json::Value timelapses(Json::arrayValue);
             getRecordings("timelapse_", timelapses, process);
-            returnData["timelapses"] = timelapses;
+            returnData["timelapses"].swap(timelapses);
             return responseSuccess(returnData);
         }
         else if( command=="addmotion" )
         {
-            checkMsgParameter(content, "process", VAR_STRING);
-            checkMsgParameter(content, "uri", VAR_STRING);
-            checkMsgParameter(content, "sensitivity", VAR_INT32);
-            checkMsgParameter(content, "deviation", VAR_INT32);
-            checkMsgParameter(content, "bufferduration", VAR_INT32);
-            checkMsgParameter(content, "onduration", VAR_INT32);
-            checkMsgParameter(content, "recordduration", VAR_INT32);
-            checkMsgParameter(content, "enabled", VAR_BOOL);
-
-            //check values
-            if( content["recordduration"].asInt32()>=content["onduration"].asInt32() )
-            {
-                AGO_WARNING() << "Addmotion: record duration must be lower than on duration. Record duration forced to on duration.";
-                content["recordduration"] = content["onduration"].asInt32() - 1;
-            }
-            if( content["bufferduration"].asInt32()>=content["recordduration"].asInt32() )
-            {
-                AGO_WARNING() << "Addmotion: buffer duration must be lower than record duration. Buffer duration forced to record duration.";
-                content["bufferduration"] = content["recordduration"].asInt32() - 1;
-            }
+            checkMsgParameter(content, "process", Json::stringValue);
+            checkMsgParameter(content, "uri", Json::stringValue);
+            checkMsgParameter(content, "sensitivity", Json::intValue);
+            checkMsgParameter(content, "deviation", Json::intValue);
+            checkMsgParameter(content, "bufferduration", Json::intValue);
+            checkMsgParameter(content, "onduration", Json::intValue);
+            checkMsgParameter(content, "recordduration", Json::intValue);
+            checkMsgParameter(content, "enabled", Json::booleanValue);
 
             //check if motion already exists or not
-            pthread_mutex_lock(&videomapMutex);
+            boost::lock_guard<boost::mutex> lock(videomapMutex);
             std::string uri = content["uri"].asString();
-            qpid::types::Variant::Map motions = videomap["motions"].asMap();
-            for( qpid::types::Variant::Map::iterator it=motions.begin(); it!=motions.end(); it++ )
+            Json::Value& motions = videomap["motions"];
+            for( auto it = motions.begin(); it!=motions.end(); it++ )
             {
-                qpid::types::Variant::Map motion = it->second.asMap();
-                if( !motion["uri"].isVoid() )
+                const Json::Value& motion = *it;
+                if( motion.isMember("uri") )
                 {
                     std::string motionUri = motion["uri"].asString();
                     if( motionUri==uri )
                     {
                         //uri already exists, stop here
-                        pthread_mutex_unlock(&videomapMutex);
                         return responseError("error.security.addmotion", "Motion already exists");
                     }
                 }
             }
 
+            // Potentially adjust values
+            Json::Value content_(content);
+            if( content_["recordduration"].asInt() >= content_["onduration"].asInt() )
+            {
+                AGO_WARNING() << "Addmotion: record duration must be lower than on duration. Record duration forced to on duration.";
+                content_["recordduration"] = content_["onduration"].asInt() - 1;
+            }
+            if( content_["bufferduration"].asInt() >= content_["recordduration"].asInt() )
+            {
+                AGO_WARNING() << "Addmotion: buffer duration must be lower than record duration. Buffer duration forced to record duration.";
+                content_["bufferduration"] = content_["recordduration"].asInt() - 1;
+            }
+
             //fill new motion
-            qpid::types::Variant::Map motion;
-            fillMotion(&motion, &content);
+            Json::Value motion(Json::objectValue);
+            fillMotion(motion, content_);
 
             //and save it
             std::string internalid = generateUuid();
             motions[internalid] = motion;
-            videomap["motions"] = motions;
-            pthread_mutex_unlock(&videomapMutex);
-            if( variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE)) )
+            if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
             {
                 AGO_DEBUG() << "Command 'addmotion': motion added " << motion;
 
                 //and finally launch motion thread
                 launchMotion(internalid, motion);
 
-                qpid::types::Variant::Map result;
+                Json::Value result;
                 result["internalid"] = internalid;
                 return responseSuccess("Motion added", result);
             }
@@ -1351,32 +1357,31 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
         }
         else if( command=="getmotions" )
         {
-            checkMsgParameter(content, "process", VAR_STRING);
+            checkMsgParameter(content, "process", Json::stringValue);
             std::string process = content["process"].asString();
 
-            qpid::types::Variant::List motions;
+            Json::Value motions(Json::arrayValue);
             getRecordings("motion_", motions, process);
-            returnData["motions"] = motions;
+            returnData["motions"].swap(motions);
             return responseSuccess(returnData);
         }
         else if( command=="getrecordingsconfig" )
         {
-            qpid::types::Variant::Map config = videomap["recordings"].asMap();
-            returnData["recordings"] = config;
+            Json::Value config = videomap["recordings"];
+            returnData["recordings"].swap(config);
             return responseSuccess(returnData);
         }
         else if( command=="setrecordingsconfig" )
         {
-            checkMsgParameter(content, "timelapseslifetime", VAR_INT32);
-            checkMsgParameter(content, "motionslifetime", VAR_INT32);
+            checkMsgParameter(content, "timelapseslifetime", Json::intValue);
+            checkMsgParameter(content, "motionslifetime", Json::intValue);
 
-            pthread_mutex_lock(&videomapMutex);
-            qpid::types::Variant::Map config = videomap["recordings"].asMap();
-            config["timelapseslifetime"] = content["timelapseslifetime"].asInt32();
-            config["motionslifetime"] = content["motionslifetime"].asInt32();
-            pthread_mutex_lock(&videomapMutex);
+            boost::lock_guard<boost::mutex> lock(videomapMutex);
+            Json::Value config = videomap["recordings"];
+            config["timelapseslifetime"] = content["timelapseslifetime"].asInt();
+            config["motionslifetime"] = content["motionslifetime"].asInt();
 
-            if( variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE)) )
+            if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
             {
                 AGO_DEBUG() << "Command 'setrecordingsconfig': recordings config stored";
                 return responseSuccess();
@@ -1400,16 +1405,17 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
             std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
 
             //get stream infos
-            pthread_mutex_lock(&videomapMutex);
-            qpid::types::Variant::Map streams = videomap["streams"].asMap();
-            qpid::types::Variant::Map stream;
+            Json::Value stream;
             std::string uri = "";
-            if( !streams[internalid].isVoid() )
             {
-                stream = streams[internalid].asMap();
-                uri = stream["uri"].asString();
+                boost::lock_guard<boost::mutex> lock(videomapMutex);
+                Json::Value& streams = videomap["streams"];
+                if( streams.isMember(internalid) )
+                {
+                    stream = streams[internalid];
+                    uri = stream["uri"].asString();
+                }
             }
-            pthread_mutex_unlock(&videomapMutex);
 
             if( uri.length()>0 )
             {
@@ -1419,7 +1425,6 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                 {
                     //no frame provider
                     AGO_ERROR() << "Command 'getvideoframe': unable to get frame provider for stream '" << uri << "'";
-                    pthread_mutex_unlock(&videomapMutex);
                     return responseError("error.nvr.getvideoframe.", "Unable to get frame provider for specified stream");
                 }
 
@@ -1432,6 +1437,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                 Mat frame;
                 while( !frameReceived )
                 {
+                    // XXX: Blocking agocontrol main loop?
                     if( provider->isRunning() )
                     {
                         frame = consumer.popFrame(&boost::this_thread::sleep_for);
@@ -1446,7 +1452,7 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                 std::string img;
                 if( frameToString(frame, img) )
                 {
-                    qpid::types::Variant::Map result;
+                    Json::Value result;
                     result["image"] = base64_encode(reinterpret_cast<const unsigned char*>(img.c_str()), img.length());
                     return responseSuccess(result);
                 }
@@ -1467,21 +1473,19 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
             bool found = false;
             std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
 
-            pthread_mutex_lock(&videomapMutex);
+            boost::lock_guard<boost::mutex> lock(videomapMutex);
 
             //search timelapse
-            qpid::types::Variant::Map timelapses = videomap["timelapses"].asMap();
-            if( !timelapses[internalid].isVoid() )
+            Json::Value& timelapses = videomap["timelapses"];
+            if( timelapses.isMember(internalid) )
             {
                 found = true;
-                qpid::types::Variant::Map timelapse = timelapses[internalid].asMap();
-                if( !timelapse["enabled"].isVoid() )
+                Json::Value& timelapse = timelapses[internalid];
+                if( timelapse.isMember("enabled") )
                 {
                     if( command=="on" )
                     {
                         timelapse["enabled"] = true;
-                        timelapses[internalid] = timelapse;
-                        videomap["timelapses"] = timelapses;
 
                         //start timelapse
                         launchTimelapse(internalid, timelapse);
@@ -1489,8 +1493,6 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                     else
                     {
                         timelapse["enabled"] = false;
-                        timelapses[internalid] = timelapse;
-                        videomap["timelapses"] = timelapses;
 
                         //start timelapse
                         stopTimelapse(internalid);
@@ -1501,18 +1503,16 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
             if( !found )
             {
                 //search motion
-                qpid::types::Variant::Map motions = videomap["motions"].asMap();
-                if( !motions[internalid].isVoid() )
+                Json::Value& motions = videomap["motions"];
+                if( motions.isMember(internalid) )
                 {
                     found = true;
-                    qpid::types::Variant::Map motion = motions[internalid].asMap();
-                    if( !motion["enabled"].isVoid() )
+                    Json::Value& motion = motions[internalid];
+                    if( motion.isMember("enabled") )
                     {
                         if( command=="on" )
                         {
                             motion["enabled"] = true;
-                            motions[internalid] = motion;
-                            videomap["motions"] = motions;
 
                             //start motion
                             launchMotion(internalid, motion);
@@ -1520,8 +1520,6 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                         else
                         {
                             motion["enabled"] = false;
-                            motions[internalid] = motion;
-                            videomap["motions"] = motions;
 
                             //stop motion
                             stopMotion(internalid);
@@ -1530,11 +1528,9 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                 }
             }
 
-            pthread_mutex_unlock(&videomapMutex);
-
             if( found )
             {
-                if( variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE)) )
+                if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
                 {
                     AGO_DEBUG() << "Command " << command << ": timelapse " << internalid << " started";
                 }
@@ -1550,14 +1546,14 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
             bool found = false;
             std::string internalid = agoConnection->uuidToInternalId(content["uuid"].asString());
 
-            pthread_mutex_lock(&videomapMutex);
+            boost::lock_guard<boost::mutex> lock(videomapMutex);
 
-            qpid::types::Variant::Map motions = videomap["motions"].asMap();
-            if( !motions[internalid].isVoid() )
+            Json::Value& motions = videomap["motions"];
+            if( motions.isMember(internalid) )
             {
                 found = true;
-                qpid::types::Variant::Map motion = motions[internalid].asMap();
-                if( !motion["enabled"].isVoid() )
+                Json::Value& motion = motions[internalid];
+                if( motion.isMember("enabled") )
                 {
                     if( command=="recordon" )
                     {
@@ -1567,8 +1563,6 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                     {
                         motion["recordenabled"] = false;
                     }
-                    motions[internalid] = motion;
-                    videomap["motions"] = motions;
 
                     //restart motion
                     stopMotion(internalid);
@@ -1576,11 +1570,9 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
                 }
             }
 
-            pthread_mutex_unlock(&videomapMutex);
-
             if( found )
             {
-                if( variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE)) )
+                if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
                 {
                     AGO_DEBUG() << "Command " << command << ": timelapse " << internalid << " started";
                 }
@@ -1600,44 +1592,44 @@ qpid::types::Variant::Map AgoSurveillance::commandHandler(qpid::types::Variant::
 
 void AgoSurveillance::setupApp()
 {
-    //init
-    pthread_mutex_init(&videomapMutex, NULL);
-    pthread_mutex_init(&frameProvidersMutex, NULL);
-
     //config
     std::string optString = getConfigOption("restartDelay", "12");
     sscanf(optString.c_str(), "%d", &restartDelay);
 
     //load config
-    videomap = jsonFileToVariantMap(getConfigPath(VIDEOMAPFILE));
+    if(!readJsonFile(videomap, getConfigPath(VIDEOMAPFILE)))
+        videomap = Json::Value(Json::objectValue);
+
+    bool inited = false;
     //add missing sections if necessary
-    if( videomap["streams"].isVoid() )
+    if( !videomap.isMember("streams") )
     {
-        qpid::types::Variant::Map streams;
-        videomap["streams"] = streams;
-        variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE));
+        videomap["streams"] = Json::Value(Json::objectValue);
+        inited = true;
     }
-    if( videomap["timelapses"].isVoid() )
+    if( !videomap.isMember("timelapses") )
     {
-        qpid::types::Variant::Map timelapses;
-        videomap["timelapses"] = timelapses;
-        variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE));
+        videomap["timelapses"] = Json::Value(Json::objectValue);
+        inited = true;
     }
-    if( videomap["motions"].isVoid() )
+    if( !videomap.isMember("motions") )
     {
-        qpid::types::Variant::Map motions;
-        videomap["motions"] = motions;
-        variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE));
+        videomap["motions"] = Json::Value(Json::objectValue);
+        inited = true;
     }
-    if( videomap["recordings"].isVoid() )
+    if( !videomap.isMember("recordings") )
     {
-        qpid::types::Variant::Map recordings;
+        Json::Value recordings;
         recordings["timelapseslifetime"] = 7;
         recordings["motionslifetime"] = 14;
         videomap["recordings"] = recordings;
-        variantMapToJSONFile(videomap, getConfigPath(VIDEOMAPFILE));
+        inited = true;
     }
+
     AGO_DEBUG() << "Loaded videomap: " << videomap;
+
+    if(inited)
+        writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE));
 
     //finalize
     agoConnection->addDevice("surveillancecontroller", "surveillancecontroller");

@@ -16,12 +16,12 @@ FIND_LIBRARY(EibClient_LIBRARIES eibclient
    /usr/local/lib64
    /usr/lib)
 
-IF(EibClient_INCLUDE_DIRS)
+if(EibClient_INCLUDE_DIRS)
     IF(EibClient_LIBRARIES)
         SET(EibClient_FOUND "YES")
         SET(EibClient_LIBRARIES ${EibClient_LIBRARIES} ${CMAKE_DL_LIBS})
-    ENDIF(EibClient_LIBRARIES)
-ENDIF(EibClient_INCLUDE_DIRS)
+    endif()
+endif()
 
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(EibClient DEFAULT_MSG EibClient_LIBRARIES EibClient_INCLUDE_DIRS)

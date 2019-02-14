@@ -1,0 +1,14 @@
+[Unit]
+Description=@PROG_DESCRIPTION@
+
+[Service]
+ExecStart=@BINDIR@/@PROGRAM_NAME@
+WorkingDirectory=@BINDIR@
+StandardOutput=syslog
+StandardError=syslog
+Restart=always
+RestartSec=2
+User=@PROG_RUN_AS@
+
+[Install]
+WantedBy=multi-user.target

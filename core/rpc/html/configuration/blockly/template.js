@@ -422,7 +422,7 @@ function agoBlocklyPlugin(devices, agocontrol)
             uuid: self.luaControllerUuid,
             command: 'enablescript',
             name: 'blockly_'+script,
-            enabled: enable ? 1 : 0
+            enabled: enable ? true : false
         };
         self.agocontrol.sendCommand(content)
             .then(function(res) {

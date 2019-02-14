@@ -17,83 +17,36 @@
 #endif
 
 using namespace agocontrol;
-using namespace qpid::types;
 namespace fs = ::boost::filesystem;
 
 class AgoEvent: public AgoApp {
 private:
-    qpid::types::Variant::Map eventmap;
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
+    Json::Value eventmap;
+    Json::Value commandHandler(const Json::Value& content) ;
+    void eventHandler(const std::string& subject , const Json::Value& content) ;
     void setupApp();
 public:
     AGOAPP_CONSTRUCTOR(AgoEvent);
 };
 
-
-double variantToDouble(qpid::types::Variant v) {
-    double result;
-    switch(v.getType()) {
-        case VAR_DOUBLE:
-            result = v.asDouble();	
-            break;
-        case VAR_FLOAT:
-            result = v.asFloat();	
-            break;
-        case VAR_BOOL:
-            result = v.asBool();
-            break;
-        case VAR_STRING:
-            result = atof(v.asString().c_str());
-            break;
-        case VAR_INT8:
-            result = v.asInt8();
-            break;
-        case VAR_INT16:
-            result = v.asInt16();
-            break;
-        case VAR_INT32:
-            result = v.asInt32();
-            break;
-        case VAR_INT64:
-            result = v.asInt64();
-            break;
-        case VAR_UINT8:
-            result = v.asUint8();
-            break;
-        case VAR_UINT16:
-            result = v.asUint16();
-            break;
-        case VAR_UINT32:
-            result = v.asUint32();
-            break;
-        case VAR_UINT64:
-            result = v.asUint64();
-            break;
-        default:
-            AGO_ERROR() << "No conversion for type: " << v;
-            result = 0;
+std::string typeName(const Json::Value& v) {
+    switch(v.type()) {
+        case Json::nullValue:     return "null";
+        case Json::intValue:      return "int";
+        case Json::uintValue:     return "uint";
+        case Json::realValue:     return "real";
+        case Json::stringValue:   return "string";
+        case Json::booleanValue:  return "bool";
+        case Json::arrayValue:    return "array";
+        case Json::objectValue:   return "object";
     }
-    return result;
-}
-
-bool operator<(qpid::types::Variant a, qpid::types::Variant b) {
-    return variantToDouble(a) < variantToDouble(b);
-}
-bool operator>(qpid::types::Variant a, qpid::types::Variant b) {
-    return b < a;
-}
-bool operator<=(qpid::types::Variant a, qpid::types::Variant b) {
-    return !(a>b);
-}
-bool operator>=(qpid::types::Variant a, qpid::types::Variant b) {
-    return !(a<b);
+    return "INVALID";
 }
 
 // example event:eb68c4a5-364c-4fb8-9b13-7ea3a784081f:{action:{command:on, uuid:25090479-566d-4cef-877a-3e1927ed4af0}, criteria:{0:{comp:eq, lval:hour, rval:7}, 1:{comp:eq, lval:minute, rval:1}}, event:event.environment.timechanged, nesting:(criteria["0"] and criteria["1"])}
 
 
-void AgoEvent::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
+void AgoEvent::eventHandler(const std::string& subject , const Json::Value& content)
 {
     // ignore device announce events
     if( subject=="event.device.announce" || subject=="event.device.discover" )
@@ -102,188 +55,176 @@ void AgoEvent::eventHandler(const std::string& subject , qpid::types::Variant::M
     }
 
     // iterate event map and match for event name
-    if( eventmap.size()>0 )
+    for (auto it = eventmap.begin(); it!=eventmap.end(); it++)
     {
-        for (qpid::types::Variant::Map::const_iterator it = eventmap.begin(); it!=eventmap.end(); it++)
-        { 
-            qpid::types::Variant::Map event;
-            if (!(it->second.isVoid()))
-            {
-                event = it->second.asMap();
-            }
-            else
-            {
-                AGO_ERROR() << "Eventmap entry is void";
-            }
-            if (event["event"] == subject)
-            {
-                AGO_TRACE() << "Found matching event: " << event;
-                // check if the event is disabled
-                if ((!(event["disabled"].isVoid())) && (event["disabled"].asBool() == true))
-                {
-                    return;
-                }
+        Json::Value& event (*it);
+        if(event.isNull())
+        {
+            AGO_ERROR() << "Eventmap entry is void";
+            continue;
+        }
 
-                qpid::types::Variant::Map inventory; // this will hold the inventory from the resolver if we need it during evaluation
-                qpid::types::Variant::Map criteria; // this holds the criteria evaluation results for each criteria
-                std::string nesting = event["nesting"].asString();
-                if (!event["criteria"].isVoid()) for (qpid::types::Variant::Map::const_iterator crit = event["criteria"].asMap().begin(); crit!= event["criteria"].asMap().end(); crit++)
+        if (event["event"] != subject)
+            continue;
+
+        AGO_TRACE() << "Found matching event: " << event;
+        // check if the event is disabled
+        if(event.isMember("disabled") && event["disabled"].isConvertibleTo(Json::booleanValue) && event["disabled"].asBool())
+        {
+            return;
+        }
+
+        Json::Value inventory; // this will hold the inventory from the resolver if we need it during evaluation
+        Json::Value criteria(Json::objectValue); // this holds the criteria evaluation results for each criteria
+        std::string nesting = event["nesting"].asString();
+        if (event.isMember("criteria")) for (auto crit = event["criteria"].begin(); crit!= event["criteria"].end(); crit++)
+        {
+            Json::Value& element (*crit);
+            AGO_TRACE() << "criteria[" << crit.name() << "] - " << element;
+            if(element.isNull())
+            {
+                AGO_ERROR() << "Criteria element is void";
+                continue;
+            }
+
+            try
+            {
+                // AGO_TRACE() << "LVAL: " << element["lval"];
+                Json::Value lvalmap;
+                Json::Value lval;
+                if (element.isMember("lval"))
                 {
-                    AGO_TRACE() << "criteria[" << crit->first << "] - " << crit->second;
-                    qpid::types::Variant::Map element;
-                    if (!(crit->second.isVoid()))
+                    if (element["lval"].type() == Json::stringValue)
                     {
-                        element = crit->second.asMap();
+                        // legacy eventmap entry
+                        lvalmap["type"] = "event";
+                        lvalmap["parameter"] = element["lval"];
                     }
                     else
                     {
-                        AGO_ERROR() << "Criteria element is void";
+                        lvalmap = element["lval"];
                     }
-                    try
-                    {
-                        // AGO_TRACE() << "LVAL: " << element["lval"];
-                        qpid::types::Variant::Map lvalmap;
-                        qpid::types::Variant lval;
-                        if (!element["lval"].isVoid())
-                        {
-                            if (element["lval"].getType()==qpid::types::VAR_STRING)
-                            {
-                                // legacy eventmap entry
-                                lvalmap["type"] = "event";
-                                lvalmap["parameter"] = element["lval"];
-                            }
-                            else
-                            {
-                                lvalmap = element["lval"].asMap();
-                            }
-                        }
-                        // determine lval depending on type
-                        if (lvalmap["type"] == "variable")
-                        {
-                            qpid::types::Variant::Map variables;
-                            std::string name = lvalmap["name"];
-                            if (inventory["system"].isVoid()) inventory = agoConnection->getInventory(); // fetch inventory as it is needed for eval but has not yet been pulled
-                            if (!inventory["variables"].isVoid())
-                            {
-                                variables = inventory["variables"].asMap();
-                            }
-                            lval = variables[name];	
-
-                        }
-                        else if (lvalmap["type"] == "device")
-                        {
-                            std::string uuid = lvalmap["uuid"].asString();
-                            if (inventory["system"].isVoid()) inventory = agoConnection->getInventory(); // fetch inventory as it is needed for eval but has not yet been pulled
-                            qpid::types::Variant::Map devices = inventory["devices"].asMap();
-                            qpid::types::Variant::Map device = devices[uuid].asMap();
-                            if (lvalmap["parameter"] == "state")
-                            {
-                                lval = device["state"];
-                            }
-                            else
-                            {
-                                qpid::types::Variant::Map values = device["values"].asMap();
-                                std::string parameter = lvalmap["parameter"].asString();
-                                qpid::types::Variant::Map value = values[parameter].asMap();
-                                lval = value["level"];
-                            }
-                        }
-                        else //event
-                        {
-                            lval = content[lvalmap["parameter"].asString()];
-                        }
-                        qpid::types::Variant rval = element["rval"];
-                        AGO_TRACE() << "lval: " << lval << " (" << getTypeName(lval.getType()) << ")";
-                        AGO_TRACE() << "rval: " << rval << " (" << getTypeName(rval.getType()) << ")";
-
-                        if (element["comp"] == "eq")
-                        {
-                            if (lval.getType()==qpid::types::VAR_STRING || rval.getType()==qpid::types::VAR_STRING) // compare as string
-                            {
-                                criteria[crit->first] = lval.asString() == rval.asString(); 
-                            }
-                            else
-                            {
-                                criteria[crit->first] = lval.isEqualTo(rval);
-                            }
-                        } else if (element["comp"] == "neq")
-                        {
-                            if (lval.getType()==qpid::types::VAR_STRING || rval.getType()==qpid::types::VAR_STRING) // compare as string
-                            {
-                                criteria[crit->first] = lval.asString() != rval.asString(); 
-                            }
-                            else
-                            {
-                                criteria[crit->first] = !(lval.isEqualTo(rval));
-                            }
-                        } else if (element["comp"] == "lt")
-                        {
-                            criteria[crit->first] = lval < rval;
-                        }
-                        else if (element["comp"] == "gt")
-                        {
-                            criteria[crit->first] = lval > rval;
-                        }
-                        else if (element["comp"] == "gte")
-                        {
-                            criteria[crit->first] = lval >= rval;
-                        }
-                        else if (element["comp"] == "lte")
-                        {
-                            criteria[crit->first] = lval <= rval;
-                        }
-                        else
-                        {
-                            criteria[crit->first] = false;
-                        }
-                        AGO_TRACE() << lval << " " << element["comp"] << " " << rval << " : " << criteria[crit->first];
-                    }
-                    catch ( const std::exception& error)
-                    {
-                        std::stringstream errorstring;
-                        errorstring << error.what();
-                        AGO_ERROR() << "Exception occured: " << errorstring.str();
-                        criteria[crit->first] = false;
-                    }
-
-                    // this is for converted legacy scenario maps
-                    std::stringstream token; token << "criteria[\"" << crit->first << "\"]";
-                    std::stringstream boolval; boolval << criteria[crit->first];
-                    replaceString(nesting, token.str(), boolval.str()); 
-
-                    // new javascript editor sends criteria[x] not criteria["x"]
-                    std::stringstream token2; token2 << "criteria[" << crit->first << "]";
-                    std::stringstream boolval2; boolval2 << criteria[crit->first];
-                    replaceString(nesting, token2.str(), boolval2.str()); 
                 }
-                replaceString(nesting, "and", "&");
-                replaceString(nesting, "or", "|");
-                nesting += ";";
-                AGO_TRACE() << "nesting prepared: " << nesting;
-                if (evaluateNesting(nesting))
+                // determine lval depending on type
+                if (lvalmap["type"] == "variable")
                 {
-                    AGO_DEBUG() << "sending event action as command";
-                    agoConnection->sendMessage(event["action"].asMap());
+                    Json::Value variables;
+                    std::string name = lvalmap["name"].asString();
+                    if (inventory.isMember("system"))
+                        inventory = agoConnection->getInventory(); // fetch inventory as it is needed for eval but has not yet been pulled
+                    if (inventory.isMember("variables"))
+                    {
+                        variables = inventory["variables"];
+                    }
+                    lval = variables[name];
+
                 }
-            }	
+                else if (lvalmap["type"] == "device")
+                {
+                    std::string uuid = lvalmap["uuid"].asString();
+                    if (inventory.isMember("system"))
+                        inventory = agoConnection->getInventory(); // fetch inventory as it is needed for eval but has not yet been pulled
+                    Json::Value& devices(inventory["devices"]);
+                    Json::Value& device(devices[uuid]);
+                    if (lvalmap["parameter"] == "state")
+                    {
+                        lval = device["state"];
+                    }
+                    else
+                    {
+                        Json::Value values = device["values"];
+                        std::string parameter = lvalmap["parameter"].asString();
+                        Json::Value value = values[parameter];
+                        lval = value["level"];
+                    }
+                }
+                else //event
+                {
+                    lval = content[lvalmap["parameter"].asString()];
+                }
+
+                Json::Value rval = element["rval"];
+                AGO_TRACE() << "lval: " << lval << " (" << typeName(lval.type()) << ")";
+                AGO_TRACE() << "rval: " << rval << " (" << typeName(rval.type()) << ")";
+
+                if (element["comp"] == "eq")
+                {
+                    if (lval.type() == Json::stringValue || rval.type() == Json::stringValue) // compare as string
+                        criteria[crit.name()] = lval.asString() == rval.asString();
+                    else
+                        criteria[crit.name()] = lval == rval;
+                } else if (element["comp"] == "neq")
+                {
+                    if (lval.type() == Json::stringValue || rval.type() == Json::stringValue) // compare as string
+                        criteria[crit.name()] = lval.asString() != rval.asString();
+                    else
+                        criteria[crit.name()] = lval != rval;
+                } else if (element["comp"] == "lt")
+                {
+                    criteria[crit.name()] = lval < rval;
+                }
+                else if (element["comp"] == "gt")
+                {
+                    criteria[crit.name()] = lval > rval;
+                }
+                else if (element["comp"] == "gte")
+                {
+                    criteria[crit.name()] = lval >= rval;
+                }
+                else if (element["comp"] == "lte")
+                {
+                    criteria[crit.name()] = lval <= rval;
+                }
+                else
+                {
+                    criteria[crit.name()] = false;
+                }
+                AGO_TRACE() << lval << " " << element["comp"] << " " << rval << " : " << criteria[crit.name()];
+            }
+            catch ( const std::exception& error)
+            {
+                std::stringstream errorstring;
+                errorstring << error.what();
+                AGO_ERROR() << "Exception occured: " << errorstring.str();
+                criteria[crit.name()] = false;
+            }
+
+            // this is for converted legacy scenario maps
+            std::stringstream token; token << "criteria[\"" << crit.name() << "\"]";
+            std::stringstream boolval; boolval << criteria[crit.name()];
+            replaceString(nesting, token.str(), boolval.str());
+
+            // new javascript editor sends criteria[x] not criteria["x"]
+            std::stringstream token2; token2 << "criteria[" << crit.name() << "]";
+            replaceString(nesting, token2.str(), boolval.str());
+        }
+        replaceString(nesting, "and", "&");
+        replaceString(nesting, "or", "|");
+        nesting += ";";
+        AGO_TRACE() << "nesting prepared: " << nesting;
+        if (evaluateNesting(nesting))
+        {
+            AGO_DEBUG() << "sending event action as command";
+            agoConnection->sendMessage(event["action"]);
         }
     }
+
 }
 
-qpid::types::Variant::Map AgoEvent::commandHandler(qpid::types::Variant::Map content)
+Json::Value AgoEvent::commandHandler(const Json::Value& content)
 {
-    qpid::types::Variant::Map responseData;
+    Json::Value responseData;
     std::string internalid = content["internalid"].asString();
     if (internalid == "eventcontroller")
     {
         if (content["command"] == "setevent")
         {
-            checkMsgParameter(content, "eventmap", VAR_MAP);
+            checkMsgParameter(content, "eventmap", Json::objectValue);
 
             AGO_DEBUG() << "setevent request";
-            qpid::types::Variant::Map newevent = content["eventmap"].asMap();
+            Json::Value newevent = content["eventmap"];
             std::string eventuuid = content["event"].asString();
-            if (eventuuid == "")
+            if (eventuuid.empty())
                 eventuuid = generateUuid();
 
             AGO_TRACE() << "event content:" << newevent;
@@ -291,7 +232,7 @@ qpid::types::Variant::Map AgoEvent::commandHandler(qpid::types::Variant::Map con
             eventmap[eventuuid] = newevent;
 
             agoConnection->addDevice(eventuuid, "event", true);
-            if (variantMapToJSONFile(eventmap, getConfigPath(EVENTMAPFILE)))
+            if (writeJsonFile(eventmap, getConfigPath(EVENTMAPFILE)))
             {
                 responseData["event"] = eventuuid;
                 return responseSuccess(responseData);
@@ -303,30 +244,29 @@ qpid::types::Variant::Map AgoEvent::commandHandler(qpid::types::Variant::Map con
         }
         else if (content["command"] == "getevent")
         {
-            checkMsgParameter(content, "event", VAR_STRING);
+            checkMsgParameter(content, "event", Json::stringValue);
 
             std::string event = content["event"].asString();
 
             AGO_DEBUG() << "getevent request:" << event;
-            responseData["eventmap"] = eventmap[event].asMap();
+            responseData["eventmap"] = eventmap[event];
             responseData["event"] = event;
 
             return responseSuccess(responseData);
         }
         else if (content["command"] == "delevent")
         {
-            checkMsgParameter(content, "event", VAR_STRING);
+            checkMsgParameter(content, "event", Json::stringValue);
 
             std::string event = content["event"].asString();
             AGO_DEBUG() << "delevent request:" << event;
 
-            qpid::types::Variant::Map::iterator it = eventmap.find(event);
-            if (it != eventmap.end())
+            if (eventmap.isMember(event))
             {
                 AGO_TRACE() << "removing ago device" << event;
-                agoConnection->removeDevice(it->first);
-                eventmap.erase(it);
-                if (!variantMapToJSONFile(eventmap, getConfigPath(EVENTMAPFILE)))
+                agoConnection->removeDevice(event);
+                eventmap.removeMember(event);
+                if (!writeJsonFile(eventmap, getConfigPath(EVENTMAPFILE)))
                 {
                     return responseFailed("Failed to write map file");
                 }
@@ -347,17 +287,17 @@ void AgoEvent::setupApp()
 {
     AGO_DEBUG() << "parsing eventmap file";
     fs::path file = getConfigPath(EVENTMAPFILE);
-    eventmap = jsonFileToVariantMap(file);
+    readJsonFile(eventmap, file);
 
     addCommandHandler();
     addEventHandler();
 
     agoConnection->addDevice("eventcontroller", "eventcontroller");
 
-    for (qpid::types::Variant::Map::const_iterator it = eventmap.begin(); it!=eventmap.end(); it++)
+    for (Json::Value::const_iterator it = eventmap.begin(); it!=eventmap.end(); it++)
     {
-        AGO_DEBUG() << "adding event:" << it->first << ":" << it->second;
-        agoConnection->addDevice(it->first, "event", true);
+        AGO_DEBUG() << "adding event:" << it.name() << ":" << *it;
+        agoConnection->addDevice(it.name(), "event", true);
     }
 }
 

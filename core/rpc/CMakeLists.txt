@@ -1,9 +1,9 @@
 cmake_minimum_required (VERSION 3.0)
 
-IF(COMMAND cmake_policy)
+if(COMMAND cmake_policy)
     # FILE GLOB_RECURSE calls should not follow symlinks by default.
     cmake_policy(SET CMP0009 NEW)
-ENDIF(COMMAND cmake_policy)
+endif()
 
 set (RPC_LIBRARIES
     agoclient
@@ -13,11 +13,6 @@ set (RPC_LIBRARIES
 set (RPCPASSWD_LIBRARIES
     agohttp
 )
-
-IF (NOT FREEBSD)
-	list(APPEND RPC_LIBRARIES dl )
-	list(APPEND RPCPASSWD_LIBRARIES dl )
-ENDIF (NOT FREEBSD)
 
 # add the executable
 add_executable (agorpc agorpc.cpp)
@@ -29,9 +24,9 @@ add_executable (rpc-htpasswd rpc-htpasswd.cpp)
 target_link_libraries (rpc-htpasswd ${RPCPASSWD_LIBRARIES})
 
 set_property(
-	TARGET agorpc
-	PROPERTY COMPILE_DEFINITIONS
-	DEFAULT_HTMLDIR=${HTMLDIR}
+    TARGET agorpc
+    PROPERTY COMPILE_DEFINITIONS
+    DEFAULT_HTMLDIR=${HTMLDIR}
 )
 
 
@@ -45,32 +40,31 @@ configure_file (
 
 install (TARGETS agorpc rpc-htpasswd RUNTIME DESTINATION ${BINDIR})
 install (TARGETS get_table_lang.cgi RUNTIME DESTINATION ${HTMLDIR}/cgi-bin)
+AgoService(rpc DESCRIPTION "ago control HTTP RPC interface")
 
 
 get_filename_component(CMAKE_CURRENT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
 get_filename_component(CMAKE_CURRENT_BINARY_DIR_REAL "${CMAKE_CURRENT_BINARY_DIR}" REALPATH)
 
-# If we are NOT in-source build, we have to copy all files below html/ to the build dir.
+# This is quite similar to our CopyFilesFromSource function, but does some extra filtering,
+# since we do globbing and don't want to copy .in.html or dot-files.
 if (NOT IN_SOURCE_BUILD)
     file(GLOB_RECURSE HTML_FILES ${CMAKE_CURRENT_SOURCE_DIR}/html/*)
+    add_custom_target(html-ui ALL)
+    add_dependencies(agorpc html-ui)
     foreach (infile ${HTML_FILES})
         # Almost all...
         if (NOT infile MATCHES ".in.html$"
                 AND NOT infile MATCHES "/\\."
                 AND NOT IS_SYMLINK "${infile}")
-            # This is quite verbose, logging every file, but we want a
-            # dependency on input file -> output file for quick rebuild with just "make"
             string(REPLACE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} outfile ${infile})
             add_custom_command(
-                OUTPUT ${outfile} DEPENDS ${infile}
+                TARGET html-ui DEPENDS ${infile}
                 COMMAND ${CMAKE_COMMAND} -E copy ${infile} ${outfile})
             set (UI_FILES ${UI_FILES} ${outfile})
         endif()
     endforeach(infile)
-    add_custom_target(html-ui DEPENDS ${UI_FILES})
-    add_dependencies(agorpc html-ui)
 endif()
-
 
 # For every .in.html file, pass it through the mergetranslation.sh script
 file(GLOB_RECURSE HTML_IN_FILES ${CMAKE_CURRENT_SOURCE_DIR}/html/*.in.html)
@@ -86,7 +80,6 @@ endforeach (infile)
 
 add_custom_target(translations DEPENDS ${OUT_FILES})
 add_dependencies(agorpc translations)
-
 
 # These JS files are loaded on main page. Build a merged file so we can load quicker...
 # Poor mans minifying...

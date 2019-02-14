@@ -14,22 +14,38 @@ set (AGOHTTP_LIBRARIES
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${CMAKE_THREAD_LIBS_INIT} # for pthread
-    qpidtypes
-    ssl crypto
     ${JSONCPP_LIBRARIES}
 )
 
-#IF (Boost_LOG_FOUND)
-#	LIST(APPEND AGOHTTP_LIBRARIES ${Boost_LOG_LIBRARY})
-#ENDIF()
+if(OPENSSL_FOUND)
+    list(APPEND AGOHTTP_LIBRARIES
+        ssl
+        crypto
+    )
 
-target_link_libraries (agohttp ${AGOHTTP_LIBRARIES})
+    set(MG_ENABLE_SSL 1)
+else()
+    set(MG_ENABLE_SSL 0)
+endif()
 
-set_property(
-    TARGET agohttp
-    PROPERTY COMPILE_DEFINITIONS
-    MG_ENABLE_SSL=1
+# configure a header file to pass some of the CMake settings
+# to the source code
+# Note that MG_ flags must be set when building mongoose.c too
+configure_file (
+        "${CMAKE_CURRENT_SOURCE_DIR}/agohttp_config.h.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/agohttp_config.h"
+        @ONLY
 )
+
+# SSI fails to build on GCC 8, we dont use it anyway
+# https://github.com/cesanta/mongoose/issues/929
+set_property(
+        TARGET agohttp
+        APPEND PROPERTY COMPILE_DEFINITIONS
+        MG_ENABLE_HTTP_SSI=0
+        MG_ENABLE_SSL=${MG_ENABLE_SSL}
+)
+target_link_libraries (agohttp ${AGOHTTP_LIBRARIES})
 
 set_property(
     TARGET agohttp

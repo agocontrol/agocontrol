@@ -3,19 +3,8 @@
 
 #include <boost/filesystem.hpp>
 #include <json/json.h>
-#include <qpid/messaging/Message.h>
 
 namespace agocontrol {
-
-    /// convert a Variant::Map to JSON representation.
-    void variantMapToJson(const qpid::types::Variant::Map &map, Json::Value &root) ;
-    void variantListToJson(const qpid::types::Variant::List &list, Json::Value &root) ;
-
-    /// convert a JSON value to a Variant::Map.
-    qpid::types::Variant::Map jsonToVariantMap(const Json::Value& value);
-
-    /// convert a JSON string to a Variant::List.
-    qpid::types::Variant::List jsonToVariantList(const Json::Value& value);
 
     /// Read a JSON::Value from a file
     bool readJsonFile(Json::Value& root, const boost::filesystem::path &filename);
@@ -23,15 +12,13 @@ namespace agocontrol {
     /// write a Json::Value to a file
     bool writeJsonFile(const Json::Value& root, const boost::filesystem::path &filename);
 
-    /// write a Variant::Map to a JSON file.
-    bool variantMapToJSONFile(const qpid::types::Variant::Map& map, const boost::filesystem::path &filename);
 
-    /// Read a JSON file into a Variant::Map, returning false if read fails, leaving map untouched.
-    bool jsonFileToVariantMap(qpid::types::Variant::Map& map, const boost::filesystem::path &filename);
+    /// Mimics Variant::parse
+    Json::Value parseToJson(const std::string& s);
 
-    /// Read a JSON file and return a Variant::Map, returning an empty map if read fails.
-    qpid::types::Variant::Map jsonFileToVariantMap(const boost::filesystem::path &filename);
-
-};
+    bool stringToUInt(const Json::Value& in, Json::UInt& out);
+    bool stringToInt(const Json::Value& in, Json::Int& out);
+    bool stringToDouble(const Json::Value& in, double& out);
+}
 
 #endif //AGOCONTROL_AGOJSON_H

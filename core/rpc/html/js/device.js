@@ -257,7 +257,7 @@ function device(agocontrol, obj, uuid) {
             //update cover first only if album is different
             if( infos.cover && this.album()!=infos.album )
             {
-                this.cover('data:image/jpeg;base64,' + infos.cover);
+                this.cover('data:image/jpeg;base64,'+infos.cover);
             }
 
             //update other infos
@@ -317,7 +317,7 @@ function device(agocontrol, obj, uuid) {
             content.command = 'mediainfos';
             self.agocontrol.sendCommand(content)
                 .then(function(resp) {
-                    self.updateMediaInfos(resp.data);
+                    self.updateMediaInfos(resp);
                 });
         };
         this.requestMediaInfos();

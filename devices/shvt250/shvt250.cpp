@@ -20,7 +20,6 @@
 
 #include "agoapp.h"
 
-using namespace qpid::types;
 using namespace agocontrol;
 
 class AgoShvt250: public AgoApp {

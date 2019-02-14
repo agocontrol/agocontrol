@@ -2,7 +2,7 @@ diff --git a/core/system/processinfo_linux.cpp b/core/system/processinfo_linux.c
 index b9b53d8..970dcf6 100644
 --- a/core/system/processinfo_linux.cpp
 +++ b/core/system/processinfo_linux.cpp
-@@ -61,11 +61,10 @@ static void getCpuPercentage(qpid::types::Variant::Map& current, qpid::types::Va
+@@ -61,11 +61,10 @@ static void getCpuPercentage(Json::Value& current, qpid::types::Va
  void AgoSystem::getProcessInfo()
  {
      PROCTAB* proc = openproc(PROC_FILLMEM | PROC_FILLSTAT | PROC_FILLSTATUS);
@@ -16,9 +16,9 @@ index b9b53d8..970dcf6 100644
 +        std::string procName = std::string(proc_info->cmd);
          if( processes.find(procName)!=processes.end()  )
          {
-             qpid::types::Variant::Map stats = processes[procName].asMap();
+             Json::Value stats = processes[procName];
 @@ -73,12 +72,12 @@ void AgoSystem::getProcessInfo()
-             qpid::types::Variant::Map ls = stats["lastStats"].asMap();
+             Json::Value ls = stats["lastStats"];
  
              //update current stats
 -            cs["utime"] = (uint64_t)proc_info.utime;
@@ -35,7 +35,7 @@ index b9b53d8..970dcf6 100644
 +            cs["rss"] = (uint64_t)proc_info->vm_rss * 1024;
              cs["cpuTotalTime"] = (uint32_t)getCpuTotalTime();
              double ucpu=0, scpu=0;
-             if( ls["utime"].asUint64()!=0 )
+             if( ls["utime"].asUInt64()!=0 )
 @@ -96,6 +95,9 @@ void AgoSystem::getProcessInfo()
              stats["running"] = true;
              processes[procName] = stats;

@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <time.h>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/locks.hpp>
 
 #include <tinyxml2.h>
 
@@ -36,8 +38,6 @@
 #define ETSGAEXPORTMAPFILE "maps/knx_etsgaexport.json"
 #endif
 
-using namespace qpid::messaging;
-using namespace qpid::types;
 using namespace tinyxml2;
 using namespace agocontrol;
 
@@ -48,18 +48,18 @@ class AgoKnx: public AgoApp {
 private:
     int polldelay;
 
-    Variant::Map deviceMap;
+    Json::Value deviceMap;
 
     std::string eibdurl;
     std::string time_ga;
     std::string date_ga;
 
     EIBConnection *eibcon;
-    pthread_mutex_t mutexCon;
+    boost::mutex mutexCon;
     boost::thread *listenerThread;
 
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
+    void eventHandler(const std::string& subject , const Json::Value& content);
     void sendDate();
     void sendTime();
     bool sendShortData(std::string dest, int data);
@@ -69,12 +69,12 @@ private:
     void setupApp();
     void cleanupApp();
 
-    bool loadDevicesXML(fs::path &filename, Variant::Map& _deviceMap);
-    void reportDevices(Variant::Map devicemap);
-    std::string uuidFromGA(Variant::Map devicemap, std::string ga);
-    std::string typeFromGA(Variant::Map device, std::string ga);
+    bool loadDevicesXML(fs::path &filename, Json::Value& _deviceMap);
+    void reportDevices();
+    std::string uuidFromGA(std::string ga);
+    std::string typeFromGA(const Json::Value& device, std::string ga);
 
-    void *listener();
+    void listener();
 public:
     AGOAPP_CONSTRUCTOR_HEAD(AgoKnx)
         , polldelay(0)
@@ -82,9 +82,9 @@ public:
 };
 
 /**
- * parses the device XML file and creates a qpid::types::Variant::Map with the data
+ * parses the device XML file and creates a Json::Value with the data
  */
-bool AgoKnx::loadDevicesXML(fs::path &filename, Variant::Map& _deviceMap) {
+bool AgoKnx::loadDevicesXML(fs::path &filename, Json::Value& _deviceMap) {
     XMLDocument devicesFile;
     int returncode;
 
@@ -101,7 +101,7 @@ bool AgoKnx::loadDevicesXML(fs::path &filename, Variant::Map& _deviceMap) {
     if (device) {
         XMLElement *nextdevice = device;
         while (nextdevice != NULL) {
-            Variant::Map content;
+            Json::Value content(Json::objectValue);
 
             AGO_TRACE() << "node: " << nextdevice->Attribute("uuid") << " type: " << nextdevice->Attribute("type");
 
@@ -137,26 +137,23 @@ bool AgoKnx::loadDevicesXML(fs::path &filename, Variant::Map& _deviceMap) {
 /**
  * announces our devices in the devicemap to the resolver
  */
-void AgoKnx::reportDevices(Variant::Map devicemap) {
-    for (Variant::Map::const_iterator it = devicemap.begin(); it != devicemap.end(); ++it) {
-        Variant::Map device;
-        device = it->second.asMap();
-        agoConnection->addDevice(it->first, device["devicetype"].asString(), true);
+void AgoKnx::reportDevices() {
+    for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
+        const Json::Value& device = *it;
+        agoConnection->addDevice(it.name(), device["devicetype"].asString(), true);
     }
 }
 
 /**
  * looks up the uuid for a specific GA - this is needed to match incoming telegrams to the right device
  */
-std::string AgoKnx::uuidFromGA(Variant::Map devicemap, std::string ga) {
-    for (Variant::Map::const_iterator it = devicemap.begin(); it != devicemap.end(); ++it) {
-        Variant::Map device;
-
-        device = it->second.asMap();
-        for (Variant::Map::const_iterator itd = device.begin(); itd != device.end(); itd++) {
-            if (itd->second.asString() == ga) {
-                // AGO_TRACE() << "GA " << itd->second.asString() << " belongs to " << itd->first;
-                return(it->first);
+std::string AgoKnx::uuidFromGA(std::string ga) {
+    for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
+        const Json::Value& device = *it;
+        for (auto  itd = device.begin(); itd != device.end(); itd++) {
+            if (itd->asString() == ga) {
+                // AGO_TRACE() << "GA " << itd->second.asString() << " belongs to " << it.name();
+                return(it.name());
             }
         }
     }	
@@ -166,11 +163,11 @@ std::string AgoKnx::uuidFromGA(Variant::Map devicemap, std::string ga) {
 /**
  * looks up the type for a specific GA - this is needed to match incoming telegrams to the right event type
  */
-std::string AgoKnx::typeFromGA(Variant::Map device, std::string ga) {
-    for (Variant::Map::const_iterator itd = device.begin(); itd != device.end(); itd++) {
-        if (itd->second.asString() == ga) {
-            // AGO_TRACE() << "GA " << itd->second.asString() << " belongs to " << itd->first;
-            return(itd->first);
+std::string AgoKnx::typeFromGA(const Json::Value& device, std::string ga) {
+    for (auto itd = device.begin(); itd != device.end(); itd++) {
+        if (itd->asString() == ga) {
+            // AGO_TRACE() << "GA " << itd->second.asString() << " belongs to " << it.name();
+            return(itd.name());
         }
     }
     return("");
@@ -178,17 +175,18 @@ std::string AgoKnx::typeFromGA(Variant::Map device, std::string ga) {
 /**
  * thread to poll the knx bus for incoming telegrams
  */
-void *AgoKnx::listener() {
+void AgoKnx::listener() {
     int received = 0;
 
     AGO_TRACE() << "starting listener thread";
     while(!isExitSignaled()) {
         std::string uuid;
-        pthread_mutex_lock (&mutexCon);
-        received=EIB_Poll_Complete(eibcon);
-        pthread_mutex_unlock (&mutexCon);
+        {
+            boost::lock_guard<boost::mutex> lock(mutexCon);
+            received = EIB_Poll_Complete(eibcon);
+        }
         switch(received) {
-            case(-1): 
+            case(-1):
                 AGO_WARNING() << "cannot poll bus";
                 try {
                     //boost::this_thread::sleep(pt::seconds(3)); FIXME: check why boost sleep interferes with EIB_Poll_complete, causing delays on status feedback
@@ -197,26 +195,26 @@ void *AgoKnx::listener() {
                     AGO_DEBUG() << "listener thread cancelled";
                     break;
                 }
-                AGO_INFO() << "reconnecting to eibd"; 
-                pthread_mutex_lock (&mutexCon);
-                EIBClose(eibcon);
-                eibcon = EIBSocketURL(eibdurl.c_str());
-                if (!eibcon) {
-                    pthread_mutex_unlock (&mutexCon);
-                    AGO_FATAL() << "cannot reconnect to eibd";
-                    signalExit();
-                } else {
-                    if (EIBOpen_GroupSocket (eibcon, 0) == -1) {
+                AGO_INFO() << "reconnecting to eibd";
+
+                {
+                    boost::lock_guard<boost::mutex> lock(mutexCon);
+                    EIBClose(eibcon);
+                    eibcon = EIBSocketURL(eibdurl.c_str());
+                    if (!eibcon) {
                         AGO_FATAL() << "cannot reconnect to eibd";
-                        pthread_mutex_unlock (&mutexCon);
                         signalExit();
                     } else {
-                        pthread_mutex_unlock (&mutexCon);
-                        AGO_INFO() << "reconnect to eibd succeeded"; 
+                        if (EIBOpen_GroupSocket(eibcon, 0) == -1) {
+                            AGO_FATAL() << "cannot reconnect to eibd";
+                            signalExit();
+                        } else {
+                            AGO_INFO() << "reconnect to eibd succeeded";
+                        }
                     }
                 }
                 break;
-                ;;
+
             case(0)	:
                 try {
                     //boost::this_thread::sleep(pt::milliseconds(polldelay)); FIXME: check why boost sleep interferes with EIB_Poll_complete, causing delays on status feedback
@@ -225,18 +223,20 @@ void *AgoKnx::listener() {
                     AGO_DEBUG() << "listener thread cancelled";
                 }
                 break;
-                ;;
+
             default:
                 Telegram tl;
-                pthread_mutex_lock (&mutexCon);
-                tl.receivefrom(eibcon);
-                pthread_mutex_unlock (&mutexCon);
+                {
+                    boost::lock_guard<boost::mutex> lock(mutexCon);
+                    tl.receivefrom(eibcon);
+                }
+
                 AGO_DEBUG() << "received telegram from: " << Telegram::paddrtostring(tl.getSrcAddress()) << " to: " 
                     << Telegram::gaddrtostring(tl.getGroupAddress()) << " type: " << tl.decodeType() << " shortdata: "
                     << tl.getShortUserData();
-                uuid = uuidFromGA(deviceMap, Telegram::gaddrtostring(tl.getGroupAddress()));
+                uuid = uuidFromGA(Telegram::gaddrtostring(tl.getGroupAddress()));
                 if (uuid != "") {
-                    std::string type = typeFromGA(deviceMap[uuid].asMap(),Telegram::gaddrtostring(tl.getGroupAddress()));
+                    std::string type = typeFromGA(deviceMap[uuid], Telegram::gaddrtostring(tl.getGroupAddress()));
                     if (type != "") {
                         AGO_DEBUG() << "handling telegram, GA from telegram belongs to: " << uuid << " - type: " << type;
                         if(type == "onoff" || type == "onoffstatus") { 
@@ -268,18 +268,15 @@ void *AgoKnx::listener() {
                     }
                 }
                 break;
-                ;;
         }
 
     }
-
-    return NULL;
 }
 
-void AgoKnx::eventHandler(const std::string& subject , qpid::types::Variant::Map content) {
+void AgoKnx::eventHandler(const std::string& subject , const Json::Value& content) {
     if (subject == "event.environment.timechanged") {
         // send time/date every hour
-        if (content["minute"].asInt32() == 0) {
+        if (content["minute"].asInt() == 0) {
             sendDate();
             sendTime();
         }
@@ -297,10 +294,10 @@ void AgoKnx::sendDate() {
     Telegram *tg_date = new Telegram();
     tg_date->setUserData(datebytes,3);
     tg_date->setGroupAddress(Telegram::stringtogaddr(date_ga));
-    pthread_mutex_lock (&mutexCon);
+
+    boost::lock_guard<boost::mutex> lock(mutexCon);
     AGO_TRACE() << "sending telegram";
     tg_date->sendTo(eibcon);
-    pthread_mutex_unlock (&mutexCon);
 }
 
 
@@ -314,10 +311,10 @@ void AgoKnx::sendTime() {
     Telegram *tg_time = new Telegram();
     tg_time->setUserData(timebytes,3);
     tg_time->setGroupAddress(Telegram::stringtogaddr(time_ga));
-    pthread_mutex_lock (&mutexCon);
+
+    boost::lock_guard<boost::mutex> lock(mutexCon);
     AGO_TRACE() << "sending telegram";
     tg_time->sendTo(eibcon);
-    pthread_mutex_unlock (&mutexCon);
 }
 
 bool AgoKnx::sendBytes(std::string dest, uint8_t *bytes, int len) {
@@ -325,9 +322,9 @@ bool AgoKnx::sendBytes(std::string dest, uint8_t *bytes, int len) {
     tg->setGroupAddress(Telegram::stringtogaddr(dest));
     tg->setUserData(bytes, len);
     AGO_TRACE() << "sending " << len << " bytes to " << dest;
-    pthread_mutex_lock (&mutexCon);
+
+    boost::lock_guard<boost::mutex> lock(mutexCon);
     bool result = tg->sendTo(eibcon);
-    pthread_mutex_unlock (&mutexCon);
     AGO_DEBUG() << "Result: " << result;
     return result;
 }
@@ -337,9 +334,8 @@ bool AgoKnx::sendShortData(std::string dest, int data) {
     tg->setGroupAddress(Telegram::stringtogaddr(dest));
     tg->setShortUserData(data > 0 ? 1 : 0);
     AGO_TRACE() << "sending value " << data << " as short data telegram to " << dest;
-    pthread_mutex_lock (&mutexCon);
+    boost::lock_guard<boost::mutex> lock(mutexCon);
     bool result = tg->sendTo(eibcon);
-    pthread_mutex_unlock (&mutexCon);
     AGO_DEBUG() << "Result: " << result;
     return result;
 }
@@ -349,9 +345,8 @@ bool AgoKnx::sendCharData(std::string dest, int data) {
     tg->setGroupAddress(Telegram::stringtogaddr(dest));
     tg->setDataFromChar(data);
     AGO_TRACE() << "sending value " << data << " as char data telegram to " << dest;
-    pthread_mutex_lock (&mutexCon);
+    boost::lock_guard<boost::mutex> lock(mutexCon);
     bool result = tg->sendTo(eibcon);
-    pthread_mutex_unlock (&mutexCon);
     AGO_DEBUG() << "Result: " << result;
     return result;
 }
@@ -361,83 +356,87 @@ bool AgoKnx::sendFloatData(std::string dest, float data) {
     tg->setGroupAddress(Telegram::stringtogaddr(dest));
     tg->setDataFromFloat(data);
     AGO_TRACE() << "sending value " << data << " as float data telegram to " << dest;
-    pthread_mutex_lock (&mutexCon);
+    boost::lock_guard<boost::mutex> lock(mutexCon);
     bool result = tg->sendTo(eibcon);
-    pthread_mutex_unlock (&mutexCon);
     AGO_DEBUG() << "Result: " << result;
     return result;
 }
 
 
-qpid::types::Variant::Map AgoKnx::commandHandler(qpid::types::Variant::Map content) {
+Json::Value AgoKnx::commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "internalid", Json::stringValue);
+    checkMsgParameter(content, "command", Json::stringValue);
     std::string internalid = content["internalid"].asString();
+    std::string command = content["command"].asString();
     AGO_TRACE() << "received command " << content["command"] << " for device " << internalid;
 
     if (internalid == "knxcontroller")
     {
-        qpid::types::Variant::Map returnData;
+        Json::Value returnData;
 
-        if (content["command"] == "adddevice")
+        if (command == "adddevice")
         {
-            checkMsgParameter(content, "devicemap", VAR_MAP);
-            // checkMsgParameter(content, "devicetype", VAR_STRING);
+            checkMsgParameter(content, "devicemap", Json::objectValue);
+            // checkMsgParameter(content, "devicetype", Json::stringValue);
 
-            qpid::types::Variant::Map newdevice = content["devicemap"].asMap();
+            Json::Value newdevice = content["devicemap"];
             AGO_TRACE() << "adding knx device: " << newdevice;
 
             std::string deviceuuid;
-            if(content.count("device"))
+            if(content.isMember("device"))
                 deviceuuid = content["device"].asString();
             else
                 deviceuuid = generateUuid();
 
+            /* XXX: No control over what's feed in here.
+             * Web UI currently sends something like this:
+             * {devicetype: str, <device params>:<some id>}
+             */
             deviceMap[deviceuuid] = newdevice;
             agoConnection->addDevice(deviceuuid, newdevice["devicetype"].asString(), true);
-            if (variantMapToJSONFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE)))
+            if (writeJsonFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE)))
             {
                 returnData["device"] = deviceuuid;
                 return responseSuccess(returnData);
             }
             return responseFailed("Failed to write knx device map file");
         }
-        else if (content["command"] == "getdevice")
+        else if (command == "getdevice")
         {
-            checkMsgParameter(content, "device", VAR_STRING);
+            checkMsgParameter(content, "device", Json::stringValue);
             std::string device = content["device"].asString();
 
             AGO_TRACE() << "getdevice request: " << device;
-            if (!deviceMap.count(device)) 
+            if (!deviceMap.isMember(device))
                 return responseError(RESPONSE_ERR_NOT_FOUND, "Device not found");
 
-            returnData["devicemap"] = deviceMap[device].asMap();
+            returnData["devicemap"] = deviceMap[device];
             returnData["device"] = device;
 
             return responseSuccess(returnData);
         }
-        else if (content["command"] == "getdevices")
+        else if (command == "getdevices")
         {
-            /*qpid::types::Variant::Map devicelist;
-            for (Variant::Map::const_iterator it = devicemap.begin(); it != devicemap.end(); ++it) {
-                Variant::Map device;
-                device = it->second.asMap();
+            /*Json::Value devicelist;
+            for (Json::Value::const_iterator it = devicemap.begin(); it != devicemap.end(); ++it) {
+                Json::Value device;
+                device = it->second;
                 devicelist.push_back(device);
             }*/
             returnData["devices"] = deviceMap;
             return responseSuccess(returnData);
         }
-        else if (content["command"] == "deldevice")
+        else if (command == "deldevice")
         {
-            checkMsgParameter(content, "device", VAR_STRING);
+            checkMsgParameter(content, "device", Json::stringValue);
             
             std::string device = content["device"].asString();
             AGO_TRACE() << "deldevice request:" << device;
-            qpid::types::Variant::Map::iterator it = deviceMap.find(device);
-            if (it != deviceMap.end())
-            {
+            if(deviceMap.isMember(device)) {
                 AGO_DEBUG() << "removing ago device" << device;
-                agoConnection->removeDevice(it->first);
-                deviceMap.erase(it);
-                if (!variantMapToJSONFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE)))
+                agoConnection->removeDevice(device);
+                deviceMap.removeMember(device);
+                if (!writeJsonFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE)))
                 {
                     return responseFailed("Failed to write knx device map file");
                 }
@@ -445,9 +444,9 @@ qpid::types::Variant::Map AgoKnx::commandHandler(qpid::types::Variant::Map conte
             return responseSuccess();
 
         } 
-        else if (content["command"] == "uploadfile")
+        else if (command == "uploadfile")
         {
-            checkMsgParameter(content, "filepath", VAR_STRING);
+            checkMsgParameter(content, "filepath", Json::stringValue);
 
             XMLDocument etsExport;
             std::string etsdata = content["filepath"].asString();
@@ -466,14 +465,14 @@ qpid::types::Variant::Map AgoKnx::commandHandler(qpid::types::Variant::Map conte
             XMLElement* groupRange = docHandle.FirstChildElement("GroupAddress-Export").FirstChild().ToElement();
             if (groupRange) {
                 XMLElement *nextRange = groupRange;
-                qpid::types::Variant::Map rangeMap;
+                Json::Value rangeMap;
                 while (nextRange != NULL) {
                     AGO_TRACE() << "node: " << nextRange->Attribute("Name");
                     XMLElement *middleRange = nextRange->FirstChildElement( "GroupRange" );
                     if (middleRange)
                     {
                         XMLElement *nextMiddleRange = middleRange;
-                        qpid::types::Variant::Map middleMap;
+                        Json::Value middleMap;
                         while (nextMiddleRange != NULL)
                         {
                             AGO_TRACE() << "middle: " << nextMiddleRange->Attribute("Name");
@@ -481,7 +480,7 @@ qpid::types::Variant::Map AgoKnx::commandHandler(qpid::types::Variant::Map conte
                             if (groupAddress)
                             {
                                 XMLElement *nextGroupAddress = groupAddress;
-                                qpid::types::Variant::Map groupMap;
+                                Json::Value groupMap;
                                 while (nextGroupAddress != NULL)
                                 {
                                     AGO_TRACE() << "Group: " << nextGroupAddress->Attribute("Name") << " Address: " << nextGroupAddress->Attribute("Address");
@@ -499,66 +498,63 @@ qpid::types::Variant::Map AgoKnx::commandHandler(qpid::types::Variant::Map conte
                     nextRange = nextRange->NextSiblingElement();
                 }
                 returnData["groupmap"]=rangeMap;
-                variantMapToJSONFile(rangeMap, getConfigPath(ETSGAEXPORTMAPFILE));
+                writeJsonFile(rangeMap, getConfigPath(ETSGAEXPORTMAPFILE));
             } else 
                 return responseFailed("No 'GroupAddress-Export' tag found");
 
             return responseSuccess(returnData);
 
         }
-        else if (content["command"] == "getgacontent")
+        else if (command == "getgacontent")
         {
-            returnData["groupmap"] = jsonFileToVariantMap(getConfigPath(ETSGAEXPORTMAPFILE));
+            readJsonFile(returnData["groupmap"], getConfigPath(ETSGAEXPORTMAPFILE));
             return responseSuccess(returnData);
         }
         return responseUnknownCommand();
     }
 
-    qpid::types::Variant::Map::const_iterator it = deviceMap.find(internalid);
-    qpid::types::Variant::Map device;
-    if (it != deviceMap.end()) {
-        device=it->second.asMap();
-    } else {
+    if(!deviceMap.isMember(internalid))
        return responseError(RESPONSE_ERR_INTERNAL, "Device not found in internal deviceMap");
-    }
-    
+
+    const Json::Value& device(deviceMap[internalid]);
+
     bool result;
-    if (content["command"] == "on") {
+    if (command == "on") {
         if (device["devicetype"]=="drapes") {
-            result = sendShortData(device["onoff"],0);
+            result = sendShortData(device["onoff"].asString(),0);
         } else {
-            result = sendShortData(device["onoff"],1);
+            result = sendShortData(device["onoff"].asString(),1);
         }
-    } else if (content["command"] == "off") {
+    } else if (command == "off") {
         if (device["devicetype"]=="drapes") {
-            result = sendShortData(device["onoff"],1);
+            result = sendShortData(device["onoff"].asString(),1);
         } else {
-            result = sendShortData(device["onoff"],0);
+            result = sendShortData(device["onoff"].asString(),0);
         }
-    } else if (content["command"] == "stop") {
-        result = sendShortData(device["stop"],1);
-    } else if (content["command"] == "push") {
-        result = sendShortData(device["push"],0);
-    } else if (content["command"] == "setlevel") {
-        checkMsgParameter(content, "level", VAR_INT32);
-        result = sendCharData(device["setlevel"],atoi(content["level"].asString().c_str())*255/100);
-    } else if (content["command"] == "settemperature") {
-        checkMsgParameter(content, "temperature");
-        result = sendFloatData(device["settemperature"],content["temperature"]);
-    } else if (content["command"] == "setcolor") {
-        checkMsgParameter(content, "red");
-        checkMsgParameter(content, "green");
-        checkMsgParameter(content, "blue");
-        if (!device["setcolor"].isVoid()) {
+    } else if (command == "stop") {
+        result = sendShortData(device["stop"].asString(),1);
+    } else if (command == "push") {
+        result = sendShortData(device["push"].asString(),0);
+    } else if (command == "setlevel") {
+        checkMsgParameter(content, "level", Json::intValue);
+        result = sendCharData(device["setlevel"].asString(), content["level"].asInt() * 255 / 100);
+    } else if (command == "settemperature") {
+        checkMsgParameter(content, "temperature", Json::realValue);
+        result = sendFloatData(device["settemperature"].asString(), content["temperature"].asFloat());
+    } else if (command == "setcolor") {
+        checkMsgParameter(content, "red", Json::intValue);
+        checkMsgParameter(content, "green", Json::intValue);
+        checkMsgParameter(content, "blue", Json::intValue);
+        if (device.isMember("setcolor")) {
             uint8_t buf[3];
-            buf[0]= atoi(content["red"].asString().c_str());
-            buf[1]= atoi(content["green"].asString().c_str());
-            buf[2]= atoi(content["blue"].asString().c_str());
-            result = sendBytes(device["setcolor"], buf, 3);
+            buf[0]= content["red"].asInt();
+            buf[1]= content["green"].asInt();
+            buf[2]= content["blue"].asInt();
+            result = sendBytes(device["setcolor"].asString(), buf, 3);
         } else {
-            result = sendCharData(device["red"],atoi(content["red"].asString().c_str()));
-            result &= sendCharData(device["green"],atoi(content["green"].asString().c_str()));
-            result &= sendCharData(device["blue"],atoi(content["blue"].asString().c_str()));
+            result = sendCharData(device["red"].asString(), content["red"].asInt());
+            result &= sendCharData(device["green"].asString(), content["green"].asInt());
+            result &= sendCharData(device["blue"].asString(), content["blue"].asInt());
         }
     } else {
         return responseUnknownCommand();
@@ -613,18 +609,16 @@ void AgoKnx::setupApp() {
         }
         // write json map
         AGO_DEBUG() << "Writing json map into " << getConfigPath(KNXDEVICEMAPFILE);
-        variantMapToJSONFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE));
+        writeJsonFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE));
         AGO_INFO() << "XML devices file has been converted to a json map. Renaming old file.";
         fs::rename(devicesFile, fs::path(devicesFile.string() + ".converted"));
     } else {
         AGO_DEBUG() << "Loading json device map";
-        deviceMap = jsonFileToVariantMap(getConfigPath(KNXDEVICEMAPFILE));
+        readJsonFile(deviceMap, getConfigPath(KNXDEVICEMAPFILE));
     }
 
     // announce devices to resolver
-    reportDevices(deviceMap);
-
-    pthread_mutex_init(&mutexCon,NULL);
+    reportDevices();
 
     AGO_DEBUG() << "Spawning thread for KNX listener";
     listenerThread = new boost::thread(boost::bind(&AgoKnx::listener, this));

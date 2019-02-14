@@ -24,7 +24,7 @@ etc/opt/agocontrol/db
 etc/opt/agocontrol/lua
 etc/sysctl.d/agocontrol.conf
 etc/security/limits.d/agocontrol.conf
-opt/agocontrol/bin/agologger.py
+opt/agocontrol/bin/agologger
 opt/agocontrol/bin/agoresolver
 opt/agocontrol/bin/agoscenario
 opt/agocontrol/bin/agoevent
@@ -41,5 +41,6 @@ opt/agocontrol/bin/agodatalogger
 opt/agocontrol/bin/agosystem
 opt/agocontrol/bin/agososreport.sh
 opt/agocontrol/bin/agosystem
+opt/agocontrol/python/agologger/agologger.py
 opt/agocontrol/html
 usr/share/augeas/lenses/agocontrol.aug

@@ -35,7 +35,7 @@ private:
 
     void setupApp();
     void cleanupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 
     void process_crc(unsigned char ucData);
 public:
@@ -52,29 +52,33 @@ void AgoChromoflex::process_crc(unsigned char ucData) {
 
 }
 
-qpid::types::Variant::Map AgoChromoflex::commandHandler(qpid::types::Variant::Map content) {
-    qpid::types::Variant::Map returnval;
+Json::Value AgoChromoflex::commandHandler(const Json::Value& content) {
+    Json::Value returnval;
     int red = 0;
     int green = 0;
     int blue = 0;
     unsigned char buf[1024];
 
+    checkMsgParameter(content, "command", Json::stringValue);
+    std::string command = content["command"].asString();
+
     int level = 0;
-    if (content["command"] == "on" ) {
+    if (command == "on" ) {
         red = 255; green = 255; blue=255;
-    } else if (content["command"] == "off") {
+    } else if (command == "off") {
         red = 0; green = 0; blue=0;
-    } else if (content["command"] == "setlevel") {
-        checkMsgParameter(content, "level");
-        level = content["level"];
+    } else if (command == "setlevel") {
+        checkMsgParameter(content, "level", Json::uintValue);
+        level = content["level"].asInt();
         red = green = blue = (int) ( 255.0 * level / 100 );
-    } else if (content["command"] == "setcolor") {
-        checkMsgParameter(content, "red");
-        checkMsgParameter(content, "green");
-        checkMsgParameter(content, "blue");
-        red = content["red"];       
-        green = content["green"];       
-        blue = content["blue"];     
+    } else if (command == "setcolor") {
+        checkMsgParameter(content, "red", Json::uintValue);
+        checkMsgParameter(content, "green", Json::uintValue);
+        checkMsgParameter(content, "blue", Json::uintValue);
+
+        red = content["red"].asUInt();
+        green = content["green"].asUInt();
+        blue = content["blue"].asUInt();
     }
 
     // assemble frame

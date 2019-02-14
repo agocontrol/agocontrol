@@ -1,3 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
 
-install (PROGRAMS agorrdtool.py RRDtool.py DESTINATION ${BINDIR})
+AgoPythonProgram(rrdtool
+    DESCRIPTION "ago control advanced graphing system based on rrdtool"
+    EXTRA_FILES RRDtool.py)

@@ -1,2 +1,4 @@
 lib/systemd/system/agoenigma2.service
-opt/agocontrol/bin/agoenigma2.py
+opt/agocontrol/bin/agoenigma2
+opt/agocontrol/python/agoenigma2
+opt/agocontrol/python/agoenigma2/agoenigma2.py

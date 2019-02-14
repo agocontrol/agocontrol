@@ -1,3 +1,7 @@
 cmake_minimum_required (VERSION 3.0)
 
-install (PROGRAMS agowake_on_lan.py pinger.py configobj.py DESTINATION ${BINDIR})
+set(EXTRA_FILES pinger.py configobj.py)
+AgoPythonProgram(wake_on_lan
+    DESCRIPTION "ago control Wake on LAN handler"
+    EXTRA_FILES "${EXTRA_FILES}"
+    RUN_AS root)

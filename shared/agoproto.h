@@ -2,7 +2,7 @@
 #define AGOPROTO_H
 
 #include <string>
-#include <qpid/messaging/Message.h>
+#include <json/json.h>
 
 #include "response_codes.h"
 
@@ -10,17 +10,17 @@ namespace agocontrol {
     /**
      * These methods shall be used to build valid command handler response maps
      */
-    qpid::types::Variant::Map responseResult(const std::string& identifier);
-    qpid::types::Variant::Map responseResult(const std::string& identifier, const std::string& message);
-    qpid::types::Variant::Map responseResult(const std::string& identifier, const std::string& message, const qpid::types::Variant::Map& data);
-    qpid::types::Variant::Map responseResult(const std::string& identifier, const qpid::types::Variant::Map& data);
+    Json::Value responseResult(const std::string& identifier);
+    Json::Value responseResult(const std::string& identifier, const std::string& message);
+    Json::Value responseResult(const std::string& identifier, const std::string& message, const Json::Value& data);
+    Json::Value responseResult(const std::string& identifier, const Json::Value& data);
 
-    qpid::types::Variant::Map responseError(const std::string& identifier, const std::string& message, const qpid::types::Variant::Map& data);
-    qpid::types::Variant::Map responseError(const std::string& identifier, const std::string& message);
+    Json::Value responseError(const std::string& identifier, const std::string& message, const Json::Value& data);
+    Json::Value responseError(const std::string& identifier, const std::string& message);
 
     // Shortcut to send responseError(RESPONSE_ERR_FAILED, message)
-    qpid::types::Variant::Map responseFailed(const std::string& message);
-    qpid::types::Variant::Map responseFailed(const std::string& message, const qpid::types::Variant::Map& data);
+    Json::Value responseFailed(const std::string& message);
+    Json::Value responseFailed(const std::string& message, const Json::Value& data);
 
 #define responseUnknownCommand() \
     responseError(RESPONSE_ERR_UNKNOWN_COMMAND, "Command not supported");
@@ -29,10 +29,11 @@ namespace agocontrol {
     responseError(RESPONSE_ERR_NO_DEVICE_COMMANDS, "Device does not have any commands")
 
     // Shortcut to send responseResult(RESPONSE_SUCCESS, ...)
-    qpid::types::Variant::Map responseSuccess();
-    qpid::types::Variant::Map responseSuccess(const std::string& message);
-    qpid::types::Variant::Map responseSuccess(const qpid::types::Variant::Map& data);
-    qpid::types::Variant::Map responseSuccess(const std::string& message, const qpid::types::Variant::Map& data);
+    Json::Value responseSuccess();
+    Json::Value responseSuccess(const char *message);
+    Json::Value responseSuccess(const std::string& message);
+    Json::Value responseSuccess(const Json::Value& data);
+    Json::Value responseSuccess(const std::string& message, const Json::Value& data);
 
 
     /**
@@ -49,7 +50,7 @@ namespace agocontrol {
         }
         ~AgoCommandException() throw() {};
 
-        qpid::types::Variant::Map toResponse() const {
+        Json::Value toResponse() const {
             return responseError(identifier, message);
         }
 
@@ -67,13 +68,13 @@ namespace agocontrol {
      */
     
     // Ensure that the message map has an 'key' entry, with a non-void value
-    void checkMsgParameter(/*const */qpid::types::Variant::Map& content, const std::string& key);
+    void checkMsgParameter(const Json::Value& content, const std::string& key);
 
     // Ensure that the message map has an 'key' entry, with a non-void value
     // of the specified type. If allowEmpty is set to false (default), and type is string,
     // we check for empty string too. For other types, allowEmpty is ignored.
-    void checkMsgParameter(/*const */qpid::types::Variant::Map& content, const std::string& key,
-            qpid::types::VariantType type,
+    void checkMsgParameter(const Json::Value& content, const std::string& key,
+            Json::ValueType type,
             bool allowEmpty=false);
 
 
@@ -86,10 +87,9 @@ namespace agocontrol {
     class AgoResponse {
         friend class AgoConnection;
     protected:
-        qpid::types::Variant::Map response;
-        qpid::types::Variant::Map root;
-        void init(const qpid::messaging::Message& message);
-        void init(const qpid::types::Variant::Map& response);
+        Json::Value response;
+        Json::Value root;
+        void init(const Json::Value& response);
         void validate();
     public:
         AgoResponse(){};
@@ -109,10 +109,10 @@ namespace agocontrol {
         std::string getMessage() /*const*/;
 
         // Get either "result.data" or "error.data"
-        const qpid::types::Variant::Map& getData() /*const*/;
+        const Json::Value& getData() /*const*/;
 
-        // Get a copy of the raw message; only use in agorpc!
-        const qpid::types::Variant::Map getResponse() const { return response; };
+        // Get the raw message; only use in agorpc!
+        Json::Value& getResponse() { return response; };
     };
 
 }/* namespace agocontrol */

@@ -11,4 +11,4 @@ stop on runlevel [!2345]
 
 respawn
 chdir @BINDIR@
-exec @BINDIR@/agoalert.py
+exec @BINDIR@/agoalert

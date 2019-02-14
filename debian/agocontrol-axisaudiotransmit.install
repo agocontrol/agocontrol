@@ -1,2 +1,4 @@
 lib/systemd/system/agoaxisaudiotransmit.service
-opt/agocontrol/bin/agoaxisaudiotransmit.py
+opt/agocontrol/bin/agoaxisaudiotransmit
+opt/agocontrol/python/agoaxisaudiotransmit
+opt/agocontrol/python/agoaxisaudiotransmit/agoaxisaudiotransmit.py

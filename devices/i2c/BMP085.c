@@ -36,10 +36,10 @@ Circuit detail:
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <linux/i2c-dev.h>
-//#include <linux/i2c.h>
+
+#include "../i2c_include.h"
+
 #include <sys/ioctl.h>
-//#include "smbus.h"
 
 #define BMP085_I2C_ADDRESS 0x77
 

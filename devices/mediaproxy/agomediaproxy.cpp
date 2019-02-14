@@ -31,9 +31,13 @@ static RTSPServer* createRTSPServer(Port port) {
     return RTSPServer::createNew(*env, port, authDB);
 }
 
-qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) {
+Json::Value commandHandler(const Json::Value& content) {
+    checkMsgParameter(content, "internalid", Json::stringValue);
+    checkMsgParameter(content, "command", Json::stringValue);
     std::string internalid = content["internalid"].asString();
-    if (internalid == "controller" && content["command"].asString() == "restart") {
+    std::string command = content["command"].asString();
+
+    if (internalid == "controller" && command == "restart") {
         AGO_INFO() << "restarting proxy";
         stopLoop = 1;
         return responseSuccess();
@@ -89,14 +93,14 @@ void *startProxy(void *params) {
 
     // Now, enter the event loop:
     while (true) {
-        qpid::types::Variant::Map inventory = agoConnection->getInventory();
-        qpid::types::Variant::Map devices = inventory["inventory"].asMap();
+        Json::Value inventory = agoConnection->getInventory();
+        const Json::Value& devices = inventory["inventory"];
 
-        for (qpid::types::Variant::Map::const_iterator it = devices.begin(); it != devices.end(); it++) {
-            qpid::types::Variant::Map device = it->second.asMap();
+        for (auto it = devices.begin(); it != devices.end(); it++) {
+            const Json::Value& device = *it;
             if (device["devicetype"] == "onvifnvt") {
                 AGO_INFO() << "found ONVIF NVT: " << device["internalid"].asString();
-                std::string streamname = it->first;
+                std::string streamname = it.name();
                 std::string url = device["internalid"].asString();
                 ServerMediaSession* sms = ProxyServerMediaSession::createNew(*env, rtspServer,
                         url.c_str(), streamname.c_str(),
@@ -108,7 +112,7 @@ void *startProxy(void *params) {
                 *env << "\tPlay this stream using the URL: " << proxyStreamURL << "\n";
                 delete[] proxyStreamURL;
             }
-        }   
+        }
         env->taskScheduler().doEventLoop(&stopLoop); // does not return
         AGO_DEBUG() << "Exited event loop";
         stopLoop=0;

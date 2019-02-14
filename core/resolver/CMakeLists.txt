@@ -20,3 +20,5 @@ target_link_libraries (agoresolver ${RESOLVER_LIBRARIES})
 
 install (TARGETS agoresolver RUNTIME DESTINATION ${BINDIR})
 install (DIRECTORY DESTINATION ${CONFDIR}/db)
+
+AgoService(resolver DESCRIPTION "ago control Resolver")

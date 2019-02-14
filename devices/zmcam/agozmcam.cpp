@@ -37,22 +37,29 @@ private:
     ZoneminderClient zoneminderClient;
 
     void setupApp();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
 public:
     AGOAPP_CONSTRUCTOR(AgoZmcam);
 };
 
-qpid::types::Variant::Map AgoZmcam::commandHandler(qpid::types::Variant::Map content) 
+Json::Value AgoZmcam::commandHandler(const Json::Value& content)
 {
-    int monitorId = content["internalid"].asInt32();
-    if (content["command"] == "getvideoframe") 
+    checkMsgParameter(content, "command", Json::stringValue);
+    std::string command = content["command"].asString();
+
+    checkMsgParameter(content, "internalid");
+    int monitorId;
+    if(!stringToInt(content["internalid"], monitorId))
+        return responseError(RESPONSE_ERR_PARAMETER_INVALID, "internalid must be integer");
+
+    if (command == "getvideoframe")
     {
         std::ostringstream tmpostr;
         if (zoneminderClient.getVideoFrame(monitorId, tmpostr))
         {
             std::string s;
             s = tmpostr.str();	
-            qpid::types::Variant::Map returnval;
+            Json::Value returnval;
             returnval["image"]  = base64_encode(reinterpret_cast<const unsigned char*>(s.c_str()), s.length());
             return responseSuccess(returnval);
         } 
@@ -62,11 +69,11 @@ qpid::types::Variant::Map AgoZmcam::commandHandler(qpid::types::Variant::Map con
             return responseError(RESPONSE_ERR_INTERNAL, "Cannot fetch video frame from monitor");
         }
     }
-    else if (content["command"] == "triggeralarm")
+    else if (command == "triggeralarm")
     {
         if (zoneminderClient.setMonitorAlert(monitorId,
-                    content["duration"].asUint32(),
-                    content["importance"].asInt32(),
+                    content["duration"].asUInt(),
+                    content["importance"].asInt(),
                     content["cause"].asString(),
                     content["description"].asString(),
                     content["detail"].asString()))
@@ -77,7 +84,7 @@ qpid::types::Variant::Map AgoZmcam::commandHandler(qpid::types::Variant::Map con
             return responseError(RESPONSE_ERR_INTERNAL, "Cannot camera alarm for monitor");
         }
     }
-    else if (content["command"] == "clearalarm")
+    else if (command == "clearalarm")
     {
         if (zoneminderClient.clearMonitorAlert(monitorId))
             return responseSuccess();

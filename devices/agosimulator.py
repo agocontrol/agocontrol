@@ -13,15 +13,22 @@ class AgoSimulator(agoclient.AgoApp):
             if content["command"] == "on":
                 print "switching on: " + internalid
                 self.connection.emit_event(internalid, "event.device.statechanged", 255, "")
-            if content["command"] == "off":
+            elif content["command"] == "off":
                 print "switching off: " + internalid
                 self.connection.emit_event(internalid, "event.device.statechanged", 0, "")
-            if content["command"] == "push":
+            elif content["command"] == "push":
                 print "push button: " + internalid
-            if content['command'] == 'setlevel':
+            elif content['command'] == 'setlevel':
                 if 'level' in content:
                     print "device level changed", content["level"]
                     self.connection.emit_event(internalid, "event.device.statechanged", content["level"], "")
+            else:
+                return self.connection.response_unknown_command()
+
+            return self.connection.response_success()
+        else:
+            return self.connection.response_bad_parameters()
+
 
     def app_cmd_line_options(self, parser):
         """App-specific command line options"""
@@ -33,11 +40,11 @@ class AgoSimulator(agoclient.AgoApp):
     def setup_app(self):
         self.connection.add_handler(self.message_handler)
 
-        self.connection.add_device("123", "dimmer")
-        self.connection.add_device("124", "switch")
-        self.connection.add_device("125", "binarysensor")
-        self.connection.add_device("126", "multilevelsensor")
-        self.connection.add_device("127", "pushbutton")
+        self.connection.add_device("123", "dimmer", "simulated dimmer")
+        self.connection.add_device("124", "switch", "simulated switch")
+        self.connection.add_device("125", "binarysensor", "simulated binsensor")
+        self.connection.add_device("126", "multilevelsensor", "simulated multisensor")
+        self.connection.add_device("127", "pushbutton", "simulated pushbutton")
 
         self.log.info("Starting test thread")
         self.background = TestEvent(self, self.args.interval)

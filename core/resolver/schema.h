@@ -2,13 +2,12 @@
 #define SCHEMA_H
 
 #include <boost/filesystem.hpp>
+#include <json/json.h>
 
-using namespace qpid::messaging;
-using namespace qpid::types;
 namespace fs = ::boost::filesystem;
 
-qpid::types::Variant::List mergeList(qpid::types::Variant::List a, qpid::types::Variant::List b);
-qpid::types::Variant::Map mergeMap(qpid::types::Variant::Map a, qpid::types::Variant::Map b);
-Variant::Map parseSchema(const fs::path &filename);
+Json::Value mergeList(const Json::Value& a, const Json::Value& b);
+Json::Value mergeMap(const Json::Value& a, const Json::Value& b);
+Json::Value parseSchema(const fs::path &filename);
 
 #endif

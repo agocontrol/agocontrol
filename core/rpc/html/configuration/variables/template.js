@@ -10,8 +10,8 @@ function VariablesConfig(agocontrol)
     self.newVariable = ko.observable('');
 
     var setVar = function(variableName, value) {
-        var varObj = self.agocontrol.variables.find(function(v){return v.variable == variableName});
-        if(varObj && varObj.value() === value)
+        var variable = self.agocontrol.getVariable(variableName)
+        if(variable && variable() === value)
             // No-op
             return Promise.resolve();
 
@@ -24,13 +24,13 @@ function VariablesConfig(agocontrol)
         return self.agocontrol
             .sendCommand(content)
             .then(function(res) {
-                if(!varObj) {
+                if(!variable) {
                     self.agocontrol.initVariable(
                         content.variable,
                         content.value
                     );
                 }else{
-                    varObj.value(content.value);
+                    variable(content.value);
                 }
             });
     };
@@ -71,15 +71,25 @@ function VariablesConfig(agocontrol)
 
     self.createVariable = function(data, event)
     {
-        self.agocontrol.block($('#agoGrid'));
+        var variableName = self.newVariable().trim();
+        if(variableName.trim() === '') {
+            notif.error('A variable must have a name');
+            return;
+        }
 
-        setVar(self.newVariable(), "True")
-          .then(function(){
-              self.newVariable('');
-           })
-           .finally(function(){
-               self.agocontrol.unblock($('#agoGrid'));
-           });
+        if(self.agocontrol.getVariable(variableName) != null) {
+            notif.error('Variable already exists');
+            return;
+        }
+
+        self.agocontrol.block($('#agoGrid'));
+        setVar(variableName, "true")
+            .then(function(){
+                self.newVariable('');
+            })
+            .finally(function(){
+                self.agocontrol.unblock($('#agoGrid'));
+            });
     };
 
     self.toggleBoolean = function(item, event)
@@ -87,7 +97,7 @@ function VariablesConfig(agocontrol)
         var currentValue = item.booleanValue();
         if(currentValue === null) return;
 
-        setVar(item.variable, currentValue ? 'False' : 'True');
+        setVar(item.variable, currentValue ? 'false' : 'true');
     };
 
     self.deleteVariable = function(item, event)

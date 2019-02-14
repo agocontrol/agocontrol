@@ -1,3 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
 
-install (PROGRAMS agoalert.py pushbullet.py DESTINATION ${BINDIR})
+AgoPythonProgram(alert
+    DESCRIPTION "ago control agoalert system"
+    EXTRA_FILES pushbullet.py)

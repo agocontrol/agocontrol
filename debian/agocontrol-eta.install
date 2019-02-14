@@ -1,2 +1,4 @@
 lib/systemd/system/agoeta.service
-opt/agocontrol/bin/agoeta.py
+opt/agocontrol/bin/agoeta
+opt/agocontrol/python/agoeta
+opt/agocontrol/python/agoeta/agoeta.py

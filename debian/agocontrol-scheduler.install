@@ -1,5 +1,7 @@
 lib/systemd/system/agoscheduler.service
-opt/agocontrol/bin/agoscheduler.py
-opt/agocontrol/bin/scheduler.py
-opt/agocontrol/bin/variables.py
-
+opt/agocontrol/bin/agoscheduler
+opt/agocontrol/python/agoscheduler
+opt/agocontrol/python/agoscheduler/agoscheduler.py
+opt/agocontrol/python/agoscheduler/groups.py
+opt/agocontrol/python/agoscheduler/scheduler.py
+opt/agocontrol/python/agoscheduler/variables.py

@@ -1,2 +1,4 @@
 lib/systemd/system/agogammu.service
-opt/agocontrol/bin/agogammu.py
+opt/agocontrol/bin/agogammu
+opt/agocontrol/python/agogammu
+opt/agocontrol/python/agogammu/agogammu.py

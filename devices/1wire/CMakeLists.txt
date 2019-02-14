@@ -1,4 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
 
-install (PROGRAMS agoowfs.py DESTINATION ${BINDIR})
-install (DIRECTORY DESTINATION ${CONFDIR}/owfs)
+AgoPythonProgram(owfs
+    DESCRIPTION "ago control 1-Wire Device"
+    WITH_CONFIGDIR)

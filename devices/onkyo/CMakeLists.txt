@@ -1,3 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
 
-install (PROGRAMS core.py commands.py agoiscp.py DESTINATION ${BINDIR})
+AgoPythonProgram(iscp
+    DESCRIPTION "ago control Onkyo ISCP device"
+    EXTRA_FILES core.py commands.py)

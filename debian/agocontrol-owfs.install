@@ -1,3 +1,5 @@
 etc/opt/agocontrol/owfs
 lib/systemd/system/agoowfs.service
-opt/agocontrol/bin/agoowfs.py
+opt/agocontrol/bin/agoowfs
+opt/agocontrol/python/agoowfs
+opt/agocontrol/python/agoowfs/agoowfs.py

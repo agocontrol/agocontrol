@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import sys, getopt, httplib, urllib, json, os
 import logging, syslog
 import oauth.oauth as oauth

@@ -14,53 +14,52 @@
 #endif
 
 using namespace agocontrol;
-using namespace qpid::types;
 
 class AgoScenario: public AgoApp
 {
 private:
-    qpid::types::Variant::Map scenariomap;
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
+    Json::Value scenariomap;
+    Json::Value commandHandler(const Json::Value& content) ;
     void setupApp();
-    void runscenario(qpid::types::Variant::Map &scenario) ;
+    void runscenario(Json::Value scenario) ;
 
 public:
     AGOAPP_CONSTRUCTOR(AgoScenario);
 };
 
-void AgoScenario::runscenario(qpid::types::Variant::Map &scenario)
+void AgoScenario::runscenario(Json::Value scenario)
 {
     AGO_DEBUG() << "Executing scenario";
 
     // build sorted list of scenario elements
     std::list<int> elements;
-    for (qpid::types::Variant::Map::const_iterator it = scenario.begin(); it!= scenario.end(); it++)
+    for (auto it = scenario.begin(); it!= scenario.end(); it++)
     {
-        // AGO_TRACE() << it->first;
-        // AGO_TRACE() << it->second;
-        elements.push_back(atoi(it->first.c_str()));
+        // AGO_TRACE() << it.name();
+        // AGO_TRACE() << *it;
+        elements.push_back(atoi(it.name().c_str()));
     }
     // AGO_TRACE() << "elements: " << elements;
     elements.sort();
-    for (std::list<int>::const_iterator it = elements.begin(); it != elements.end(); it++)
+    for (auto it = elements.begin(); it != elements.end(); it++)
     {
         // AGO_TRACE() << *it;
         int seq = *it;
         std::stringstream sseq;
         sseq << seq;
-        qpid::types::Variant::Map element = scenario[sseq.str()].asMap();
-        AGO_TRACE() << sseq.str() << ": " << scenario[sseq.str()];
+        const Json::Value& element(scenario[sseq.str()]);
+        AGO_TRACE() << sseq.str() << ": " << element;
         if (element["command"] == "scenariosleep")
         {
-            try
+            uint delay;
+            if(stringToUInt(element["delay"], delay))
             {
-                int delay = element["delay"];
                 AGO_DEBUG() << "scenariosleep special command detected. Delay: " << delay;
                 sleep(delay);
             }
-            catch (qpid::types::InvalidConversion)
+            else
             {
-                AGO_ERROR() << "Invalid conversion of delay value";
+                AGO_ERROR() << "Invalid 'delay' argument value in scenario " << element;
             }
         }
         else
@@ -71,21 +70,21 @@ void AgoScenario::runscenario(qpid::types::Variant::Map &scenario)
     }
 }
 
-qpid::types::Variant::Map AgoScenario::commandHandler(qpid::types::Variant::Map content)
+Json::Value AgoScenario::commandHandler(const Json::Value& content)
 {
-    qpid::types::Variant::Map returnData;
+    Json::Value returnData;
     std::string internalid = content["internalid"].asString();
 
     if (internalid == "scenariocontroller")
     {
         if (content["command"] == "setscenario")
         {
-            checkMsgParameter(content, "scenariomap", VAR_MAP);
+            checkMsgParameter(content, "scenariomap", Json::objectValue);
             AGO_TRACE() << "setscenario request";
-            qpid::types::Variant::Map newscenario = content["scenariomap"].asMap();
+            const Json::Value& newscenario(content["scenariomap"]);
 
             std::string scenariouuid;
-            if(content.count("scenario"))
+            if(content.isMember("scenario"))
                 scenariouuid = content["scenario"].asString();
             else
                 scenariouuid = generateUuid();
@@ -95,7 +94,7 @@ qpid::types::Variant::Map AgoScenario::commandHandler(qpid::types::Variant::Map 
             scenariomap[scenariouuid] = newscenario;
 
             agoConnection->addDevice(scenariouuid, "scenario", true);
-            if (variantMapToJSONFile(scenariomap, getConfigPath(SCENARIOMAPFILE)))
+            if (writeJsonFile(scenariomap, getConfigPath(SCENARIOMAPFILE)))
             {
                 returnData["scenario"] = scenariouuid;
                 return responseSuccess(returnData);
@@ -105,31 +104,29 @@ qpid::types::Variant::Map AgoScenario::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "getscenario")
         {
-            checkMsgParameter(content, "scenario", VAR_STRING);
+            checkMsgParameter(content, "scenario", Json::stringValue);
             std::string scenario = content["scenario"].asString();
 
             AGO_TRACE() << "getscenario request:" << scenario;
-            if(!scenariomap.count(scenario))
+            if(!scenariomap.isMember(scenario))
                 return responseError(RESPONSE_ERR_NOT_FOUND, "Scenario not found");
 
-            returnData["scenariomap"] = scenariomap[scenario].asMap();
+            returnData["scenariomap"] = scenariomap[scenario];
             returnData["scenario"] = scenario;
 
             return responseSuccess(returnData);
         }
         else if (content["command"] == "delscenario")
         {
-            checkMsgParameter(content, "scenario", VAR_STRING);
+            checkMsgParameter(content, "scenario", Json::stringValue);
 
             std::string scenario = content["scenario"].asString();
             AGO_TRACE() << "delscenario request:" << scenario;
-            qpid::types::Variant::Map::iterator it = scenariomap.find(scenario);
-            if (it != scenariomap.end())
-            {
+            if(scenariomap.isMember(scenario)) {
                 AGO_DEBUG() << "removing ago device" << scenario;
-                agoConnection->removeDevice(it->first);
-                scenariomap.erase(it);
-                if (!variantMapToJSONFile(scenariomap, getConfigPath(SCENARIOMAPFILE)))
+                agoConnection->removeDevice(scenario);
+                scenariomap.removeMember(scenario);
+                if (!writeJsonFile(scenariomap, getConfigPath(SCENARIOMAPFILE)))
                 {
                     return responseFailed("Failed to write file");
                 }
@@ -141,17 +138,17 @@ qpid::types::Variant::Map AgoScenario::commandHandler(qpid::types::Variant::Map 
     }
     else
     {
-        checkMsgParameter(content, "command", VAR_STRING);
+        checkMsgParameter(content, "command", Json::stringValue);
 
         if ((content["command"] == "on") || (content["command"] == "run"))
         {
             AGO_DEBUG() << "spawning thread for scenario: " << internalid;
-            boost::thread t(boost::bind(&AgoScenario::runscenario, this, scenariomap[internalid].asMap()));
+            boost::thread t(boost::bind(&AgoScenario::runscenario, this, scenariomap[internalid]));
             t.detach();
             return responseSuccess();
         }
 
-        return responseError(RESPONSE_ERR_PARAMETER_INVALID, "Only commands 'on' and 'run' are spported");
+        return responseError(RESPONSE_ERR_PARAMETER_INVALID, "Only commands 'on' and 'run' are supported");
     }
 }
 
@@ -160,11 +157,11 @@ void AgoScenario::setupApp()
     addCommandHandler();
     agoConnection->addDevice("scenariocontroller", "scenariocontroller");
 
-    scenariomap = jsonFileToVariantMap(getConfigPath(SCENARIOMAPFILE));
-    for (qpid::types::Variant::Map::const_iterator it = scenariomap.begin(); it!=scenariomap.end(); it++)
+    readJsonFile(scenariomap, getConfigPath(SCENARIOMAPFILE));
+    for (Json::Value::const_iterator it = scenariomap.begin(); it!=scenariomap.end(); it++)
     {
-        AGO_DEBUG() << "Loading scenario: " << it->first << ":" << it->second;
-        agoConnection->addDevice(it->first, "scenario", true);
+        AGO_DEBUG() << "Loading scenario: " << it.name() << ":" << *it;
+        agoConnection->addDevice(it.name(), "scenario", true);
     }
 }
 

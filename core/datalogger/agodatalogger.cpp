@@ -17,6 +17,7 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <json/json.h>
 
 #include <rrd.h>
 #include "base64.h"
@@ -39,7 +40,6 @@
 #define JOURNAL_ERROR "error"
 
 using namespace agocontrol;
-using namespace qpid::types;
 using namespace boost::posix_time;
 using namespace boost::gregorian;
 namespace fs = ::boost::filesystem;
@@ -60,47 +60,47 @@ private:
     std::string string_prepend_spaces(std::string source, size_t newSize);
     static void debugSqlite(void* foo, const char* msg);
     void computeRendering();
-    void commandGetData(qpid::types::Variant::Map& content, qpid::types::Variant::Map& returnData);
-    bool commandGetGraph(qpid::types::Variant::Map& content, qpid::types::Variant::Map& returnData);
+    void commandGetData(const Json::Value& content, Json::Value& returnData);
+    bool commandGetGraph(const Json::Value& content, Json::Value& returnData);
 
     //database
     bool createTableIfNotExist(std::string tablename, std::list<std::string> createqueries);
-    qpid::types::Variant::Map getDatabaseInfos();
+    Json::Value getDatabaseInfos();
     bool purgeTable(std::string table, int timestamp);
     bool isTablePurgeAllowed(std::string table);
-    void getGraphData(qpid::types::Variant::List uuids, int start, int end, std::string environment, qpid::types::Variant::Map& result);
-    bool getGraphDataFromSqlite(qpid::types::Variant::List uuids, int start, int end, std::string environment, qpid::types::Variant::Map& result);
-    bool getGraphDataFromRrd(qpid::types::Variant::List uuids, int start, int end, qpid::types::Variant::Map& result);
+    void getGraphData(const Json::Value& uuids, int start, int end, std::string environment, Json::Value& result);
+    bool getGraphDataFromSqlite(const Json::Value& uuids, int start, int end, std::string environment, Json::Value& result);
+    bool getGraphDataFromRrd(const Json::Value& uuids, int start, int end, Json::Value& result);
 
     //rrd
-    bool prepareGraph(std::string uuid, int multiId, qpid::types::Variant::Map& data);
+    bool prepareGraph(std::string uuid, int multiId, Json::Value& data);
     void dumpGraphParams(const char** params, const int num_params);
     bool addGraphParam(const std::string& param, char** params, int* index);
     void addDefaultParameters(int start, int end, std::string vertical_unit, int width, int height, char** params, int* index);
     void addDefaultThumbParameters(int duration, int width, int height, char** params, int* index);
-    void addSingleGraphParameters(qpid::types::Variant::Map& data, char** params, int* index);
-    void addMultiGraphParameters(qpid::types::Variant::Map& data, char** params, int* index);
-    void addThumbGraphParameters(qpid::types::Variant::Map& data, char** params, int* index);
-    bool generateGraph(qpid::types::Variant::List uuids, int start, int end, int thumbDuration, unsigned char** img, unsigned long* size);
+    void addSingleGraphParameters(Json::Value& data, char** params, int* index);
+    void addMultiGraphParameters(Json::Value& data, char** params, int* index);
+    void addThumbGraphParameters(Json::Value& data, char** params, int* index);
+    bool generateGraph(const Json::Value& uuids, int start, int end, int thumbDuration, unsigned char** img, unsigned long* size);
 
     //journal
     bool eventHandlerJournal(std::string message, std::string type);
-    bool getMessagesFromJournal(qpid::types::Variant::Map& content, qpid::types::Variant::Map& messages);
+    bool getMessagesFromJournal(const Json::Value& content, Json::Value& messages);
         
     //system
     void saveDeviceMapFile();
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content);
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content);
-    void eventHandlerRRDtool(std::string subject, std::string uuid, qpid::types::Variant::Map content);
-    void eventHandlerSQL(std::string subject, std::string uuid, qpid::types::Variant::Map content);
+    Json::Value commandHandler(const Json::Value& content);
+    void eventHandler(const std::string& subject , const Json::Value& content);
+    void eventHandlerRRDtool(std::string subject, std::string uuid, Json::Value content);
+    void eventHandlerSQL(std::string subject, std::string uuid, Json::Value content);
     void dailyPurge();
     void setupApp();
 public:
     AGOAPP_CONSTRUCTOR(AgoDataLogger);
 };
 
-qpid::types::Variant::Map inventory;
-qpid::types::Variant::Map units;
+Json::Value inventory;
+Json::Value units;
 bool dataLogging = 1;
 bool gpsLogging = 1;
 bool rrdLogging = 1;
@@ -109,17 +109,8 @@ std::string desiredRendering = "plots"; // could be "image" or "plots"
 std::string rendering = "plots";
 //GraphDataSource graphDataSource = SQLITE;
 const char* colors[] = {"#800080", "#0000FF", "#008000", "#FF00FF", "#000080", "#FF0000", "#00FF00", "#00FFFF", "#800000", "#808000", "#008080", "#C0C0C0", "#808080", "#000000", "#FFFF00"};
-qpid::types::Variant::Map devicemap;
-qpid::types::Variant::List allowedPurgeTables;
-
-std::string uuidToName(std::string uuid) {
-    qpid::types::Variant::Map devices = inventory["inventory"].asMap();
-    if (devices[uuid].isVoid()) {
-        return "";
-    }
-    qpid::types::Variant::Map device = devices[uuid].asMap();
-    return device["name"].asString() == "" ? uuid : device["name"].asString();
-}
+Json::Value devicemap;
+std::list<std::string> allowedPurgeTables;
 
 /**
  * Update inventory
@@ -136,26 +127,28 @@ void AgoDataLogger::updateInventory()
     inventory = agoConnection->getInventory();
 
     //get units
-    if( !unitsLoaded && !inventory["schema"].isVoid() )
+    if( !unitsLoaded && inventory.isMember("schema") )
     {
-        for( qpid::types::Variant::Map::iterator it=inventory["schema"].asMap()["units"].asMap().begin(); it!=inventory["schema"].asMap()["units"].asMap().end(); it++ )
+        for( auto it = inventory["schema"]["units"].begin(); it!=inventory["schema"]["units"].end(); it++ )
         {
-            units[it->first] = it->second.asMap()["label"].asString();
+            units[it.name()] = (*it)["label"].asString();
         }
     }
 }
 
 /**
- * Check inventory
+ * Check inventory, fetch it if not inited yet.
  */
-bool AgoDataLogger::checkInventory()
-{
-    if( inventory["devices"].isVoid() )
-    {
-        //inventory is empty
-        return false;
+bool AgoDataLogger::checkInventory() {
+    if (inventory.isNull()) {
+        updateInventory();
     }
-    return true;
+
+    if (inventory.isMember("devices"))
+        return true;
+
+    //inventory is empty
+    return false;
 }
 
 bool AgoDataLogger::createTableIfNotExist(std::string tablename, std::list<std::string> createqueries) {
@@ -187,7 +180,7 @@ bool AgoDataLogger::createTableIfNotExist(std::string tablename, std::list<std::
 void AgoDataLogger::saveDeviceMapFile()
 {
     fs::path dmf = getConfigPath(DEVICEMAPFILE);
-    variantMapToJSONFile(devicemap, dmf);
+    writeJsonFile(devicemap, dmf);
 }
 
 /**
@@ -248,7 +241,7 @@ std::string AgoDataLogger::string_prepend_spaces(std::string source, size_t newS
  * @param multiId: if multigraph specify its index (-1 if not multigraph)
  * @param data: output map
  */
-bool AgoDataLogger::prepareGraph(std::string uuid, int multiId, qpid::types::Variant::Map& data)
+bool AgoDataLogger::prepareGraph(std::string uuid, int multiId, Json::Value& data)
 {
     //check params
     if( multiId>=15 )
@@ -269,129 +262,120 @@ bool AgoDataLogger::prepareGraph(std::string uuid, int multiId, qpid::types::Var
         AGO_ERROR() << "agodatalogger-RRDtool: no inventory available";
         return false;
     }
-    qpid::types::Variant::Map devices = inventory["devices"].asMap();
-    qpid::types::Variant::Map device;
-    for( qpid::types::Variant::Map::const_iterator it=devices.begin(); it!=devices.end(); it++ )
-    {
-        if( it->first==uuid )
-        {
-            //device found
-            device = it->second.asMap();
-        }
-    }
 
-    if( !device["devicetype"].isVoid() )
-    {
-        //prepare kind
-        std::string kind = device["devicetype"].asString();
-        replaceString(kind, "sensor", "");
-        replaceString(kind, "meter", "");
-        std::string pretty_kind = kind;
-        if( multiId>=0 )
-        {
-            //keep first 4 chars
-            pretty_kind.resize(4);
-            //and append device name (or uuid if name not set)
-            if( !device["name"].isVoid() && device["name"].asString().length()>0 )
-            {
-                pretty_kind = device["name"].asString();
-            }
-            else
-            {
-                pretty_kind = uuid + " (" + pretty_kind + ")";
-            }
-        }
-        pretty_kind.resize(20, ' ');
-
-        //prepare unit
-        std::string unit = "U";
-        std::string vertical_unit = "U";
-        if( !device["values"].isVoid() )
-        {
-            qpid::types::Variant::Map values = device["values"].asMap();
-            for( qpid::types::Variant::Map::const_iterator it=values.begin(); it!=values.end(); it++ )
-            {
-                if( it->first==kind || it->first=="batterylevel" )
-                {
-                    qpid::types::Variant::Map infos = it->second.asMap();
-                    if( !infos["unit"].isVoid() )
-                    {
-                        vertical_unit = infos["unit"].asString();
-                    }
-                    break;
-                }
-            }
-        }
-        if( !units[vertical_unit].isVoid() )
-        {
-            vertical_unit = units[vertical_unit].asString();
-        }
-        if( vertical_unit=="%" )
-        {
-            unit = "%%";
-        }
-        else
-        {
-            unit = vertical_unit;
-        }
-
-        //prepare colors
-        std::string colorL = "#000000";
-        std::string colorA = "#A0A0A0";
-        std::string colorMax = "#FF0000";
-        std::string colorMin = "#00FF00";
-        std::string colorAvg = "#0000FF";
-        if( multiId<0 )
-        {
-            if( device["devicetype"].asString()=="humiditysensor" )
-            {
-                //blue
-                colorL = "#0000FF";
-                colorA = "#7777FF";
-            }
-            else if( device["devicetype"].asString()=="temperaturesensor" )
-            {
-                //red
-                colorL = "#FF0000";
-                colorA = "#FF8787";
-            }
-            else if( device["devicetype"].asString()=="energysensor" || device["devicetype"].asString()=="powersensor" || 
-                    device["devicetype"].asString()=="powermeter" || device["devicetype"].asString()=="batterysensor" )
-            {
-                //green
-                colorL = "#007A00";
-                colorA = "#00BB00";
-            }
-            else if( device["devicetype"].asString()=="brightnesssensor" )
-            {
-                //orange
-                colorL = "#CCAA00";
-                colorA = "#FFD400";
-            }
-        }
-        else
-        {
-            //multi graph (only line color necessary)
-            colorL = colors[multiId];
-        }
-
-        //fill output map
-        data["filename"] = filename.str();
-        data["kind" ] = pretty_kind;
-        data["unit"] = unit;
-        data["vertical_unit"] = vertical_unit;
-        data["colorL"] = colorL;
-        data["colorA"] = colorA;
-        data["colorMax"] = colorMax;
-        data["colorMin"] = colorMin;
-        data["colorAvg"] = colorAvg;
-    }
-    else
+    const Json::Value& devices(inventory["devices"]);
+    if( !devices.isMember(uuid) || !devices[uuid].isMember("devicetype") )
     {
         //device not found
         AGO_ERROR() << "agodatalogger-RRDtool: device not found";
         return false;
     }
+
+    const Json::Value& device(devices[uuid]);
+
+    //prepare kind
+    std::string kind = device["devicetype"].asString();
+    replaceString(kind, "sensor", "");
+    replaceString(kind, "meter", "");
+    std::string pretty_kind = kind;
+    if( multiId>=0 )
+    {
+        //keep first 4 chars
+        pretty_kind.resize(4);
+        //and append device name (or uuid if name not set)
+        if( device.isMember("name") && !device["name"].asString().empty() )
+        {
+            pretty_kind = device["name"].asString();
+        }
+        else
+        {
+            pretty_kind = uuid + " (" + pretty_kind + ")";
+        }
+    }
+    pretty_kind.resize(20, ' ');
+
+    //prepare unit
+    std::string unit = "U";
+    std::string vertical_unit = "U";
+    if( device.isMember("values") )
+    {
+        const Json::Value& values(device["values"]);
+        for(auto it=values.begin(); it!=values.end(); it++ )
+        {
+            if( it.name() == kind || it.name() == "batterylevel" )
+            {
+                if( it->isMember("unit") )
+                {
+                    vertical_unit = (*it)["unit"].asString();
+                }
+                break;
+            }
+        }
+    }
+    if( units.isMember(vertical_unit) )
+    {
+        vertical_unit = units[vertical_unit].asString();
+    }
+
+    if( vertical_unit=="%" )
+    {
+        unit = "%%";
+    }
+    else
+    {
+        unit = vertical_unit;
+    }
+
+    //prepare colors
+    std::string colorL = "#000000";
+    std::string colorA = "#A0A0A0";
+    std::string colorMax = "#FF0000";
+    std::string colorMin = "#00FF00";
+    std::string colorAvg = "#0000FF";
+    if( multiId<0 )
+    {
+        if( device["devicetype"].asString()=="humiditysensor" )
+        {
+            //blue
+            colorL = "#0000FF";
+            colorA = "#7777FF";
+        }
+        else if( device["devicetype"].asString()=="temperaturesensor" )
+        {
+            //red
+            colorL = "#FF0000";
+            colorA = "#FF8787";
+        }
+        else if( device["devicetype"].asString()=="energysensor" || device["devicetype"].asString()=="powersensor" ||
+                device["devicetype"].asString()=="powermeter" || device["devicetype"].asString()=="batterysensor" )
+        {
+            //green
+            colorL = "#007A00";
+            colorA = "#00BB00";
+        }
+        else if( device["devicetype"].asString()=="brightnesssensor" )
+        {
+            //orange
+            colorL = "#CCAA00";
+            colorA = "#FFD400";
+        }
+    }
+    else
+    {
+        //multi graph (only line color necessary)
+        colorL = colors[multiId];
+    }
+
+    //fill output map
+    data["filename"] = filename.str();
+    data["kind" ] = pretty_kind;
+    data["unit"] = unit;
+    data["vertical_unit"] = vertical_unit;
+    data["colorL"] = colorL;
+    data["colorA"] = colorA;
+    data["colorMax"] = colorMax;
+    data["colorMin"] = colorMin;
+    data["colorAvg"] = colorAvg;
 
     return true;
 }
@@ -490,7 +474,7 @@ void AgoDataLogger::addDefaultThumbParameters(int duration, int width, int heigh
 /**
  * Add single graph parameters
  */
-void AgoDataLogger::addSingleGraphParameters(qpid::types::Variant::Map& data, char** params, int* index)
+void AgoDataLogger::addSingleGraphParameters(Json::Value& data, char** params, int* index)
 {
     std::string param = "";
 
@@ -541,7 +525,7 @@ void AgoDataLogger::addSingleGraphParameters(qpid::types::Variant::Map& data, ch
 /**
  * Add multi graph parameters
  */
-void AgoDataLogger::addMultiGraphParameters(qpid::types::Variant::Map& data, char** params, int* index)
+void AgoDataLogger::addMultiGraphParameters(Json::Value& data, char** params, int* index)
 {
     //keep index value
     int id = (*index);
@@ -584,7 +568,7 @@ void AgoDataLogger::addMultiGraphParameters(qpid::types::Variant::Map& data, cha
 /**
  * Add thumb graph parameters
  */
-void AgoDataLogger::addThumbGraphParameters(qpid::types::Variant::Map& data, char** params, int* index)
+void AgoDataLogger::addThumbGraphParameters(Json::Value& data, char** params, int* index)
 {
     //keep index value
     int id = (*index);
@@ -600,26 +584,26 @@ void AgoDataLogger::addThumbGraphParameters(qpid::types::Variant::Map& data, cha
 /**
  * Generate RRDtool graph
  */
-bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, int end, int thumbDuration, unsigned char** img, unsigned long* size)
+bool AgoDataLogger::generateGraph(const Json::Value& uuids, int start, int end, int thumbDuration, unsigned char** img, unsigned long* size)
 {
-    qpid::types::Variant::Map data;
     char** params;
     int num_params = 0;
     int index = 0;
     int multiId = -1;
-    qpid::types::Variant::List datas;
+    Json::Value datas(Json::arrayValue);
 
     //get graph datas
-    for( qpid::types::Variant::List::iterator it=uuids.begin(); it!=uuids.end(); it++ )
+    for( auto it = uuids.begin(); it!=uuids.end(); it++ )
     {
         //multigraph?
         if( uuids.size()>1 )
             multiId++;
 
         //get data
+        Json::Value data(Json::objectValue);
         if( prepareGraph((*it).asString(), multiId, data) )
         {
-            datas.push_back(data);
+            datas.append(data);
         }
     }
 
@@ -633,16 +617,16 @@ bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, i
         std::string vertical_unit = "";
         std::string lastUnit = "";
         size_t maxUnitLength = 0;
-        for( qpid::types::Variant::List::iterator it=datas.begin(); it!=datas.end(); it++ )
+        for( auto it = datas.begin(); it!=datas.end(); it++ )
         {
-            vertical_unit = (*it).asMap()["vertical_unit"].asString();
+            vertical_unit = (*it)["vertical_unit"].asString();
 
-            if( (*it).asMap()["unit"].asString().length()>maxUnitLength )
+            if( (*it)["unit"].asString().length()>maxUnitLength )
             {
-                maxUnitLength = (*it).asMap()["unit"].asString().length();
+                maxUnitLength = (*it)["unit"].asString().length();
             }
 
-            if( (*it).asMap()["unit"].asString()!=lastUnit )
+            if( (*it)["unit"].asString()!=lastUnit )
             {
                 if( lastUnit.length()>0 )
                 {
@@ -652,23 +636,23 @@ bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, i
                 }
                 else
                 {
-                    lastUnit = (*it).asMap()["unit"].asString();
+                    lastUnit = (*it)["unit"].asString();
                 }
             }
         }
 
         //format unit (add spaces for better display)
-        for( qpid::types::Variant::List::iterator it=datas.begin(); it!=datas.end(); it++ )
+        for( auto it = datas.begin(); it!=datas.end(); it++ )
         {
-            std::string unit = (*it).asMap()["unit"].asString();
+            std::string unit = (*it)["unit"].asString();
             //special case for %%
             if( unit=="%%" )
             {
-                (*it).asMap()["unit"] = string_prepend_spaces(unit, maxUnitLength+1);
+                (*it)["unit"] = string_prepend_spaces(unit, maxUnitLength+1);
             }
             else
             {
-                (*it).asMap()["unit"] = string_prepend_spaces(unit, maxUnitLength);
+                (*it)["unit"] = string_prepend_spaces(unit, maxUnitLength);
             }
         }
 
@@ -680,10 +664,9 @@ bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, i
 
             //add graph parameters
             addDefaultParameters(start, end, vertical_unit, 850, 300, params, &index);
-            for( qpid::types::Variant::List::iterator it=datas.begin(); it!=datas.end(); it++ )
+            for( auto it = datas.begin(); it!=datas.end(); it++ )
             {
-                data = (*it).asMap();
-                addMultiGraphParameters(data, params, &index);
+                addMultiGraphParameters(*it, params, &index);
             }
         }
         else
@@ -694,17 +677,16 @@ bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, i
 
             //add graph parameters
             addDefaultThumbParameters(thumbDuration, 250, 40, params, &index);
-            for( qpid::types::Variant::List::iterator it=datas.begin(); it!=datas.end(); it++ )
+            for( auto it = datas.begin(); it!=datas.end(); it++ )
             {
-                data = (*it).asMap();
-                addThumbGraphParameters(data, params, &index);
+                addThumbGraphParameters(*it, params, &index);
             }
         }
     }
     else if( datas.size()==1 )
     {
         //single graph
-        data = datas.front().asMap();
+        Json::Value& data(datas[0]);
         if( thumbDuration<=0 )
         {
             //alloc memory
@@ -712,7 +694,7 @@ bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, i
             params = (char**)malloc(sizeof(char*) * num_params);
 
             //add graph parameters
-            addDefaultParameters(start, end, data["vertical_unit"], 850, 300, params, &index);
+            addDefaultParameters(start, end, data["vertical_unit"].asString(), 850, 300, params, &index);
             addSingleGraphParameters(data, params, &index);
         }
         else
@@ -782,9 +764,9 @@ bool AgoDataLogger::generateGraph(qpid::types::Variant::List uuids, int start, i
 /**
  * Store event data into RRDtool database
  */
-void AgoDataLogger::eventHandlerRRDtool(std::string subject, std::string uuid, qpid::types::Variant::Map content)
+void AgoDataLogger::eventHandlerRRDtool(std::string subject, std::string uuid, Json::Value content)
 {
-    if( (subject=="event.device.batterylevelchanged" || boost::algorithm::starts_with(subject, "event.environment.")) && !content["level"].isVoid() && !content["uuid"].isVoid() )
+    if( (subject=="event.device.batterylevelchanged" || boost::algorithm::starts_with(subject, "event.environment.")) && content.isMember("level") && content.isMember("uuid") )
     {
         //generate rrd filename and path
         std::stringstream filename;
@@ -825,7 +807,7 @@ void AgoDataLogger::eventHandlerRRDtool(std::string subject, std::string uuid, q
 /**
  * Store event data into SQL database
  */
-void AgoDataLogger::eventHandlerSQL(std::string subject, std::string uuid, qpid::types::Variant::Map content)
+void AgoDataLogger::eventHandlerSQL(std::string subject, std::string uuid, Json::Value content)
 {
     std::string result;
 
@@ -857,13 +839,9 @@ void AgoDataLogger::eventHandlerSQL(std::string subject, std::string uuid, qpid:
             stat.bind(subject);
 
             double value;
-            switch(content["level"].getType()) {
-                case qpid::types::VAR_DOUBLE:
+            switch(content["level"].type()) {
+                case Json::realValue:
                     value = content["level"].asDouble();
-                    stat.bind(value);
-                    break;
-                case qpid::types::VAR_FLOAT:
-                    value = content["level"].asFloat();
                     stat.bind(value);
                     break;
                 default:
@@ -898,9 +876,9 @@ bool AgoDataLogger::eventHandlerJournal(std::string message, std::string type)
 /**
  * Main event handler
  */
-void AgoDataLogger::eventHandler(const std::string& subject , qpid::types::Variant::Map content)
+void AgoDataLogger::eventHandler(const std::string& subject, const Json::Value& content)
 {
-    if( subject!="" && !content["uuid"].isVoid() )
+    if( !subject.empty() && content.isMember("uuid") )
     {
         //data logging
         eventHandlerSQL(subject, content["uuid"].asString(), content);
@@ -915,7 +893,7 @@ void AgoDataLogger::eventHandler(const std::string& subject , qpid::types::Varia
     {
         updateInventory();
 
-        if( !content["hour"].isVoid() && !content["minute"].isVoid() && content["hour"].asInt8()==0 && content["minute"].asInt8()==0 )
+        if( content.isMember("hour") && content.isMember("minute") && content["hour"].asInt()==0 && content["minute"].asInt()==0 )
         {
             //midnight launch daily purge
             dailyPurge();
@@ -931,19 +909,19 @@ void AgoDataLogger::debugSqlite(void* foo, const char* msg)
 /**
  * Return graph data from rrd file
  */
-//bool AgoDataLogger::GetGraphDataFromRrd(qpid::types::Variant::Map content, qpid::types::Variant::Map &result)
-bool AgoDataLogger::getGraphDataFromRrd(qpid::types::Variant::List uuids, int start, int end, qpid::types::Variant::Map& result)
+//bool AgoDataLogger::GetGraphDataFromRrd(Json::Value content, Json::Value &result)
+bool AgoDataLogger::getGraphDataFromRrd(const Json::Value& uuids, int start, int end, Json::Value& result)
 {
     AGO_TRACE() << "getGraphDataFromRrd";
 
-    qpid::types::Variant::List values;
+    Json::Value values(Json::arrayValue);
     bool error = false;
-    std::string uuid = uuids.front().asString();
+    std::string uuid = uuids[0].asString();
     std::stringstream filename;
     filename << uuid << ".rrd";
     fs::path rrdfile = getLocalStatePath(filename.str());
     std::string filenamestr = rrdfile.string();
-    time_t startTimet = (time_t)start;;
+    time_t startTimet = (time_t)start;
     time_t endTimet = (time_t)end;
     AGO_TRACE() << "file=" << filenamestr << " start=" << start << " end=" << end;
 
@@ -956,7 +934,7 @@ bool AgoDataLogger::getGraphDataFromRrd(qpid::types::Variant::List uuids, int st
     unsigned long ds = 0;
     //rrd_fetch_r example found here https://github.com/pldimitrov/Rrd/blob/master/src/Rrd.c
     int res = rrd_fetch_r(filenamestr.c_str(), "AVERAGE", &startTimet, &endTimet, &step, &ds_cnt, &ds_namv, &data);
-    if( res==0 && data!=NULL )
+    if( res==0 )
     {
         int size = (endTimet - startTimet) / step - 1;
         double level = 0;
@@ -968,30 +946,29 @@ bool AgoDataLogger::getGraphDataFromRrd(qpid::types::Variant::List uuids, int st
                 if( !std::isnan(level) )
                 {
                     count++;
-                    qpid::types::Variant::Map value;
+                    Json::Value value;
                     value["time"] = (uint64_t)startTimet;
                     value["level"] = (double)data[ds+i*ds_cnt];
-                    values.push_back(value);
+                    values.append(value);
                 }
                 startTimet += step;
             }   
         }
         AGO_TRACE() << "rrd_fetch returns: step=" << step << " datasource_count=" << ds_cnt << " data_count=" << count;
+
+        if( data )
+            free(data);
+
+        for( unsigned int i=0; (unsigned long) i < ds_cnt; i++ )
+            free(ds_namv[i]);
+
+        free(ds_namv);
     }
     else
     {
-        AGO_DEBUG() << "Fetch failed: " << rrd_get_error();
+        AGO_WARNING() << "rrd_fetch failed: " << rrd_get_error();
         error = true;
     }
-
-    //free memory
-    if( data )
-        free(data);
-    for( unsigned int i=0; i<sizeof(ds_namv)/sizeof(char*); i++ )
-        free(ds_namv[i]);
-    free(ds_namv);
-
-    AGO_TRACE() << "RRD query returns " << values.size() << " values";
 
     result["values"] = values;
     return !error;
@@ -1000,22 +977,22 @@ bool AgoDataLogger::getGraphDataFromRrd(qpid::types::Variant::List uuids, int st
 /**
  * Return graph data from sqlite
  */
-bool AgoDataLogger::getGraphDataFromSqlite(qpid::types::Variant::List uuids, int start, int end, std::string environment, qpid::types::Variant::Map& result)
+bool AgoDataLogger::getGraphDataFromSqlite(const Json::Value& uuids, int start, int end, std::string environment, Json::Value& result)
 {
     AGO_TRACE() << "getGraphDataFromSqlite: " << environment;
-    qpid::types::Variant::List values;
-    std::string uuid = uuids.front().asString();
+    Json::Value values(Json::arrayValue);
+    std::string uuid = uuids[0].asString();
     try {
         if( environment=="position" )
         {
             AGO_TRACE() << "Execute query on postition table";
             cppdb::result r = sql << "SELECT timestamp, latitude, longitude FROM position WHERE timestamp BETWEEN ? AND ? AND uuid = ? ORDER BY timestamp" << start << end << uuid;
             while(r.next()) {
-                qpid::types::Variant::Map value;
+                Json::Value value;
                 value["time"] = r.get<int>("timestamp");
                 value["latitude"] = r.get<double>("latitude");
                 value["longitude"] = r.get<double>("longitude");
-                values.push_back(value);
+                values.append(value);
             }
         }
         else
@@ -1023,10 +1000,10 @@ bool AgoDataLogger::getGraphDataFromSqlite(qpid::types::Variant::List uuids, int
             AGO_TRACE() << "Execute query on data table";
             cppdb::result r = sql << "SELECT timestamp, level FROM data WHERE timestamp BETWEEN ? AND ? AND environment = ? AND uuid = ? ORDER BY timestamp" << start << end << environment << uuid;
             while(r.next()) {
-                qpid::types::Variant::Map value;
+                Json::Value value;
                 value["time"] = r.get<int>("timestamp");
                 value["level"] = r.get<double>("level");
-                values.push_back(value);
+                values.append(value);
             }
         }
     } catch (std::exception const &e) {
@@ -1042,7 +1019,7 @@ bool AgoDataLogger::getGraphDataFromSqlite(qpid::types::Variant::List uuids, int
 /**
  * Return data for graph generation
  */
-void AgoDataLogger::getGraphData(qpid::types::Variant::List uuids, int start, int end, std::string environment, qpid::types::Variant::Map& result)
+void AgoDataLogger::getGraphData(const Json::Value& uuids, int start, int end, std::string environment, Json::Value& result)
 {
     if( dataLogging )
     {
@@ -1059,7 +1036,7 @@ void AgoDataLogger::getGraphData(qpid::types::Variant::List uuids, int start, in
     }
     else
     {
-        qpid::types::Variant::List empty;
+        Json::Value empty(Json::arrayValue);
         result["values"] = empty;
     }
 }
@@ -1068,14 +1045,14 @@ void AgoDataLogger::getGraphData(qpid::types::Variant::List uuids, int start, in
  * Return messages from journal
  * datetime format: 2015-07-12T22:00:00.000Z
  */
-bool AgoDataLogger::getMessagesFromJournal(qpid::types::Variant::Map& content, qpid::types::Variant::Map& result)
+bool AgoDataLogger::getMessagesFromJournal(const Json::Value& content, Json::Value& result)
 {
-    qpid::types::Variant::List messages;
+    Json::Value messages(Json::arrayValue);
     std::string filter = "";
     std::string type = "";
 
     //handle filter
-    if( !content["filter"].isVoid() )
+    if( content.isMember("filter") )
     {
         filter = content["filter"].asString();
         //append jokers
@@ -1083,7 +1060,7 @@ bool AgoDataLogger::getMessagesFromJournal(qpid::types::Variant::Map& content, q
     }
 
     //handle type
-    if( !content["type"].isVoid() )
+    if( content.isMember("type") )
     {
         if( content["type"]==JOURNAL_ALL )
         {
@@ -1113,11 +1090,11 @@ bool AgoDataLogger::getMessagesFromJournal(qpid::types::Variant::Map& content, q
     try {
         cppdb::result r = sql <<  "SELECT timestamp, message, type FROM journal WHERE timestamp BETWEEN ? AND ? AND message LIKE ? AND type LIKE ? ORDER BY timestamp DESC" << start.total_seconds() << end.total_seconds() << filter << type;
         while (r.next()) {
-            qpid::types::Variant::Map value;
+            Json::Value value;
             value["time"] = r.get<int>("timestamp");
             value["message"] = r.get<std::string>("message");
             value["type"] = r.get<std::string>("type");
-            messages.push_back(value);
+            messages.append(value);
         }
     } catch (std::exception const &e) {
         AGO_ERROR() << "SQL Error: " << e.what();
@@ -1135,9 +1112,9 @@ bool AgoDataLogger::getMessagesFromJournal(qpid::types::Variant::Map& content, q
 /**
  * Return some information about database (size, date of first entry...)
  */
-qpid::types::Variant::Map AgoDataLogger::getDatabaseInfos()
+Json::Value AgoDataLogger::getDatabaseInfos()
 {
-    qpid::types::Variant::Map returnval;
+    Json::Value returnval;
     returnval["data_start"] = 0;
     returnval["data_end"] = 0;
     returnval["data_count"] = 0;
@@ -1261,14 +1238,7 @@ std::string dateToDatabaseFormat(boost::posix_time::ptime pt)
  */
 bool AgoDataLogger::isTablePurgeAllowed(std::string table)
 {
-    for( qpid::types::Variant::List::iterator it=allowedPurgeTables.begin(); it!=allowedPurgeTables.end(); it++ )
-    {
-        if( (*it)==table )
-        {
-            return true;
-        }
-    }
-    return false;
+    return std::find(allowedPurgeTables.begin(), allowedPurgeTables.end(), table) != allowedPurgeTables.end();
 }
 
 /**
@@ -1285,21 +1255,21 @@ void AgoDataLogger::dailyPurge()
         timestamp -= purgeDelay * 2628000;
 
         //get infos before purge
-        qpid::types::Variant::Map before = getDatabaseInfos();
+        Json::Value before = getDatabaseInfos();
 
         //purge tables
-        for( qpid::types::Variant::List::iterator it=allowedPurgeTables.begin(); it!=allowedPurgeTables.end(); it++ )
+        for( auto it = allowedPurgeTables.begin(); it!=allowedPurgeTables.end(); it++ )
         {
-            purgeTable((*it), timestamp);
+            purgeTable(*it, timestamp);
         }
 
         //get infos after purge
-        qpid::types::Variant::Map after = getDatabaseInfos();
+        Json::Value after = getDatabaseInfos();
 
         //log infos
-        int dataCount = before["data_count"].asInt32() - after["data_count"].asInt32();
-        int journalCount = before["journal_count"].asInt32() - after["journal_count"].asInt32();
-        int positionCount = before["position_count"].asInt32() - after["position_count"].asInt32();
+        int dataCount = before["data_count"].asInt() - after["data_count"].asInt();
+        int journalCount = before["journal_count"].asInt() - after["journal_count"].asInt();
+        int positionCount = before["position_count"].asInt() - after["position_count"].asInt();
         AGO_INFO() << "Daily purge removed " << dataCount << " from data table, " << positionCount << " from position table, " << journalCount << " from journal table";
     }
     else
@@ -1340,58 +1310,56 @@ void AgoDataLogger::computeRendering()
 /**
  * "getdata" and "getrawdata" commands handler
  */
-void AgoDataLogger::commandGetData(qpid::types::Variant::Map& content, qpid::types::Variant::Map& returnData)
+void AgoDataLogger::commandGetData(const Json::Value& content, Json::Value& returnData)
 {
     AGO_TRACE() << "commandGetData";
 
     //check parameters
-    checkMsgParameter(content, "start", VAR_INT32);
-    checkMsgParameter(content, "end", VAR_INT32);
-    checkMsgParameter(content, "devices", VAR_LIST);
+    checkMsgParameter(content, "start", Json::intValue);
+    checkMsgParameter(content, "end", Json::intValue);
+    checkMsgParameter(content, "devices", Json::arrayValue);
 
     //variables
-    qpid::types::Variant::List uuids;
-    uuids = content["devices"].asList();
+    const Json::Value& uuids(content["devices"]);
     std::string environment = "";
-    if( !content["env"].isVoid() )
+    if( content.isMember("env") )
     {
         environment = content["env"].asString();
     }
 
     //get data
-    getGraphData(uuids, content["start"].asInt32(), content["end"].asInt32(), environment, returnData);
+    getGraphData(uuids, content["start"].asInt(), content["end"].asInt(), environment, returnData);
 }
 
 /**
  * "getgraph" command handler
  */
-bool AgoDataLogger::commandGetGraph(qpid::types::Variant::Map& content, qpid::types::Variant::Map& returnData)
+bool AgoDataLogger::commandGetGraph(const Json::Value& content, Json::Value& returnData)
 {
     AGO_TRACE() << "commandGetGraph";
 
     //check parameters
-    checkMsgParameter(content, "start", VAR_INT32);
-    checkMsgParameter(content, "end", VAR_INT32);
-    checkMsgParameter(content, "devices", VAR_LIST);
+    checkMsgParameter(content, "start", Json::intValue);
+    checkMsgParameter(content, "end", Json::intValue);
+    checkMsgParameter(content, "devices", Json::arrayValue);
 
     //variables
     unsigned char* img = NULL;
     unsigned long size = 0;
-    qpid::types::Variant::List uuids;
-    uuids = content["devices"].asList();
+    Json::Value uuids(content["devices"]);
 
     //is a multigraph?
     if( uuids.size()==1 )
     {
         std::string internalid = agoConnection->uuidToInternalId((*uuids.begin()).asString());
-        if( internalid.length()>0 && !devicemap["multigraphs"].asMap()[internalid].isVoid() )
+        if( internalid.length()>0 && devicemap["multigraphs"].isMember(internalid) )
         {
-            uuids = devicemap["multigraphs"].asMap()[internalid].asMap()["uuids"].asList();
+            uuids = devicemap["multigraphs"][internalid]["uuids"];
         }
     }
 
     //get image
-    if( generateGraph(uuids, content["start"].asInt32(), content["end"].asInt32(), 0, &img, &size) )
+    if( generateGraph(uuids, content["start"].asInt(), content["end"].asInt(), 0, &img, &size) )
     {
         returnData["graph"] = base64_encode(img, size);
         return true;
@@ -1406,9 +1374,9 @@ bool AgoDataLogger::commandGetGraph(qpid::types::Variant::Map& content, qpid::ty
 /**
  * Command handler
  */
-qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Map content)
+Json::Value AgoDataLogger::commandHandler(const Json::Value& content)
 {
-    qpid::types::Variant::Map returnData;
+    Json::Value returnData(Json::objectValue);
     std::string internalid = content["internalid"].asString();
     if (internalid == "dataloggercontroller")
     {
@@ -1424,12 +1392,12 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
             
             //is multigraph?
             bool isMultigraph = false;
-            checkMsgParameter(content, "devices", VAR_LIST);
-            qpid::types::Variant::List uuids = content["devices"].asList();
+            checkMsgParameter(content, "devices", Json::arrayValue);
+            const Json::Value& uuids(content["devices"]);
             if( uuids.size()==1 )
             {
                 std::string internalid = agoConnection->uuidToInternalId((*uuids.begin()).asString());
-                if( internalid.length()>0 && !devicemap["multigraphs"].asMap()[internalid].isVoid() )
+                if( internalid.length()>0 && devicemap["multigraphs"].isMember(internalid) )
                 {
                     isMultigraph = true;
                 }
@@ -1494,23 +1462,23 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         else if( content["command"]=="getconfig" )
         {
             //add multigrahs
-            qpid::types::Variant::List multis;
-            if( !devicemap["multigraphs"].isVoid() )
+            Json::Value multis(Json::arrayValue);
+            if( devicemap.isMember("multigraphs") )
             {
-                for( qpid::types::Variant::Map::iterator it=devicemap["multigraphs"].asMap().begin(); it!=devicemap["multigraphs"].asMap().end(); it++ )
+                for( auto it = devicemap["multigraphs"].begin(); it!=devicemap["multigraphs"].end(); it++ )
                 {
-                    qpid::types::Variant::Map multi;
-                    if( !it->second.isVoid() && !it->second.asMap()["uuids"].isVoid() )
+                    if( it->isMember("uuids") )
                     {
-                        multi["name"] = it->first;
-                        multi["uuids"] = it->second.asMap()["uuids"].asList();
-                        multis.push_back(multi);
+                        Json::Value multi;
+                        multi["name"] = it.name();
+                        multi["uuids"] = (*it)["uuids"];
+                        multis.append(multi);
                     }
                 }
             }
 
             //database infos
-            qpid::types::Variant::Map db;
+            Json::Value db;
             fs::path dbpath = getLocalStatePath(DBFILE);
             struct stat stat_buf;
             int rc = stat(dbpath.c_str(), &stat_buf);
@@ -1530,17 +1498,17 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         }
         else if( content["command"]=="addmultigraph" )
         {
-            checkMsgParameter(content, "uuids", VAR_LIST);
-            checkMsgParameter(content, "period", VAR_INT32);
+            checkMsgParameter(content, "uuids", Json::arrayValue);
+            checkMsgParameter(content, "period", Json::intValue);
 
-            std::string internalid = "multigraph" + std::string(devicemap["nextid"]);
+            std::string internalid = "multigraph" + devicemap["nextid"].asString();
             if( agoConnection->addDevice(internalid, "multigraph") )
             {
-                devicemap["nextid"] = devicemap["nextid"].asInt32() + 1;
-                qpid::types::Variant::Map device;
-                device["uuids"] = content["uuids"].asList();
-                device["period"] = content["period"].asInt32();
-                devicemap["multigraphs"].asMap()[internalid] = device;
+                devicemap["nextid"] = devicemap["nextid"].asInt() + 1;
+                Json::Value device;
+                device["uuids"] = content["uuids"];
+                device["period"] = content["period"].asInt();
+                devicemap["multigraphs"][internalid] = device;
                 saveDeviceMapFile();
                 return responseSuccess("Multigraph " + internalid + " created successfully");
             }
@@ -1552,12 +1520,12 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         }
         else if( content["command"]=="deletemultigraph" )
         {
-            checkMsgParameter(content, "multigraph", VAR_STRING);
+            checkMsgParameter(content, "multigraph", Json::stringValue);
 
             std::string internalid = content["multigraph"].asString();
             if( agoConnection->removeDevice(internalid) )
             {
-                devicemap["multigraphs"].asMap().erase(internalid);
+                devicemap["multigraphs"].removeMember(internalid);
                 saveDeviceMapFile();
                 return responseSuccess("Multigraph " + internalid + " deleted successfully");
             }
@@ -1569,7 +1537,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         }
         else if( content["command"]=="getthumb" )
         {
-            checkMsgParameter(content, "multigraph", VAR_STRING);
+            checkMsgParameter(content, "multigraph", Json::stringValue);
 
             //check if inventory available
             if( !checkInventory() )
@@ -1579,19 +1547,19 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
             }
 
             std::string internalid = content["multigraph"].asString();
-            if( !devicemap["multigraphs"].isVoid() && !devicemap["multigraphs"].asMap()[internalid].isVoid() && !devicemap["multigraphs"].asMap()[internalid].asMap()["uuids"].isVoid() )
+            if( devicemap.isMember("multigraphs") && devicemap["multigraphs"].isMember(internalid) && devicemap["multigraphs"][internalid].isMember("uuids") )
             {
                 unsigned char* img = NULL;
                 unsigned long size = 0;
                 int period = 12;
 
                 //get thumb period
-                if( !devicemap["multigraphs"].asMap()[internalid].asMap()["period"].isVoid() )
+                if( devicemap["multigraphs"][internalid].isMember("period") )
                 {
-                    period = devicemap["multigraphs"].asMap()[internalid].asMap()["period"].asInt32();
+                    period = devicemap["multigraphs"][internalid]["period"].asInt();
                 }
 
-                if( generateGraph(devicemap["multigraphs"].asMap()[internalid].asMap()["uuids"].asList(), 0, 0, period, &img, &size) )
+                if( generateGraph(devicemap["multigraphs"][internalid]["uuids"], 0, 0, period, &img, &size) )
                 {
                     returnData["graph"] = base64_encode(img, size);
                     return responseSuccess(returnData);
@@ -1610,11 +1578,11 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         }
         else if( content["command"]=="setconfig" )
         {
-            checkMsgParameter(content, "dataLogging", VAR_BOOL);
-            checkMsgParameter(content, "rrdLogging", VAR_BOOL);
-            checkMsgParameter(content, "gpsLogging", VAR_BOOL);
-            checkMsgParameter(content, "purgeDelay", VAR_INT32);
-            checkMsgParameter(content, "rendering", VAR_STRING);
+            checkMsgParameter(content, "dataLogging", Json::booleanValue);
+            checkMsgParameter(content, "rrdLogging", Json::booleanValue);
+            checkMsgParameter(content, "gpsLogging", Json::booleanValue);
+            checkMsgParameter(content, "purgeDelay", Json::intValue);
+            checkMsgParameter(content, "rendering", Json::stringValue);
 
             bool error = false;
             if( content["dataLogging"].asBool() )
@@ -1673,7 +1641,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
 
             if( !error )
             {
-                purgeDelay = content["purgeDelay"].asInt32();
+                purgeDelay = content["purgeDelay"].asInt();
                 if( !setConfigOption("purgeDelay", purgeDelay) )
                 {
                     AGO_ERROR() << "Unable to save purge delay to config file";
@@ -1718,7 +1686,7 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         }
         else if( content["command"]=="purgetable" )
         {
-            checkMsgParameter(content, "table", VAR_STRING);
+            checkMsgParameter(content, "table", Json::stringValue);
 
             //security check
             std::string table = content["table"].asString();
@@ -1750,13 +1718,12 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         if( content["command"]=="addmessage" )
         {
             //store journal message
-            checkMsgParameter(content, "message", VAR_STRING);
-            if( content["type"].isVoid() )
-            {
-                content["type"] = JOURNAL_INFO;
-            }
+            checkMsgParameter(content, "message", Json::stringValue);
+            std::string type = content["type"].asString();
+            if( type.empty() )
+                type = JOURNAL_INFO;
 
-            if( eventHandlerJournal(content["message"].asString(), content["type"].asString()) )
+            if( eventHandlerJournal(content["message"].asString(), type) )
             {
                 return responseSuccess();
             }
@@ -1768,23 +1735,25 @@ qpid::types::Variant::Map AgoDataLogger::commandHandler(qpid::types::Variant::Ma
         else if( content["command"]=="getmessages" )
         {
             //return messages in specified time range
-            checkMsgParameter(content, "filter", VAR_STRING, true);
-            checkMsgParameter(content, "type", VAR_STRING, false);
-            if( content["start"].isVoid() && content["end"].isVoid() )
+            checkMsgParameter(content, "filter", Json::stringValue, true);
+            checkMsgParameter(content, "type", Json::stringValue, false);
+
+            Json::Value content_(content);
+            if( !content_.isMember("start") && !content_.isMember("end") )
             {
                 //no timerange specified, return message of today
                 ptime s(date(day_clock::local_day()), hours(0));
                 ptime e(date(day_clock::local_day()), hours(23)+minutes(59)+seconds(59));
-                content["start"] = dateToDatabaseFormat(s);
-                content["end"] = dateToDatabaseFormat(e);
+                content_["start"] = dateToDatabaseFormat(s);
+                content_["end"] = dateToDatabaseFormat(e);
             }
             else
             {
-                checkMsgParameter(content, "start", VAR_STRING, false);
-                checkMsgParameter(content, "end", VAR_STRING, false);
+                checkMsgParameter(content_, "start", Json::stringValue, false);
+                checkMsgParameter(content_, "end", Json::stringValue, false);
             }
 
-            if( getMessagesFromJournal(content, returnData) )
+            if( getMessagesFromJournal(content_, returnData) )
             {
                 return responseSuccess(returnData);
             }
@@ -1915,25 +1884,25 @@ void AgoDataLogger::setupApp()
 
     // load map, create sections if empty
     fs::path dmf = getConfigPath(DEVICEMAPFILE);
-    devicemap = jsonFileToVariantMap(dmf);
-    if (devicemap["nextid"].isVoid())
+    readJsonFile(devicemap, dmf);
+    if (!devicemap.isMember("nextid"))
     {
         devicemap["nextid"] = 1;
-        variantMapToJSONFile(devicemap, dmf);
+        writeJsonFile(devicemap, dmf);
     }
-    if (devicemap["multigraphs"].isVoid())
+    if (!devicemap.isMember("multigraphs"))
     {
-        qpid::types::Variant::Map devices;
+        Json::Value devices(Json::arrayValue);
         devicemap["multigraphs"] = devices;
-        variantMapToJSONFile(devicemap, dmf);
+        writeJsonFile(devicemap, dmf);
     }
 
     //register existing devices
     AGO_INFO() << "Register existing multigraphs:";
-    qpid::types::Variant::Map multigraphs = devicemap["multigraphs"].asMap();
-    for( qpid::types::Variant::Map::const_iterator it=multigraphs.begin(); it!=multigraphs.end(); it++ )
+    Json::Value multigraphs = devicemap["multigraphs"];
+    for( Json::Value::const_iterator it=multigraphs.begin(); it!=multigraphs.end(); it++ )
     {
-        std::string internalid = it->first;
+        std::string internalid = it.name();
         AGO_INFO() << " - " << internalid;
         agoConnection->addDevice(internalid, "multigraph");
     }

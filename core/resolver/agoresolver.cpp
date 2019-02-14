@@ -29,16 +29,10 @@
 #include <deque>
 
 #include <uuid/uuid.h>
-
-#include <qpid/messaging/Connection.h>
-#include <qpid/messaging/Message.h>
-#include <qpid/messaging/Receiver.h>
-#include <qpid/messaging/Sender.h>
-#include <qpid/messaging/Session.h>
-#include <qpid/messaging/Address.h>
 #include <boost/asio/deadline_timer.hpp>
 
 #include "agoapp.h"
+
 #include "build_config.h"
 
 #ifndef SCHEMADIR
@@ -64,22 +58,20 @@
 #include "schema.h"
 #include "inventory.h"
 
-using namespace qpid::messaging;
-using namespace qpid::types;
 using namespace agocontrol;
 namespace fs = ::boost::filesystem;
 namespace pt = ::boost::posix_time;
 
 class AgoResolver: public AgoApp {
 private:
-    Variant::Map inventory; // used to hold device registrations
-    Variant::Map schema;
-    Variant::Map systeminfo; // holds system information
-    Variant::Map variables; // holds global variables
-    Variant::Map environment; // holds global environment like position, weather conditions, ..
-    Variant::Map deviceparameters; // holds device parameters
+    Json::Value inventory; // used to hold device registrations
+    Json::Value schema;
+    Json::Value systeminfo; // holds system information
+    Json::Value variables; // holds global variables
+    Json::Value environment; // holds global environment like position, weather conditions, ..
+    Json::Value deviceparameters; // holds device parameters
 
-    Inventory *inv;
+    std::unique_ptr<Inventory> inv;
     unsigned int discoverdelay;
     bool persistence;
 
@@ -90,12 +82,13 @@ private:
     void get_sysinfo();
     bool emitNameEvent(const std::string& uuid, const std::string& eventType, const std::string& name);
     bool emitFloorplanEvent(const std::string& uuid, const std::string& eventType, const std::string& floorplan, int x, int y);
-    void handleEvent(Variant::Map *device, const std::string& subject, Variant::Map *content);
-    qpid::types::Variant::Map getDefaultParameters();
+    void handleEvent(Json::Value& device, const std::string& subject, const Json::Value& content);
+    Json::Value getDefaultParameters();
 
     void scanSchemaDir(const fs::path &schemaPrefix) ;
-    qpid::types::Variant::Map commandHandler(qpid::types::Variant::Map content) ;
-    void eventHandler(const std::string& subject , qpid::types::Variant::Map content) ;
+
+    Json::Value commandHandler(const Json::Value& content) ;
+    void eventHandler(const std::string& subject , const Json::Value& content) ;
 
     boost::asio::deadline_timer discoveryTimer;
     void discoverFunction(const boost::system::error_code& error) ;
@@ -107,8 +100,14 @@ private:
     void cleanupApp();
 public:
     AGOAPP_CONSTRUCTOR_HEAD(AgoResolver)
-        ,discoveryTimer(ioService())
-        ,staleTimer(ioService()) {}
+        , inventory(Json::objectValue)
+        , schema(Json::objectValue)
+        , systeminfo(Json::objectValue)
+        , variables(Json::objectValue)
+        , environment(Json::objectValue)
+        , deviceparameters(Json::objectValue)
+        , discoveryTimer(ioService())
+        , staleTimer(ioService()) {}
 
 };
 
@@ -120,7 +119,7 @@ bool AgoResolver::saveDevicemap()
     if (persistence)
     {
         AGO_TRACE() << "Saving device-map";
-        return variantMapToJSONFile(inventory, getConfigPath(DEVICESMAPFILE));
+        return writeJsonFile(inventory, getConfigPath(DEVICESMAPFILE));
     }
     return true;
 }
@@ -130,7 +129,7 @@ bool AgoResolver::saveDevicemap()
  */
 void AgoResolver::loadDevicemap()
 {
-    jsonFileToVariantMap(inventory, getConfigPath(DEVICESMAPFILE));
+    readJsonFile(inventory, getConfigPath(DEVICESMAPFILE));
     AGO_TRACE() << "Inventory: " << inventory;
 }
 
@@ -140,7 +139,7 @@ void AgoResolver::loadDevicemap()
 bool AgoResolver::saveDeviceParametersMap()
 {
     AGO_TRACE() << "Saving device parameters map";
-    return variantMapToJSONFile(deviceparameters, getConfigPath(DEVICEPARAMETERSMAPFILE));
+    return writeJsonFile(deviceparameters, getConfigPath(DEVICEPARAMETERSMAPFILE));
 }
 
 /**
@@ -149,19 +148,19 @@ bool AgoResolver::saveDeviceParametersMap()
 void AgoResolver::loadDeviceParametersMap()
 {
     //first of all load file
-    deviceparameters = jsonFileToVariantMap(getConfigPath(DEVICEPARAMETERSMAPFILE));
+    readJsonFile(deviceparameters, getConfigPath(DEVICEPARAMETERSMAPFILE));
 
     //then synchronize inventory with parameters
     /*bool save = false;
-    for( qpid::types::Variant::Map::iterator it=inventory.begin(); it!=inventory.end(); it++ )
+    for( auto it = inventory.begin(); it!=inventory.end(); it++ )
     {
-        if( !it->second.isVoid() )
+        if( !it->isNull() )
         {
-            std::string uuid = it->first;
-            if( !deviceparameters[uuid].isVoid() )
+            std::string uuid = it.name();
+            if( deviceparameters.isMember(uuid) )
             {
-                qpid::types::Variant::Map* device = &it->second.asMap();
-                (*device)["parameters"] = deviceparameters[uuid];
+                Json::Value& device = *it;
+                device["parameters"] = deviceparameters[uuid];
             }
             else
             {
@@ -183,9 +182,9 @@ void AgoResolver::loadDeviceParametersMap()
 /**
  * Return default parameters map
  */
-qpid::types::Variant::Map AgoResolver::getDefaultParameters()
+Json::Value AgoResolver::getDefaultParameters()
 {
-    qpid::types::Variant::Map params;
+    Json::Value params;
     params["staleTimeout"] = (uint64_t)0;
     return params;
 }
@@ -215,72 +214,73 @@ void AgoResolver::get_sysinfo() {
 
 bool AgoResolver::emitNameEvent(const std::string& uuid, const std::string& eventType, const std::string& name)
 {
-    Variant::Map content;
+    Json::Value content;
     content["name"] = name;
     content["uuid"] = uuid;
     return agoConnection->sendMessage(eventType, content);
 }
 
 bool AgoResolver::emitFloorplanEvent(const std::string& uuid, const std::string& eventType, const std::string& floorplan, int x, int y) {
-    Variant::Map content;
+    Json::Value content;
     content["uuid"] = uuid;
     content["floorplan"] = floorplan;
     content["x"] = x;
     content["y"] = y;
     return agoConnection->sendMessage(eventType, content);
 }
-
-std::string valuesToString(Variant::Map *values) {
+#if 0
+std::string valuesToString(Json::Value *values) {
     std::string result;
-    for (Variant::Map::const_iterator it = values->begin(); it != values->end(); ++it) {
-        result += it->second.asString();
-        if ((it != values->end()) && (next(it) != values->end())) result += "/";
+    for (auto it = values->begin(); it != values->end(); ++it) {
+        result += (*it).asString();
+        if ((it != values->end()) && (next(it) != values->end()))
+            result += "/";
     }
     return result;
 }
+#endif
 
 // handles events that update the state or values of a device
-void AgoResolver::handleEvent(Variant::Map *device, const std::string& subject, Variant::Map *content)
+void AgoResolver::handleEvent(Json::Value& device, const std::string& subject, const Json::Value& content)
 {
     bool save = false;
-    Variant::Map *values;
 
     //check if device is valid
-    if ((*device)["values"].isVoid())
+    if (!device.isMember("values"))
     {
         AGO_ERROR() << "device[values] is empty in handleEvent()";
         return;
     }
-    values = &(*device)["values"].asMap();
+
+    Json::Value& values(device["values"]);
 
     if ((subject == "event.device.statechanged") || (subject == "event.security.sensortriggered"))
     {
-        (*values)["state"] = (*content)["level"];
-        (*device)["state"] = (*content)["level"];
-        (*device)["state"].setEncoding("utf8");
+        values["state"] = content["level"];
+        device["state"] = content["level"];
         // (*device)["state"] = valuesToString(values);
         save = true;
     }
     else if (subject == "event.environment.positionchanged")
     {
-        Variant::Map value;
+        Json::Value value;
         std::stringstream timestamp;
 
-        value["unit"] = (*content)["unit"];
-        value["latitude"] = (*content)["latitude"];
-        value["longitude"] = (*content)["longitude"];
+        value["unit"] = content["unit"];
+        value["latitude"] = content["latitude"];
+        value["longitude"] = content["longitude"];
 
         timestamp << time(NULL);
         value["timestamp"] = timestamp.str();
 
-        (*values)["position"] = value;
+        values["position"] = value;
         save = true;
 
     }
     else if ( ((subject.find("event.environment.")!=std::string::npos) && (subject.find("changed")!=std::string::npos))
             || (subject=="event.device.batterylevelchanged") )
     {
-        Variant::Map value;
+        Json::Value value;
         std::stringstream timestamp;
         std::string quantity = subject;
 
@@ -297,18 +297,18 @@ void AgoResolver::handleEvent(Variant::Map *device, const std::string& subject, 
             replaceString(quantity, "changed", "");
         }
 
-        value["unit"] = (*content)["unit"];
-        value["level"] = (*content)["level"];
+        value["unit"] = content["unit"];
+        value["level"] = content["level"];
 
         timestamp << time(NULL);
         value["timestamp"] = timestamp.str();
 
-        (*values)[quantity] = value;
+        values[quantity] = value;
         save = true;
     }
 
     //update lastseen
-    (*device)["lastseen"] = (uint64_t)time(NULL);
+    device["lastseen"] = (uint64_t)time(NULL);
 
     //save devicemap if necessary
     if( save )
@@ -317,19 +317,19 @@ void AgoResolver::handleEvent(Variant::Map *device, const std::string& subject, 
     }
 }
 
-qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map content)
+Json::Value AgoResolver::commandHandler(const Json::Value& content)
 {
     std::string internalid = content["internalid"].asString();
-    qpid::types::Variant::Map responseData;
+    Json::Value responseData;
 
     if (internalid == "agocontroller")
     {
         if (content["command"] == "setroomname")
         {
-            std::string roomUuid = content["room"];
+            std::string roomUuid = content["room"].asString();
             // if no uuid is provided, we need to generate one for a new room
             if (roomUuid == "") roomUuid = generateUuid();
-            if (inv->setRoomName(roomUuid, content["name"]))
+            if (inv->setRoomName(roomUuid, content["name"].asString()))
             {
                 // return room UUID
                 responseData["uuid"] = roomUuid;
@@ -343,20 +343,18 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "setdeviceroom")
         {
-            checkMsgParameter(content, "device", VAR_STRING);
-            checkMsgParameter(content, "room", VAR_STRING, true);
+            checkMsgParameter(content, "device", Json::stringValue);
+            checkMsgParameter(content, "room", Json::stringValue, true);
 
-            if (inv->setDeviceRoom(content["device"], content["room"]))
+            if (inv->setDeviceRoom(content["device"].asString(), content["room"].asString()))
             {
                 // update room in local device map
-                Variant::Map *device;
-                std::string room = inv->getDeviceRoom(content["device"]);
-                std::string uuid = content["device"];
+                std::string uuid = content["device"].asString();
+                std::string room = inv->getDeviceRoom(uuid);
 
-                if (!inventory[uuid].isVoid())
+                if (inventory.isMember(uuid))
                 {
-                    device = &inventory[uuid].asMap();
-                    (*device)["room"]= room;
+                    inventory[uuid]["room"]= room;
                 }
 
                 return responseSuccess();
@@ -368,9 +366,9 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "setdevicename")
         {
-            checkMsgParameter(content, "device", VAR_STRING, true);
+            checkMsgParameter(content, "device", Json::stringValue, true);
 
-            std::string uuid = content["device"];
+            std::string uuid = content["device"].asString();
             std::string name = content["name"].asString();
             if(name == "") {
                 inv->deleteDevice(uuid);
@@ -379,15 +377,13 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
             }else if (inv->setDeviceName(uuid, name))
             {
                 // update name in local device map
-                Variant::Map *device;
                 name = inv->getDeviceName(uuid);
-                if (inventory.find(uuid) != inventory.end())
+                if (inventory.isMember(uuid))
                 {
-                    device = &inventory[uuid].asMap();
-                    (*device)["name"]= name;
+                    inventory[uuid]["name"]= name;
                 }
                 saveDevicemap();
-                emitNameEvent(uuid, "event.system.devicenamechanged", content["name"].asString());
+                emitNameEvent(uuid, "event.system.devicenamechanged", name);
 
                 return responseSuccess();
             }
@@ -399,14 +395,13 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         else if( content["command"]=="deletedevice" )
         {
             // Compound command which removes device from inventory map and deletes from DB
-            checkMsgParameter(content, "device", VAR_STRING); //device uuid
-            std::string uuid = content["device"];
+            checkMsgParameter(content, "device", Json::stringValue); //device uuid
+            std::string uuid = content["device"].asString();
 
             AGO_INFO() << "removing device: uuid=" << uuid;
-            Variant::Map::iterator it = inventory.find(uuid);
-            if (it != inventory.end())
+            Json::Value ignored;
+            if (inventory.removeMember(uuid, &ignored))
             {
-                inventory.erase(it);
                 saveDevicemap();
             }
 
@@ -416,10 +411,10 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "deleteroom")
         {
-            checkMsgParameter(content, "room", VAR_STRING);
-            if (inv->deleteRoom(content["room"]))
+            checkMsgParameter(content, "room", Json::stringValue);
+            std::string uuid = content["room"].asString();
+            if (inv->deleteRoom(uuid))
             {
-                std::string uuid = content["room"].asString();
                 emitNameEvent(uuid, "event.system.roomdeleted", "");
                 return responseSuccess();
             }
@@ -430,14 +425,14 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "setfloorplanname")
         {
-            std::string uuid = content["floorplan"];
+            std::string uuid = content["floorplan"].asString();
             // if no uuid is provided, we need to generate one for a new floorplan
             if (uuid == "")
             {
                 uuid = generateUuid();
             }
 
-            if (inv->setFloorplanName(uuid, content["name"]))
+            if (inv->setFloorplanName(uuid, content["name"].asString()))
             {
                 emitNameEvent(content["floorplan"].asString(), "event.system.floorplannamechanged", content["name"].asString());
                 responseData["uuid"] = uuid;
@@ -450,18 +445,18 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "setdevicefloorplan")
         {
-            checkMsgParameter(content, "device", VAR_STRING);
-            checkMsgParameter(content, "floorplan", VAR_STRING);
-            checkMsgParameter(content, "x", VAR_INT32);
-            checkMsgParameter(content, "y", VAR_INT32);
+            checkMsgParameter(content, "device", Json::stringValue);
+            checkMsgParameter(content, "floorplan", Json::stringValue);
+            checkMsgParameter(content, "x", Json::intValue);
+            checkMsgParameter(content, "y", Json::intValue);
 
-            if (inv->setDeviceFloorplan(content["device"], content["floorplan"], content["x"], content["y"]))
+            if (inv->setDeviceFloorplan(content["device"].asString(), content["floorplan"].asString(), content["x"].asInt(), content["y"].asInt()))
             {
                 emitFloorplanEvent(content["device"].asString(),
                         "event.system.floorplandevicechanged",
                         content["floorplan"].asString(),
-                        content["x"],
-                        content["y"]);
+                        content["x"].asInt(),
+                        content["y"].asInt());
                 return responseSuccess();
             }
             else
@@ -471,17 +466,17 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if( content["command"]=="deldevicefloorplan" )
         {
-            checkMsgParameter(content, "device", VAR_STRING);
-            checkMsgParameter(content, "floorplan", VAR_STRING);
-            inv->delDeviceFloorplan(content["device"], content["floorplan"]);
+            checkMsgParameter(content, "device", Json::stringValue);
+            checkMsgParameter(content, "floorplan", Json::stringValue);
+            inv->delDeviceFloorplan(content["device"].asString(), content["floorplan"].asString());
 
             return responseSuccess();
         }
         else if (content["command"] == "deletefloorplan")
         {
-            checkMsgParameter(content, "floorplan", VAR_STRING);
+            checkMsgParameter(content, "floorplan", Json::stringValue);
 
-            if (inv->deleteFloorplan(content["floorplan"]))
+            if (inv->deleteFloorplan(content["floorplan"].asString()))
             {
                 emitNameEvent(content["floorplan"].asString(), "event.system.floorplandeleted", "");
                 return responseSuccess();
@@ -493,11 +488,11 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "setvariable")
         {
-            checkMsgParameter(content, "variable", VAR_STRING);
+            checkMsgParameter(content, "variable", Json::stringValue);
             checkMsgParameter(content, "value");
 
             variables[content["variable"].asString()] = content["value"].asString();
-            if (variantMapToJSONFile(variables, getConfigPath(VARIABLESMAPFILE)))
+            if (writeJsonFile(variables, getConfigPath(VARIABLESMAPFILE)))
             {
                 return responseSuccess();
             }
@@ -508,13 +503,12 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "delvariable")
         {
-            checkMsgParameter(content, "variable", VAR_STRING);
+            checkMsgParameter(content, "variable", Json::stringValue);
 
-            Variant::Map::iterator it = variables.find(content["variable"].asString());
-            if (it != variables.end() )
+            Json::Value ignored;
+            if(variables.removeMember(content["variable"].asString(), &ignored))
             {
-                variables.erase(it);
-                if (!variantMapToJSONFile(variables, getConfigPath(VARIABLESMAPFILE)))
+                if (!writeJsonFile(variables, getConfigPath(VARIABLESMAPFILE)))
                 {
                     return responseFailed("Failed to store change");
                 }
@@ -524,12 +518,12 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if (content["command"] == "getdevice")
         {
-            checkMsgParameter(content, "device", VAR_STRING);
+            checkMsgParameter(content, "device", Json::stringValue);
 
-            std::string uuid = content["device"];
-            if (inventory.find(uuid) != inventory.end())
+            std::string uuid = content["device"].asString();
+            if (inventory.isMember(uuid))
             {
-                responseData["device"] = inventory[uuid].asMap();
+                responseData["device"] = inventory[uuid];
                 return responseSuccess(responseData);
             }
             else
@@ -545,10 +539,10 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         else if (content["command"] == "setconfig")
         {
             // XXX: No access checks at all... may overwrite whatever
-            checkMsgParameter(content, "section", VAR_STRING);
-            checkMsgParameter(content, "option", VAR_STRING);
+            checkMsgParameter(content, "section", Json::stringValue);
+            checkMsgParameter(content, "option", Json::stringValue);
             checkMsgParameter(content, "value");
-            checkMsgParameter(content, "app", VAR_STRING);
+            checkMsgParameter(content, "app", Json::stringValue);
 
             if (setConfigSectionOption(content["section"].asString(),
                         content["option"].asString(),
@@ -569,41 +563,36 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
         }
         else if( content["command"] == "getconfig" )
         {
-            checkMsgParameter(content, "section", VAR_STRING);
-            checkMsgParameter(content, "option", VAR_STRING);
-            checkMsgParameter(content, "app", VAR_STRING);
+            checkMsgParameter(content, "section", Json::stringValue);
+            checkMsgParameter(content, "option", Json::stringValue);
+            checkMsgParameter(content, "app", Json::stringValue);
             std::string value = getConfigSectionOption(content["section"].asString(), content["option"].asString(),
                                                        "", content["app"].asString());
-            qpid::types::Variant::Map response;
+            Json::Value response;
             response["value"] = value;
             return responseSuccess(response);
         }
         else if( content["command"]=="setdeviceparameters" )
         {
             //set specific device parameters
-            checkMsgParameter(content, "device", VAR_STRING); //device uuid
-            checkMsgParameter(content, "parameters", VAR_MAP);
+            checkMsgParameter(content, "device", Json::stringValue); //device uuid
+            checkMsgParameter(content, "parameters", Json::objectValue);
 
             std::string uuid = content["device"].asString();
-            qpid::types::Variant::Map parameters = content["parameters"].asMap();
+            Json::Value parameters = content["parameters"];
 
             //update both inventory...
-            qpid::types::Variant::Map::iterator it = inventory.find(uuid);
-            if( it!=inventory.end() )
-            {
-                //update inventory
-                if( !it->second.isVoid() )
+            if(inventory.isMember(uuid)) {
+                Json::Value& device(inventory[uuid]);
+
+                device["parameters"] = parameters;
+                if( !saveDevicemap() )
                 {
-                    qpid::types::Variant::Map* device = &it->second.asMap();
-                    (*device)["parameters"] = parameters;
-                    if( !saveDevicemap() )
-                    {
-                        return responseFailed("Failed to write config parameter (device map)");
-                    }
-                    else
-                    {
-                        AGO_DEBUG() << "device map saved";
-                    }
+                    return responseFailed("Failed to write config parameter (device map)");
+                }
+                else
+                {
+                    AGO_DEBUG() << "device map saved";
                 }
             }
             else
@@ -613,7 +602,7 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
             }
 
             //...and parameters map
-            if( !deviceparameters[uuid].isVoid() )
+            if( deviceparameters.isMember(uuid) )
             {
                 //update parameters
                 deviceparameters[uuid] = parameters;
@@ -667,17 +656,43 @@ qpid::types::Variant::Map AgoResolver::commandHandler(qpid::types::Variant::Map 
     throw std::logic_error("Should not go here");
 }
 
-void AgoResolver::eventHandler(const std::string& subject, qpid::types::Variant::Map content)
+void AgoResolver::eventHandler(const std::string& subject, const Json::Value& content)
 {
     if( subject=="event.device.announce" || subject=="event.device.discover" )
     {
-        std::string uuid = content["uuid"];
+        std::string uuid = content["uuid"].asString();
         if (uuid != "")
         {
             bool wasKnown = inv->isDeviceRegistered(uuid);
 
             // AGO_TRACE() << "preparing device: uuid=" << uuid;
-            Variant::Map device;
+            if (!inventory.isMember(uuid)) {
+                // device is newly announced, set default state and values
+                Json::Value device;
+                device["lastseen"] = (uint64_t)time(NULL);
+                device["state"] = 0;
+                device["values"] = Json::Value(Json::objectValue);
+                device["stale"] = 0;
+
+                if( deviceparameters.isMember(uuid) )
+                {
+                    //load device parameters from map
+                    AGO_DEBUG() << "load device params from map";
+                    device["parameters"] = deviceparameters[uuid];
+                }
+                else
+                {
+                    //no device parameters, add default one
+                    AGO_DEBUG() << "load device params from empty";
+                    device["parameters"] = getDefaultParameters();
+                }
+
+                AGO_INFO() << "adding device: uuid=" << uuid << " type: " << device["devicetype"].asString();
+                inventory[uuid] = device;
+            }
+
+            Json::Value& device (inventory[uuid]);
+
             device["devicetype"] = content["devicetype"].asString();
             device["internalid"] = content["internalid"].asString();
             device["handled-by"] = content["handled-by"].asString();
@@ -689,62 +704,21 @@ void AgoResolver::eventHandler(const std::string& subject, qpid::types::Variant:
                 if (device["devicetype"] == "agocontroller") {
                     device["name"] = "agocontroller";
                 }
-                else if (content.count("initial_name") && !wasKnown)
+                else if (content.isMember("initial_name") && !wasKnown)
                 {
                     // First seen, set name.
                     std::string name(content["initial_name"].asString());
 
-                    if(inv->setDeviceName(content["device"], name)) {
+                    // TODO: Should this not be uuid rather than device?
+                    if(inv->setDeviceName(content["device"].asString(), name)) {
                         device["name"] = name;
                     }
                 }
             }
-            device["name"].setEncoding("utf8");
 
             // AGO_TRACE() << "getting room from inventory";
-            device["room"] = inv->getDeviceRoom(content["uuid"].asString());
-            device["room"].setEncoding("utf8");
+            device["room"] = inv->getDeviceRoom(uuid);
 
-            qpid::types::Variant::Map::const_iterator it = inventory.find(uuid);
-            if (it != inventory.end() && !it->second.isVoid())
-            {
-                // device exists, and has valid content
-                // TODO: use a non-const interator and modify the timestamp in place to avoid the following copying of data
-                qpid::types::Variant::Map olddevice;
-                olddevice = it->second.asMap();
-                device["lastseen"] = olddevice["lastseen"];
-                device["stale"] = olddevice["stale"];
-                device["state"] = olddevice["state"];
-                device["values"] = olddevice["values"];
-                device["parameters"] = olddevice["parameters"];
-            }
-            else
-            {
-                // device is newly announced, set default state and values
-                Variant::Map values;
-                uint64_t timestamp;
-                timestamp = time(NULL);
-                device["lastseen"] = timestamp;
-                device["state"] = 0;
-                device["values"] = values;
-                device["stale"] = 0;
-
-                if( !deviceparameters[uuid].isVoid() )
-                {
-                    //load device parameters from map
-                    AGO_DEBUG() << "load device params from map";
-                    device["parameters"] = deviceparameters[uuid].asMap();
-                }
-                else
-                {
-                    //no device parameters, add default one
-                    AGO_DEBUG() << "load device params from empty";
-                    device["parameters"] = getDefaultParameters();
-                }
-                AGO_INFO() << "adding device: uuid=" << uuid << " type: " << device["devicetype"].asString();
-            }
-
-            inventory[uuid] = device;
             // TODO: Should postpone these; if we do a discovery we will write
             // these to disk for every device..
             saveDevicemap();
@@ -753,14 +727,13 @@ void AgoResolver::eventHandler(const std::string& subject, qpid::types::Variant:
     }
     else if (subject == "event.device.remove")
     {
-        std::string uuid = content["uuid"];
+        std::string uuid = content["uuid"].asString();
         if (uuid != "")
         {
             AGO_INFO() << "removing device: uuid=" << uuid;
-            Variant::Map::iterator it = inventory.find(uuid);
-            if (it != inventory.end())
+            Json::Value ignored;
+            if (inventory.removeMember(uuid, &ignored))
             {
-                inventory.erase(it);
                 saveDevicemap();
             }
         }
@@ -783,14 +756,11 @@ void AgoResolver::eventHandler(const std::string& subject, qpid::types::Variant:
 
         if (content["uuid"].asString() != "")
         {
-            std::string uuid = content["uuid"];
+            std::string uuid = content["uuid"].asString();
             // see if we have that device in the inventory already, if yes handle the event
-            if (inventory.find(uuid) != inventory.end())
+            if (inventory.isMember(uuid))
             {
-                if (!inventory[uuid].isVoid())
-                {
-                    handleEvent(&inventory[uuid].asMap(), subject, &content);
-                }
+                handleEvent(inventory[uuid], subject, content);
             }
         }
     }
@@ -801,7 +771,7 @@ void AgoResolver::discoverFunction(const boost::system::error_code& error) {
         return;
     }
 
-    Variant::Map discovercmd;
+    Json::Value discovercmd;
     discovercmd["command"] = "discover";
     AGO_TRACE() << "Sending discover message";
     agoConnection->sendMessage("",discovercmd);
@@ -824,89 +794,67 @@ void AgoResolver::staleFunction(const boost::system::error_code& error)
     AGO_TRACE() << "staleFunction";
     bool save = false;
     uint64_t now = time(NULL);
-    for( qpid::types::Variant::Map::iterator it=inventory.begin(); it!=inventory.end(); it++ )
+    for( auto it = inventory.begin(); it!=inventory.end(); it++ )
     {
-        if( !it->second.isVoid() )
+        Json::Value& device(*it);
+        //AGO_TRACE() << "Checking staleness of " << it.name();
+        Json::Value& parameters(device["parameters"]);
+        if( parameters.isMember("staleTimeout") )
         {
-            qpid::types::Variant::Map* device = &it->second.asMap();
-            if( !(*device)["parameters"].isVoid() )
+            int timeout = parameters["staleTimeout"].asInt();
+            if(!device["stale"].isIntegral()) {
+                // Shouldn't happen unless we have a bug somewhere.
+                AGO_WARNING() << "Unexpected non-int 'stale' (instead "
+                    << device["stale"].type()
+                    << ") element in device " << it.name() << ": " << device.toStyledString();
+                device["stale"] = 0;
+            }
+
+            int stale = device["stale"].asInt();
+            std::string uuid = it.name();
+            if( timeout > 0 )
             {
-                qpid::types::Variant::Map parameters = (*device)["parameters"].asMap();
-                if( !parameters["staleTimeout"].isVoid() )
+                AGO_TRACE() << "stale=" << stale << " now=" << now << " to+ls=" << (timeout+device["lastseen"].asUInt64());
+                //need to check stale
+                if( now > (timeout+device["lastseen"].asUInt64()) )
                 {
-                    int64_t timeout = parameters["staleTimeout"].asUint64();
-                    if(!qpid::types::isIntegerType((*device)["stale"].getType())) {
-                        // Shouldn't happen unless we have a bug somewhere.
-                        AGO_WARNING() << "Unexpected non-int 'stale' (instead "
-                            << (*device)["stale"].getType()
-                            << ") element in device " << it->first << ": " << *device;
-                        (*device)["stale"] = 0;
-                    }
-
-                    int stale = (*device)["stale"].asUint8();
-                    std::string uuid = it->first;
-                    if( timeout>0 )
+                    //device is stale
+                    if( stale==0 )
                     {
-                        AGO_TRACE() << "stale=" << stale << " now=" << now << " to+ls=" << (timeout+(*device)["lastseen"].asUint64());
-                        //need to check stale
-                        if( now>timeout+(*device)["lastseen"].asUint64() )
-                        {
-                            //device is stale
-                            if( stale==0 )
-                            {
-                                AGO_DEBUG() << "Device " << it->first << " is dead";
-                                (*device)["stale"] = (uint8_t)1;
-                                agoConnection->emitDeviceStale(uuid, 1);
+                        AGO_DEBUG() << "Device " << it.name() << " is dead";
+                        device["stale"] = (uint8_t)1;
+                        agoConnection->emitDeviceStale(uuid, 1);
 
-                                save = true;
-                            }
-                            else
-                            {
-                                //device already stale
-                            }
-                        }
-                        else
-                        {
-                            //device is not stale, check previous status
-                            if( stale==1 )
-                            {
-                                //disable stale status
-                                AGO_DEBUG() << "Device " << it->first << " is alive";
-                                (*device)["stale"] = (uint8_t)0;
-                                agoConnection->emitDeviceStale(uuid, 0);
-                                save = true;
-                            }
-                            else
-                            {
-                                //device was not stale
-                            }
-                        }
+                        save = true;
                     }
+                    // else device already stale
                 }
                 else
                 {
-                    //add staleTimeout field
-                    AGO_TRACE() << "add missing staleTimeout field";
-                    parameters["staleTimeout"] = (uint64_t)0;
-                    (*device)["parameters"] = parameters;
-                    save = true;
+                    //device is not stale, check previous status
+                    if( stale==1 )
+                    {
+                        //disable stale status
+                        AGO_DEBUG() << "Device " << it.name() << " is alive";
+                        device["stale"] = (uint8_t)0;
+                        agoConnection->emitDeviceStale(uuid, 0);
+                        save = true;
+                    }
+                    // else device was not stale
                 }
             }
-            else
-            {
-                //add parameters field
-                AGO_TRACE() << "add missing parameters field";
-                qpid::types::Variant::Map parameters;
-                parameters["staleTimeout"] = (uint64_t)0;
-                (*device)["parameters"] = parameters;
-                save = true;
-            }
+        }
+        else
+        {
+            //add staleTimeout field
+            AGO_TRACE() << "add missing staleTimeout field on " << it.name();
+            parameters["staleTimeout"] = 0;
+            save = true;
         }
     }
+
     if( save )
-    {
         saveDevicemap();
-    }
 
     //relaunch timer
     staleTimer.expires_from_now(pt::seconds(60)); //check stale status every minutes
@@ -965,7 +913,7 @@ void AgoResolver::setupApp()
     AGO_DEBUG() << "reading inventory";
     try
     {
-        inv = new Inventory(getConfigPath(INVENTORYDBFILE));
+        inv.reset(new Inventory(getConfigPath(INVENTORYDBFILE)));
     }
     catch(std::exception& e)
     {
@@ -973,7 +921,7 @@ void AgoResolver::setupApp()
         throw ConfigurationError(std::string("Failed to load inventory: ") + e.what());
     }
 
-    variables = jsonFileToVariantMap(getConfigPath(VARIABLESMAPFILE));
+    readJsonFile(variables, getConfigPath(VARIABLESMAPFILE));
     loadDeviceParametersMap();
     if (persistence)
     {
@@ -994,13 +942,6 @@ void AgoResolver::setupApp()
 
 void AgoResolver::cleanupApp()
 {
-    if(inv)
-    {
-        inv->close();
-        delete inv;
-        inv = NULL;
-    }
-
     //stop timers
     staleTimer.cancel();
     discoveryTimer.cancel();
