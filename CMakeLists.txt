@@ -124,7 +124,7 @@ pkg_search_module(AUGEAS REQUIRED augeas)
 log_pkg_found(augeas "${AUGEAS_FOUND}" "${AUGEAS_VERSION}" FATAL_ERROR "")
 
 pkg_search_module(SQLITE REQUIRED sqlite3)
-log_pkg_found(augeas "${SQLITE_FOUND}" "${SQLITE_VERSION}" FATAL_ERROR "")
+log_pkg_found(sqlite3 "${SQLITE_FOUND}" "${SQLITE_VERSION}" FATAL_ERROR "")
 
 # Mongoose may use openssl
 pkg_search_module(OPENSSL openssl)
