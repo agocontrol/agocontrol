@@ -904,6 +904,8 @@ void AgoMySensors::sendcommandV13(std::string internalid, int messageType, int s
  */
 Json::Value AgoMySensors::commandHandler(const Json::Value& content)
 {
+    std::string errorMessage = "";
+
     Json::Value returnval;
     Json::Value infos;
     std::string deviceType;
@@ -919,8 +921,6 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
     if( cmd=="getcounters" )
     {
         //return devices counters
-        returnval["error"] = 0;
-        returnval["msg"] = "";
         Json::Value counters(Json::objectValue);
         if( devicemap.isMember("devices") )
         {
@@ -975,8 +975,6 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
                 }
             }
         }
-        returnval["error"] = 0;
-        returnval["msg"] = "";
     }
     else if( cmd=="resetcounters" )
     {
@@ -996,14 +994,11 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
                     setDeviceInfos(device["internalid"].asString(), infos);
                 }
             }
-            returnval["error"] = 0;
-            returnval["msg"] = "";
         }
         else
         {
             //invalid command format
-            returnval["error"] = 6;
-            returnval["msg"] = "Invalid command received";
+            errorMessage = "Invalid command received";
         }
     }
     else if( cmd=="getport" )
@@ -1020,26 +1015,19 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
             //restart communication
             closeSerialPort();
             if( !openSerialPort(content["port"].asString()) ) {
-                returnval["error"] = 1;
-                returnval["msg"] = "Unable to open specified port";
+                errorMessage = "Unable to open specified port";
             }
             else {
                 //everything looks good, save port
                 serialDevice = content["port"].asString();
                 if( !setConfigSectionOption("mysensors", "device", serialDevice.c_str()) ) {
-                    returnval["error"] = 2;
-                    returnval["msg"] = "Unable to save serial port to config file";
-                }
-                else {
-                    returnval["error"] = 0;
-                    returnval["msg"] = "";
+                    errorMessage = "Unable to save serial port to config file";
                 }
             }
         }
         else {
             //port is missing
-            returnval["error"] = 3;
-            returnval["msg"] = "No port specified";
+            errorMessage = "No port specified";
         }
     }
     else if( cmd=="getdevices" )
@@ -1080,26 +1068,22 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
             {
                 if( deleteDevice(device["internalid"].asString()) )
                 {
-                    returnval["error"] = 0;
-                    returnval["msg"] = "";
+                    errorMessage = "";
                 }
                 else {
-                    returnval["error"] = 7;
-                    returnval["msg"] = "Unable to delete sensor";
+                    errorMessage = "Unable to delete sensor";
                 }
             }
             else
             {
                 //invalid command format
-                returnval["error"] = 6;
-                returnval["msg"] = "Invalid command received";
+                errorMessage = "Invalid command received";
             }
         }
         else
         {
             //device id is missing
-            returnval["error"] = 4;
-            returnval["msg"] = "Device is missing";
+            errorMessage = "Device is missing";
         }
     }
     else if( cmd=="setcustomvariable" )
@@ -1119,8 +1103,7 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
         if( infos.size()==0 )
         {
             //specified device is surely not handled by mysensors
-            returnval["error"] = 1;
-            returnval["msg"] = "Device not handled by this controller";
+            errorMessage = "Device not handled by this controller";
         }
         else
         {
@@ -1128,8 +1111,7 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
             {
                 //reserved customvar
                 AGO_WARNING() << "Reserved customvar '" << customvar << "'. Nothing processed";
-                returnval["error"] = 1;
-                returnval["msg"] = "Reserved customvar";
+                errorMessage = "Reserved customvar";
             }
             else if( customvar=="VAR2" )
             {
@@ -1148,8 +1130,7 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
                 else
                 {
                     AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Customvar is supported from protocol v1.4";
+                    errorMessage = "Customvar is supported from protocol v1.4";
                 }
             }
             else if( customvar=="VAR3" )
@@ -1169,8 +1150,7 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
                 else
                 {
                     AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Customvar is supported from protocol v1.4";
+                    errorMessage = "Customvar is supported from protocol v1.4";
                 }
             }
             else if( customvar=="VAR4" )
@@ -1190,8 +1170,7 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
                 else
                 {
                     AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Customvar is supported from protocol v1.4";
+                    errorMessage = "Customvar is supported from protocol v1.4";
                 }
             }
             else if( customvar=="VAR5" )
@@ -1211,16 +1190,14 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
                 else
                 {
                     AGO_WARNING() << "Customvar is supported from protocol v1.4";
-                    returnval["error"] = 1;
-                    returnval["msg"] = "Customvar is supported from protocol v1.4";
+                    errorMessage = "Customvar is supported from protocol v1.4";
                 }
             }
             else
             {
                 //unknown customvar
                 AGO_ERROR() << "Unsupported customvar '" << customvar << "'. Nothing processed";
-                returnval["error"] = 1;
-                returnval["msg"] = "Unsupported specified customvar";
+                errorMessage = "Unsupported specified customvar";
             }
         }
     }
@@ -1234,9 +1211,6 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
         //check if device found
         if( infos.size()>0 )
         {
-            returnval["error"] = 0;
-            returnval["msg"] = "";
-
             deviceType = infos["type"].asString();
             //switch according to specific device type
             if( deviceType=="switch" )
@@ -1284,18 +1258,22 @@ Json::Value AgoMySensors::commandHandler(const Json::Value& content)
             {
                 //unhandled case
                 AGO_ERROR() << "Unhandled case for device " << internalid << "[" << deviceType << "]";
-                returnval["error"] = 1;
-                returnval["msg"] = "Unhandled case";
+                errorMessage = "Unhandled case";
             }
         }
         else
         {
             //internalid doesn't belong to this controller
-            returnval["error"] = 5;
-            returnval["msg"] = "Unhandled internalid";
+            errorMessage = "Unhandled internalid";
         }
     }
-    return returnval;
+
+    if (errorMessage.length() > 0)
+    {
+        return responseFailed(errorMessage);
+    }
+
+    return responseSuccess(returnval);
 }
 
 /**
