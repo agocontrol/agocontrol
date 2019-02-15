@@ -7,6 +7,12 @@
 #include <qpid/messaging/Message.h>
 #include <qpid/messaging/Address.h>
 
+#include <mosquittopp.h>
+
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/locks.hpp>
+
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -23,18 +29,318 @@
 
 namespace fs = ::boost::filesystem;
 
+class agocontrol::QPIDMessageImpl: public agocontrol::MessageImpl
+{
+    public:
+        QPIDMessageImpl(const char *uri, const char *user, const char *password);
+        ~QPIDMessageImpl();
+
+        bool sendMessage(const std::string& topic, const Json::Value& content);
+        bool sendReply(const std::string& topic, const Json::Value& content);
+        agocontrol::AgoResponse sendRequest(const std::string& topic, const Json::Value& content, std::chrono::milliseconds
+                                timeout);
+        virtual bool fetchMessage(const std::string& topic, Json::Value& content, std::chrono::milliseconds timeout);
+
+        void start();
+    private:
+        qpid::messaging::Connection connection;
+        qpid::messaging::Sender sender;
+        qpid::messaging::Receiver receiver;
+        qpid::messaging::Session session;
+};
+
+agocontrol::QPIDMessageImpl::QPIDMessageImpl(const char *uri, const char *user, const char *password) {
+    qpid::types::Variant::Map connectionOptions;
+    connectionOptions["username"] = user;
+    connectionOptions["password"] = password;
+    connectionOptions["reconnect"] = "true";
+
+    connection = qpid::messaging::Connection(uri, connectionOptions);
+}
+
+agocontrol::QPIDMessageImpl::~QPIDMessageImpl() {
+    if(receiver.isValid()) {
+        AGO_DEBUG() << "Closing notification receiver";
+        receiver.close();
+    }
+
+    if(session.isValid() && connection.isValid()) {
+        AGO_DEBUG() << "Closing pending broker connection";
+        // Not yet connected, break out of connection attempt
+        // TODO: This does not actually abort on old qpid
+        connection.close();
+    }
+    try {
+        if(connection.isOpen()) {
+            AGO_DEBUG() << "Closing broker connection";
+            connection.close();
+        }
+    } catch(const std::exception& error) {
+        AGO_ERROR() << "Failed to close broker connection: " << error.what();
+    }
+
+}
+
+void agocontrol::QPIDMessageImpl::start() {
+    try {
+        AGO_DEBUG() << "Opening QPid broker connection";
+        connection.open();
+        session = connection.createSession();
+        sender = session.createSender("agocontrol; {create: always, node: {type: topic}}");
+    } catch(const std::exception& error) {
+        AGO_FATAL() << "Failed to connect to broker: " << error.what();
+        connection.close();
+        _exit(1);
+    }
+    try {
+        receiver = session.createReceiver("agocontrol; {create: always, node: {type: topic}}");
+    } catch(const std::exception& error) {
+        AGO_FATAL() << "Failed to create broker receiver: " << error.what();
+        _exit(1);
+    }
+}
+
+bool agocontrol::QPIDMessageImpl::sendMessage(const std::string& topic, const Json::Value& content)
+{
+
+    qpid::messaging::Message message;
+    qpid::types::Variant::Map contentMap = jsonToVariantMap(content["content"]);
+
+    try {
+        qpid::messaging::encode(contentMap, message);
+        if (content.isMember("subject"))
+            message.setSubject(content["subject"].asString());
+
+        AGO_TRACE() << "Sending message [src=" << message.getReplyTo() <<
+            ", sub="<< message.getSubject()<<"]: " << contentMap;
+        sender.send(message);
+    } catch(const std::exception& error) {
+        AGO_ERROR() << "Exception in sendMessage: " << error.what();
+        return false;
+    }
+
+
+    return true;
+}
+
+bool agocontrol::QPIDMessageImpl::sendReply(const std::string& topic, const Json::Value& content)
+{
+
+    return true;
+}
+
+agocontrol::AgoResponse agocontrol::QPIDMessageImpl::sendRequest(const std::string& topic, const Json::Value& content, std::chrono::milliseconds timeout) 
+{
+    AgoResponse r;
+    qpid::messaging::Message message;
+    qpid::messaging::Receiver responseReceiver;
+    qpid::messaging::Session recvsession = connection.createSession();
+
+    qpid::types::Variant::Map contentMap;
+    contentMap = jsonToVariantMap(content["content"]);
+    try {
+        encode(contentMap, message);
+        if(content.isMember("subject"))
+            message.setSubject(content["subject"].asString());
+
+        qpid::messaging::Address responseQueue("#response-queue; {create:always, delete:always}");
+        responseReceiver = recvsession.createReceiver(responseQueue);
+        message.setReplyTo(responseQueue);
+
+        AGO_TRACE() << "Sending request [sub=" << content["subject"].asString() << ", replyTo=" << responseQueue <<"]" << contentMap;
+        sender.send(message);
+
+        qpid::messaging::Message message = responseReceiver.fetch(qpid::messaging::Duration(timeout.count()));
+
+        try {
+            Json::Value response;
+            if (message.getContentSize() > 3) {
+                qpid::types::Variant::Map responseMap;
+                decode(message, responseMap);
+                variantMapToJson(responseMap, response);
+            }else{
+                Json::Value err;
+                err["message"] = "invalid.response";
+                response["error"] = err;
+            }
+
+            r.init(response);
+            AGO_TRACE() << "Remote response received: " << r.response;
+        }catch(const std::invalid_argument& ex) {
+            AGO_ERROR() << "Failed to initate response, wrong response format? Error: "
+                << ex.what()
+                << ". Message: " << r.response;
+
+            r.init(responseError(RESPONSE_ERR_INTERNAL, ex.what()));
+        }
+        recvsession.acknowledge();
+
+    } catch (const qpid::messaging::NoMessageAvailable&) {
+        AGO_WARNING() << "No reply for message sent to subject " << content["subject"].asString();
+
+        r.init(responseError(RESPONSE_ERR_NO_REPLY, "Timeout"));
+    } catch(const std::exception& ex) {
+        AGO_ERROR() << "Exception in sendRequest: " << ex.what();
+
+        r.init(responseError(RESPONSE_ERR_INTERNAL, ex.what()));
+    }
+
+    recvsession.close();
+    return r;
+}
+
+bool agocontrol::QPIDMessageImpl::fetchMessage(const std::string& topic, Json::Value& content, std::chrono::milliseconds timeout) 
+{
+    try {
+        qpid::types::Variant::Map contentMap;
+        qpid::messaging::Message message = receiver.fetch(qpid::messaging::Duration::SECOND * 3);
+        session.acknowledge();
+
+        // workaround for bug qpid-3445
+        if (message.getContent().size() < 4) {
+            throw qpid::messaging::EncodingException("message too small");
+        }
+
+        qpid::messaging::decode(message, contentMap);
+        variantMapToJson(contentMap, content);
+
+        AGO_TRACE() << "Incoming message [src=" << message.getReplyTo() <<
+                    ", sub="<< message.getSubject()<<"]: " << content;
+
+    } catch(const qpid::messaging::NoMessageAvailable& error) {
+
+    } catch(const std::exception& error) {
+      // TODO: XXX: Pass sshutdownsignaled somehow...
+      // if(shutdownSignaled)
+        //    break;
+
+        AGO_ERROR() << "Exception in message loop: " << error.what();
+
+        if (session.hasError()) {
+            AGO_ERROR() << "Session has error, recreating";
+            session.close();
+            session = connection.createSession();
+            receiver = session.createReceiver("agocontrol; {create: always, node: {type: topic}}");
+            sender = session.createSender("agocontrol; {create: always, node: {type: topic}}");
+        }
+
+        usleep(50);
+    }
+
+    return true;
+}
+
+
+class agocontrol::MQTTMessageImpl: public agocontrol::MessageImpl, public mosqpp::mosquittopp
+{
+    public:
+            MQTTMessageImpl(const char *id, const char *host, int port);
+            ~MQTTMessageImpl();
+
+            void on_connect(int rc);
+            void on_message(const struct mosquitto_message *message);
+            void on_subscribe(int mid, int qos_count, const int *granted_qos);
+            bool sendMessage(const std::string& topic, const Json::Value& content);
+            bool sendReply(const std::string& topic, const Json::Value& content);
+            agocontrol::AgoResponse sendRequest(const std::string& topic, const Json::Value& content, std::chrono::milliseconds
+                                    timeout);
+            virtual bool fetchMessage(const std::string& topic, Json::Value& content, std::chrono::milliseconds timeout);
+
+            void start();
+    private:
+        boost::mutex mutexCon;
+};
+
+
+agocontrol::MQTTMessageImpl::MQTTMessageImpl(const char *id, const char *host, int port) : mosquittopp(id)
+{
+    int keepalive = 120;
+    mosqpp::lib_init();
+    connect(host, port, keepalive);
+}
+
+agocontrol::MQTTMessageImpl::~MQTTMessageImpl()
+{
+    mosqpp::lib_cleanup();
+}
+
+void agocontrol::MQTTMessageImpl::on_connect(int rc)
+{
+    if (!rc)
+    {
+        std::cout << "Connected - code " << rc << std::endl;
+    }
+}
+
+void agocontrol::MQTTMessageImpl::on_subscribe(int mid, int qos_count, const int *granted_qos)
+{
+    std::cout << "Subscription succeeded." << std::endl;
+}
+
+#define PUBLISH_TOPIC "com.agocontrol/legacy"
+#define MAX_PAYLOAD 65535
+
+void agocontrol::MQTTMessageImpl::on_message(const struct mosquitto_message *message)
+{
+    int payload_size = MAX_PAYLOAD + 1;
+    char buf[payload_size];
+
+    //if(!strcmp(message->topic, PUBLISH_TOPIC))
+    {
+        boost::lock_guard<boost::mutex> lock(mutexCon);
+
+        memset(buf, 0, payload_size * sizeof(char));
+
+        /* Copy N-1 bytes to ensure always 0 terminated. */
+        memcpy(buf, message->payload, MAX_PAYLOAD * sizeof(char));
+
+        std::cout << "received mqtt buf: " << buf << std::endl;
+
+    }
+}
+
+bool agocontrol::MQTTMessageImpl::sendMessage(const std::string& topic, const Json::Value& content)
+{
+    Json::StreamWriterBuilder builder;
+    builder["indentation"] = "";
+    std::string payload = Json::writeString(builder, content);
+    publish(NULL, PUBLISH_TOPIC, strlen(payload.c_str()), payload.c_str(), 1, false);
+    return true;
+}
+
+bool agocontrol::MQTTMessageImpl::sendReply(const std::string& topic, const Json::Value& content)
+{
+    return true;
+}
+
+
+agocontrol::AgoResponse agocontrol::MQTTMessageImpl::sendRequest(const std::string& topic, const Json::Value& content, std::chrono::milliseconds timeout) 
+{
+    AgoResponse r;
+    return r;
+}
+
+bool agocontrol::MQTTMessageImpl::fetchMessage(const std::string& topic, Json::Value& content, std::chrono::milliseconds timeout) 
+{
+
+
+    return true;
+}
+
+void agocontrol::MQTTMessageImpl::start() {
+}
+
 // Hidden internal class which just holds qpid specific variables
 // Code is still in AgoConnection, but avoids exposing qpid headers outside of this class.
 class agocontrol::AgoConnectionImpl {
 public:
-    AgoConnectionImpl(){};
+    AgoConnectionImpl(){
 
-    qpid::messaging::Connection connection;
-    qpid::messaging::Sender sender;
-    qpid::messaging::Receiver receiver;
-    qpid::messaging::Session session;
+    };
+
+    class MessageImpl *myMessageImpl;
+
 };
-
 
 bool agocontrol::nameval(const std::string& in, std::string& name, std::string& value) {
     std::string::size_type i = in.find("=");
@@ -104,15 +410,21 @@ agocontrol::AgoConnection::AgoConnection(const std::string& interfacename)
     // TODO: Move to AgoApp
     ::agocontrol::log::log_container::initDefault();
 
-    qpid::types::Variant::Map connectionOptions;
     ConfigNameList cfgfiles = ConfigNameList(interfacename)
         .add("system");
-    std::string broker = getConfigSectionOption("system", "broker", "localhost:5672", cfgfiles);
-    connectionOptions["username"] = getConfigSectionOption("system", "username", "agocontrol", cfgfiles);
-    connectionOptions["password"] = getConfigSectionOption("system", "password", "letmein", cfgfiles);
-    connectionOptions["reconnect"] = "true";
 
     impl.reset(new AgoConnectionImpl());
+
+    if (getConfigSectionOption("system", "messaging", "mqtt", cfgfiles) == "mqtt") {
+        impl->myMessageImpl = new MQTTMessageImpl(interfacename.c_str(), "localhost", 1883);
+
+    } else {
+        std::string broker = getConfigSectionOption("system", "broker", "localhost:5672", cfgfiles);
+        AGO_DEBUG() << "Configured for QPID broker connection: " << broker;
+        impl->myMessageImpl = new QPIDMessageImpl(broker.c_str(),
+            getConfigSectionOption("system", "username", "agocontrol", cfgfiles).c_str(),
+            getConfigSectionOption("system", "password", "letmein", cfgfiles).c_str());
+    }
 
     filterCommands = true; // only pass commands for child devices to handler by default
     instance = interfacename;
@@ -133,143 +445,104 @@ agocontrol::AgoConnection::AgoConnection(const std::string& interfacename)
 
     loadUuidMap();
 
-    AGO_DEBUG() << "Configured for broker connection: " << broker;
-    impl->connection = qpid::messaging::Connection(broker, connectionOptions);
     // Must call start() to actually connect
 }
 
 void agocontrol::AgoConnection::start() {
-    try {
-        AGO_DEBUG() << "Opening QPid broker connection";
-        impl->connection.open();
-        impl->session = impl->connection.createSession();
-        impl->sender = impl->session.createSender("agocontrol; {create: always, node: {type: topic}}");
-    } catch(const std::exception& error) {
-        AGO_FATAL() << "Failed to connect to broker: " << error.what();
-        impl->connection.close();
-        _exit(1);
-    }
+    impl->myMessageImpl->start();
 }
 
 agocontrol::AgoConnection::~AgoConnection() {
-    try {
-        if(impl->connection.isOpen()) {
-            AGO_DEBUG() << "Closing broker connection";
-            impl->connection.close();
-        }
-    } catch(const std::exception& error) {
-        AGO_ERROR() << "Failed to close broker connection: " << error.what();
-    }
+    // XXX: TODO: wtf how to call destructor    impl->myMessageImpl->~MessageImpl();
 }
 
 
 void agocontrol::AgoConnection::run() {
-    try {
-        impl->receiver = impl->session.createReceiver("agocontrol; {create: always, node: {type: topic}}");
-    } catch(const std::exception& error) {
-        AGO_FATAL() << "Failed to create broker receiver: " << error.what();
-        _exit(1);
-    }
 
     while( !shutdownSignaled ) {
-        try{
-            qpid::types::Variant::Map contentMap;
-            qpid::messaging::Message message = impl->receiver.fetch(qpid::messaging::Duration::SECOND * 3);
-            impl->session.acknowledge();
+        /* int rc = impl->myMessageImpl->loop();
+                 if (rc)
+                 {
+                     impl->myMessageImpl->reconnect();
+                 }
+                 else
+                     impl->myMessageImpl->subscribe(NULL, PUBLISH_TOPIC);
+                     
+        */
+        Json::Value message, content;
+        // TODO XXX impl->myMessageImpl->fetchMessage("", message, std::chrono::seconds * 3);
+        
+        if (message.isMember("content"))
+            content = message["content"];
+        else
+            AGO_ERROR() << "Invalid message content";
 
-            // workaround for bug qpid-3445
-            if (message.getContent().size() < 4) {
-                throw qpid::messaging::EncodingException("message too small");
-            }
+        if (content.isMember("command") && content["command"] == "discover")
+        {
+            reportDevices(); // make resolver happy and announce devices on discover request
+        }
+        else
+        {
+            if (!message.isMember("subject")) {
+                // no subject, this is a command
+                std::string internalid = uuidToInternalId(content["uuid"].asString());
+                // lets see if this is for one of our devices
+                bool isOurDevice = (internalid.size() > 0) && (deviceMap.isMember(internalIdToUuid(internalid)));
+                //  only handle if a command handler is set. In addition it needs to be one of our device when the filter is enabled
+                if ( ( isOurDevice || (!(filterCommands))) && !commandHandler.empty()) {
 
-            qpid::messaging::decode(message, contentMap);
-            Json::Value content;
-            variantMapToJson(contentMap, content);
+                    // printf("command for id %s found, calling handler\n", internalid.c_str());
+                    if (internalid.size() > 0)
+                        content["internalid"] = internalid;
 
-            AGO_TRACE() << "Incoming message [src=" << message.getReplyTo() <<
-                ", sub="<< message.getSubject()<<"]: " << content;
+                    // found a match, reply to sender and pass the command to the assigned handler method
+                    Json::Value commandResponse;
+                    try {
+                        commandResponse = commandHandler(content);
 
-            if (content.isMember("command") && content["command"] == "discover")
-            {
-                reportDevices(); // make resolver happy and announce devices on discover request
-            }
-            else
-            {
-                if (message.getSubject().size() == 0) {
-                    // no subject, this is a command
-                    std::string internalid = uuidToInternalId(content["uuid"].asString());
-                    // lets see if this is for one of our devices
-                    bool isOurDevice = (internalid.size() > 0) && (deviceMap.isMember(internalIdToUuid(internalid)));
-                    //  only handle if a command handler is set. In addition it needs to be one of our device when the filter is enabled
-                    if ( ( isOurDevice || (!(filterCommands))) && !commandHandler.empty()) {
-
-                        // printf("command for id %s found, calling handler\n", internalid.c_str());
-                        if (internalid.size() > 0)
-                            content["internalid"] = internalid;
-
-                        // found a match, reply to sender and pass the command to the assigned handler method
-                        Json::Value commandResponse;
-                        try {
-                            commandResponse = commandHandler(content);
-
-                            // Catch any non-updated applications HARD.
-                            if(!commandResponse.empty() && !commandResponse.isMember("result") && !commandResponse.isMember("error")) {
-                                AGO_ERROR() << "Application " << instance << " has not been updated properly and command handler returns non-valid responses.";
-                                AGO_ERROR() << "Input: " << content;
-                                AGO_ERROR() << "Output: " << content;
-                                commandResponse = responseError(RESPONSE_ERR_INTERNAL,
-                                        "Component "+instance+" has not been updated properly, please contact developers with logs");
-                            }
-                        }catch(const AgoCommandException& ex) {
-                            commandResponse = ex.toResponse();
-                        }catch(const std::exception &ex) {
-                            AGO_ERROR() << "Unhandled exception in command handler:" << ex.what();
-                            commandResponse = responseError(RESPONSE_ERR_INTERNAL, "Unhandled exception in command handler");
+                        // Catch any non-updated applications HARD.
+                        if(!commandResponse.empty() && !commandResponse.isMember("result") && !commandResponse.isMember("error")) {
+                            AGO_ERROR() << "Application " << instance << " has not been updated properly and command handler returns non-valid responses.";
+                            AGO_ERROR() << "Input: " << content;
+                            AGO_ERROR() << "Output: " << content;
+                            commandResponse = responseError(RESPONSE_ERR_INTERNAL,
+                                    "Component "+instance+" has not been updated properly, please contact developers with logs");
                         }
-
-                        const qpid::messaging::Address& replyaddress = message.getReplyTo();
-                        // only send a reply if this was for one of our childs
-                        // or if it was the special command inventory when the filterCommands was false, that's used by the resolver
-                        // to reply to "anonymous" requests not destined to any specific uuid
-                        if ((replyaddress && isOurDevice) || (content["command"]=="inventory" && filterCommands==false)) {
-
-                            qpid::messaging::Message response;
-                            qpid::types::Variant::Map responseMap = jsonToVariantMap(commandResponse);
-                            AGO_TRACE() << "Sending reply " << commandResponse;
-
-                            qpid::messaging::Session replysession = impl->connection.createSession();
-                            try {
-                                qpid::messaging::Sender replysender = replysession.createSender(replyaddress);
-                                qpid::messaging::encode(responseMap, response);
-                                response.setSubject(instance);
-                                replysender.send(response);
-                            } catch(const std::exception& error) {
-                                AGO_ERROR() << "Failed to send reply: " << error.what();;
-                            }
-                            replysession.close();
-                        }
+                    }catch(const AgoCommandException& ex) {
+                        commandResponse = ex.toResponse();
+                    }catch(const std::exception &ex) {
+                        AGO_ERROR() << "Unhandled exception in command handler:" << ex.what();
+                        commandResponse = responseError(RESPONSE_ERR_INTERNAL, "Unhandled exception in command handler");
                     }
-                } else if (!eventHandler.empty()) {
-                    eventHandler(message.getSubject(), content);
+/*
+                    const qpid::messaging::Address& replyaddress = message.getReplyTo();
+                    // only send a reply if this was for one of our childs
+                    // or if it was the special command inventory when the filterCommands was false, that's used by the resolver
+                    // to reply to "anonymous" requests not destined to any specific uuid
+                    if ((replyaddress && isOurDevice) || (content["command"]=="inventory" && filterCommands==false)) {
+
+                        qpid::messaging::Message response;
+                        qpid::types::Variant::Map responseMap = jsonToVariantMap(commandResponse);
+                        AGO_TRACE() << "Sending reply " << commandResponse;
+
+                        qpid::messaging::Session replysession = impl->connection.createSession();
+                        try {
+                            qpid::messaging::Sender replysender = replysession.createSender(replyaddress);
+                            qpid::messaging::encode(responseMap, response);
+                            response.setSubject(instance);
+                            replysender.send(response);
+                        } catch(const std::exception& error) {
+                            AGO_ERROR() << "Failed to send reply: " << error.what();;
+                        }
+                        replysession.close();
+                    }
+*/
                 }
+            } else if (!eventHandler.empty()) {
+                std::string subject = message["subject"].asString();
+
+                eventHandler(subject, content);
             }
-        } catch(const qpid::messaging::NoMessageAvailable& error) {
-
-        } catch(const std::exception& error) {
-            if(shutdownSignaled)
-                break;
-
-            AGO_ERROR() << "Exception in message loop: " << error.what();
-
-            if (impl->session.hasError()) {
-                AGO_ERROR() << "Session has error, recreating";
-                impl->session.close();
-                impl->session = impl->connection.createSession();
-                impl->receiver = impl->session.createReceiver("agocontrol; {create: always, node: {type: topic}}");
-                impl->sender = impl->session.createSender("agocontrol; {create: always, node: {type: topic}}");
-            }
-
-            usleep(50);
         }
     }
     AGO_TRACE() << "Leaving run() message loop";
@@ -279,17 +552,6 @@ void agocontrol::AgoConnection::shutdown() {
     if(shutdownSignaled) return;
     shutdownSignaled = true;
 
-    if(impl->receiver.isValid()) {
-        AGO_DEBUG() << "Closing notification receiver";
-        impl->receiver.close();
-    }
-
-    if(!impl->session.isValid() && impl->connection.isValid()) {
-        AGO_DEBUG() << "Closing pending broker connection";
-        // Not yet connected, break out of connection attempt
-        // TODO: This does not actually abort on old qpid
-        impl->connection.close();
-    }
 }
 
 /**
@@ -479,21 +741,12 @@ bool agocontrol::AgoConnection::addEventHandler(boost::function<void (const std:
 
 
 bool agocontrol::AgoConnection::sendMessage(const std::string& subject, const Json::Value& content) {
-    qpid::messaging::Message message;
-    qpid::types::Variant::Map contentMap = jsonToVariantMap(content);
-
-    try {
-        qpid::messaging::encode(contentMap, message);
-        message.setSubject(subject);
-
-        AGO_TRACE() << "Sending message [src=" << message.getReplyTo() <<
-            ", sub="<< message.getSubject()<<"]: " << contentMap;
-        impl->sender.send(message);
-    } catch(const std::exception& error) {
-        AGO_ERROR() << "Exception in sendMessage for subject='" << subject << "': " << error.what();
-        return false;
-    }
-
+    Json::StreamWriterBuilder builder;
+    builder["indentation"] = "";
+    Json::Value myMessage;
+    myMessage["subject"] = subject;
+    myMessage["content"] = content;
+    impl->myMessageImpl->sendMessage(PUBLISH_TOPIC, myMessage);
     return true;
 }
 
@@ -506,62 +759,7 @@ agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string
 }
 
 agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string& subject, const Json::Value& content, std::chrono::milliseconds timeout) {
-    AgoResponse r;
-    qpid::messaging::Message message;
-    qpid::messaging::Receiver responseReceiver;
-    qpid::messaging::Session recvsession = impl->connection.createSession();
-
-    qpid::types::Variant::Map contentMap;
-    contentMap = jsonToVariantMap(content);
-    try {
-        encode(contentMap, message);
-        if(!subject.empty())
-            message.setSubject(subject);
-
-        qpid::messaging::Address responseQueue("#response-queue; {create:always, delete:always}");
-        responseReceiver = recvsession.createReceiver(responseQueue);
-        message.setReplyTo(responseQueue);
-
-        AGO_TRACE() << "Sending request [sub=" << subject << ", replyTo=" << responseQueue <<"]" << contentMap;
-        impl->sender.send(message);
-
-        qpid::messaging::Message message = responseReceiver.fetch(qpid::messaging::Duration(timeout.count()));
-
-        try {
-            Json::Value response;
-            if (message.getContentSize() > 3) {
-                qpid::types::Variant::Map responseMap;
-                decode(message, responseMap);
-                variantMapToJson(responseMap, response);
-            }else{
-                Json::Value err;
-                err["message"] = "invalid.response";
-                response["error"] = err;
-            }
-
-            r.init(response);
-            AGO_TRACE() << "Remote response received: " << r.response;
-        }catch(const std::invalid_argument& ex) {
-            AGO_ERROR() << "Failed to initate response, wrong response format? Error: "
-                << ex.what()
-                << ". Message: " << r.response;
-
-            r.init(responseError(RESPONSE_ERR_INTERNAL, ex.what()));
-        }
-        recvsession.acknowledge();
-
-    } catch (const qpid::messaging::NoMessageAvailable&) {
-        AGO_WARNING() << "No reply for message sent to subject " << subject;
-
-        r.init(responseError(RESPONSE_ERR_NO_REPLY, "Timeout"));
-    } catch(const std::exception& ex) {
-        AGO_ERROR() << "Exception in sendRequest: " << ex.what();
-
-        r.init(responseError(RESPONSE_ERR_INTERNAL, ex.what()));
-    }
-
-    recvsession.close();
-    return r;
+    return impl->myMessageImpl->sendRequest(PUBLISH_TOPIC, content, std::chrono::seconds(3));
 }
 
 bool agocontrol::AgoConnection::sendMessage(const Json::Value& content) {

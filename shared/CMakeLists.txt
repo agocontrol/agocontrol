@@ -23,6 +23,7 @@ add_library (agoclient SHARED ${LIBAGOCLIENT_SOURCE_FILES})
 set_target_properties (agoclient PROPERTIES VERSION 1 SOVERSION 1)
 
 set (AGOCLIENT_LIBRARIES
+    mosquittopp
     qpidmessaging
     qpidtypes
     uuid
