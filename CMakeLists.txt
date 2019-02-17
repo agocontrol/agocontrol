@@ -50,7 +50,9 @@ else()
     set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
     set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
     set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
-    set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
+    if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+        set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
+    endif()
 endif()
 
 # Common structure
@@ -140,9 +142,15 @@ log_pkg_found(cppdb "${CPPDB_FOUND}" "" WARNING ", parts of core will not be bui
 pkg_search_module(LIBRRD librrd)
 log_pkg_found(librrd "${LIBRRD_FOUND}" "${LIBRRD_VERSION}" WARNING ", parts of core will not be built")
 
-pkg_search_module(MOSQUITTOPP libmosquittopp)
+find_package(Mosquittopp)
 log_pkg_found(mosquittopp "${MOSQUITTOPP_FOUND}" "${MOSQUITTOPP_VERSION}" WARNING ", MQTT communication support will not be built")
-set(HAVE_MOSQUITTOPP_H ${MOSQUITTOPP_FOUND})
+set(WITH_MQTT ${MOSQUITTOPP_FOUND})
+
+# TODO, fix proper detection
+if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    set(WITH_QPID 1)
+    set(QPID_LIBRARIES qpidmessaging qpidtypes)
+endif()
 
 if(OS_LINUX)
     # used by agosystem

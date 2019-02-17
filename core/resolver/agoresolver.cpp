@@ -20,7 +20,7 @@
 #include <termios.h>
 #include <errno.h>
 #include <stdlib.h>
-#ifndef __FreeBSD__
+#if !defined(__FreeBSD__) && !defined(__APPLE__)
 #include <sys/sysinfo.h>
 #endif
 
@@ -190,7 +190,7 @@ Json::Value AgoResolver::getDefaultParameters()
 }
 
 void AgoResolver::get_sysinfo() {
-#ifndef __FreeBSD__
+#if !defined(__FreeBSD__) && !defined(__APPLE__)
     /* Note on FreeBSD exclusion. Sysinfo.h does not exist, but the code below
      * does not really use it anyway.. so just skip it.
      */

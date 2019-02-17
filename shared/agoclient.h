@@ -40,20 +40,6 @@ namespace agocontrol {
     /// ago control client connection class.
     class AgoConnectionImpl;
 
-    class MessageImpl {
-        public:
-            // virtual ~MessageImpl() = 0;
-            virtual bool sendMessage(const std::string& topic, const Json::Value& content) = 0;
-            virtual bool sendReply(const std::string& topic, const Json::Value& content) = 0;
-            virtual agocontrol::AgoResponse sendRequest(const std::string& topic, const Json::Value& content, std::chrono::milliseconds
-                timeout) = 0;
-            virtual bool fetchMessage(const std::string& topic, Json::Value& content, std::chrono::milliseconds timeout) = 0;
-            virtual void start() = 0;
-    };
-
-    class MQTTMessageImpl;
-    class QPIDMessageImpl;
-
     class AgoConnection {
     protected:
         std::unique_ptr<AgoConnectionImpl> impl;

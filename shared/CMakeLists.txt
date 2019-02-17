@@ -5,7 +5,6 @@ set(LIBAGOCLIENT_SOURCE_FILES
     agoclient.cpp
     agoproto.cpp
     agojson.cpp
-    agojson-qpid.cpp
     jsoncpp/jsoncpp.cpp
     agolog.cpp
     agoapp.cpp
@@ -19,14 +18,21 @@ else()
     list(APPEND LIBAGOCLIENT_SOURCE_FILES agolog_basic.cpp)
 endif()
 
+if(WITH_MQTT)
+    list(APPEND LIBAGOCLIENT_SOURCE_FILES agoconnection-mqtt.cpp)
+endif()
+
+if(WITH_QPID)
+    list(APPEND LIBAGOCLIENT_SOURCE_FILES agoconnection-qpid.cpp agojson-qpid.cpp)
+endif()
+
 add_library (agoclient SHARED ${LIBAGOCLIENT_SOURCE_FILES})
 set_target_properties (agoclient PROPERTIES VERSION 1 SOVERSION 1)
 
 set (AGOCLIENT_LIBRARIES
-    mosquittopp
-    qpidmessaging
-    qpidtypes
     uuid
+    ${QPID_LIBRARIES}
+    ${MOSQUITTOPP_LIBRARIES}
     ${AUGEAS_LIBRARIES}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}

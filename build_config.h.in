@@ -8,6 +8,7 @@
 
 #cmakedefine HAVE_XLOCALE_H @HAVE_XLOCALE_H@
 
-#cmakedefine HAVE_MOSQUITTOPP_H @HAVE_MOSQUITTOPP_H@
+#cmakedefine WITH_MQTT @WITH_MQTT@
+#cmakedefine WITH_QPID @WITH_QPID@
 
 #endif
