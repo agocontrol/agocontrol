@@ -8,4 +8,6 @@
 
 #cmakedefine HAVE_XLOCALE_H @HAVE_XLOCALE_H@
 
+#cmakedefine HAVE_MOSQUITTOPP_H @HAVE_MOSQUITTOPP_H@
+
 #endif

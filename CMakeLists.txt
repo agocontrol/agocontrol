@@ -140,6 +140,10 @@ log_pkg_found(cppdb "${CPPDB_FOUND}" "" WARNING ", parts of core will not be bui
 pkg_search_module(LIBRRD librrd)
 log_pkg_found(librrd "${LIBRRD_FOUND}" "${LIBRRD_VERSION}" WARNING ", parts of core will not be built")
 
+pkg_search_module(MOSQUITTOPP libmosquittopp)
+log_pkg_found(mosquittopp "${MOSQUITTOPP_FOUND}" "${MOSQUITTOPP_VERSION}" WARNING ", MQTT communication support will not be built")
+set(HAVE_MOSQUITTOPP_H ${MOSQUITTOPP_FOUND})
+
 if(OS_LINUX)
     # used by agosystem
     pkg_search_module(LIBPROCPS REQUIRED libprocps)
