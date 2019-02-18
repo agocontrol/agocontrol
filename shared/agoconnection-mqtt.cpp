@@ -6,6 +6,8 @@
 #include "agoconnection-mqtt.h"
 #include "agolog.h"
 
+#include "agoclient.h"
+
 #define PUBLISH_TOPIC "com.agocontrol/legacy"
 #define MAX_PAYLOAD 65535
 
@@ -36,6 +38,7 @@ public:
     void on_log(int level, const char *str);
 
 private:
+    std::deque<AgoConnectionMessage *> messageDeque;
     boost::mutex mutexCon;
     const std::string host;
     int port;
@@ -89,33 +92,42 @@ void agocontrol::MosquittoAdapter::on_connect(int rc)
     if (!rc)
     {
         AGO_INFO() << "Connected to MQTT broker, subscribing to topic " << PUBLISH_TOPIC;
-        subscribe(0, PUBLISH_TOPIC, 1);
+        subscribe(0, PUBLISH_TOPIC, 1); // mid, topic, qos
     }
 }
 
 void agocontrol::MosquittoAdapter::on_subscribe(int mid, int qos_count, const int *granted_qos)
 {
-    std::cout << "Subscription succeeded." << std::endl;
+    AGO_INFO() << "Subscription succeeded." << std::endl;
 }
 
 
 void agocontrol::MosquittoAdapter::on_message(const struct mosquitto_message *message)
 {
-    int payload_size = MAX_PAYLOAD + 1;
-    char buf[payload_size];
+    //std::string payload((const char*)message->payload, message->payloadlen);
+    //AGO_INFO() << "received mqtt buf: " << payload << std::endl;
 
-    //if(!strcmp(message->topic, PUBLISH_TOPIC))
-    {
-        boost::lock_guard<boost::mutex> lock(mutexCon);
+    Json::CharReaderBuilder builder;
+    Json::CharReader * reader = builder.newCharReader();
 
-        memset(buf, 0, payload_size * sizeof(char));
+    Json::Value root;
+    std::string errors;
 
-        /* Copy N-1 bytes to ensure always 0 terminated. */
-        memcpy(buf, message->payload, MAX_PAYLOAD * sizeof(char));
-
-        AGO_INFO() << "received mqtt buf: " << buf << std::endl;
-
+    bool parsingSuccessful = reader->parse((const char*)message->payload,(const char*)message->payload+message->payloadlen, &root, &errors);
+    //bool parsingSuccessful = reader->parse(payload.c_str(),payload.c_str()+payload.length(), &root, &errors);
+    delete reader;
+    if (parsingSuccessful) {
+        AGO_DEBUG() << "parsed JSON from MQTT message";
+        AgoConnectionMessage *newMessage = new AgoConnectionMessage();
+        newMessage->msg = root;
+        {
+            boost::lock_guard<boost::mutex> lock(mutexCon);
+            messageDeque.push_back(newMessage);
+        }
+    } else {
+        AGO_ERROR() << "cannot parse MQTT message to JSON: " << errors;
     }
+
 }
 
 void agocontrol::MosquittoAdapter::on_log(int level, const char* msg) {
@@ -141,6 +153,7 @@ void agocontrol::MosquittoAdapter::on_log(int level, const char* msg) {
 bool agocontrol::AgoMQTTImpl::sendMessage(const std::string& topic, const Json::Value& content)
 {
     Json::StreamWriterBuilder builder;
+
     builder["indentation"] = "";
     std::string payload = Json::writeString(builder, content);
     adapter->publish(NULL, PUBLISH_TOPIC, strlen(payload.c_str()), payload.c_str(), 1, false);
@@ -150,11 +163,30 @@ bool agocontrol::AgoMQTTImpl::sendMessage(const std::string& topic, const Json::
 agocontrol::AgoResponse agocontrol::AgoMQTTImpl::sendRequest(const std::string& topic, const Json::Value& content, std::chrono::milliseconds timeout)
 {
     AgoResponse r;
+    Json::StreamWriterBuilder builder;
+    Json::Value message;
+    message = content;
+    message["reply-id"] = generateUuid();
+    message["type"] = "request";
+
+    builder["indentation"] = "";
+    std::string payload = Json::writeString(builder, message);
+    adapter->publish(NULL, PUBLISH_TOPIC, strlen(payload.c_str()), payload.c_str(), 1, false);
     return r;
 }
 
 agocontrol::AgoConnectionMessage agocontrol::AgoMQTTImpl::fetchMessage(std::chrono::milliseconds timeout)
 {
     agocontrol::AgoConnectionMessage ret;
+    {
+        boost::lock_guard<boost::mutex> lock(adapter->mutexCon);
+
+        // AGO_DEBUG() << "Queue size: " << adapter->messageDeque.size() ;
+        if (adapter->messageDeque.size() > 0) {
+            AGO_DEBUG() << "Popping MQTT Message";
+            ret = *adapter->messageDeque.front();
+            adapter->messageDeque.pop_front();
+        }
+    }
     return ret;
 }
