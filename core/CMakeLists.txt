@@ -19,7 +19,7 @@ install (DIRECTORY DESTINATION ${CONFDIR}/maps)
 install (DIRECTORY DESTINATION ${CONFDIR}/lua)
 
 OPTION(BUILD_CORE_drain "Build agodrain" ON)
-if (BUILD_CORE_drain)
+if (WITH_QPID AND BUILD_CORE_drain)
   add_subdirectory (drain)
 endif()
 
