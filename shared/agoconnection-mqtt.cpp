@@ -6,6 +6,9 @@
 #include "agoconnection-mqtt.h"
 #include "agolog.h"
 
+#define PUBLISH_TOPIC "com.agocontrol/legacy"
+#define MAX_PAYLOAD 65535
+
 namespace agocontrol {
 static bool mqtt_inited = false;
 
@@ -34,7 +37,7 @@ public:
 
 private:
     boost::mutex mutexCon;
-    const std::string &host;
+    const std::string host;
     int port;
 
     friend AgoMQTTImpl;
@@ -54,11 +57,11 @@ agocontrol::AgoMQTTImpl::~AgoMQTTImpl()
 
 bool agocontrol::AgoMQTTImpl::start() {
 
-    int keepalive = 120;
+    int keepalive = 60;
     // Synchronous connect
-    int rc = adapter->connect(adapter->host.c_str(), adapter->port, keepalive);
+    int rc = adapter->connect_async(adapter->host.c_str(), adapter->port, keepalive);
     if(rc == MOSQ_ERR_INVAL) {
-        AGO_ERROR() << "Invalid MQTT connection parameters";
+        AGO_ERROR() << "Invalid MQTT connection parameters: " << adapter->host << ":" << adapter->port;
         return false;
     }
     else if(rc == MOSQ_ERR_ERRNO) {
@@ -70,7 +73,14 @@ bool agocontrol::AgoMQTTImpl::start() {
     }
 
     // TODO: username etc?
+    //
+    // username_pw_set(user, pass);
+    
     AGO_INFO() << "Connected to MQTT broker " << adapter->host << ":" << adapter->port;
+
+    AGO_INFO() << "Starting MQTT loop";
+    adapter->loop_start();    
+
     return true;
 }
 
@@ -78,7 +88,8 @@ void agocontrol::MosquittoAdapter::on_connect(int rc)
 {
     if (!rc)
     {
-        std::cout << "Connected - code " << rc << std::endl;
+        AGO_INFO() << "Connected to MQTT broker, subscribing to topic " << PUBLISH_TOPIC;
+        subscribe(0, PUBLISH_TOPIC, 1);
     }
 }
 
@@ -87,8 +98,6 @@ void agocontrol::MosquittoAdapter::on_subscribe(int mid, int qos_count, const in
     std::cout << "Subscription succeeded." << std::endl;
 }
 
-#define PUBLISH_TOPIC "com.agocontrol/legacy"
-#define MAX_PAYLOAD 65535
 
 void agocontrol::MosquittoAdapter::on_message(const struct mosquitto_message *message)
 {
@@ -104,7 +113,7 @@ void agocontrol::MosquittoAdapter::on_message(const struct mosquitto_message *me
         /* Copy N-1 bytes to ensure always 0 terminated. */
         memcpy(buf, message->payload, MAX_PAYLOAD * sizeof(char));
 
-        std::cout << "received mqtt buf: " << buf << std::endl;
+        AGO_INFO() << "received mqtt buf: " << buf << std::endl;
 
     }
 }

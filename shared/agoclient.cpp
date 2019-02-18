@@ -158,15 +158,6 @@ agocontrol::AgoConnection::~AgoConnection() {
 void agocontrol::AgoConnection::run() {
 
     while( !shutdownSignaled ) {
-        /* int rc = impl->myMessageImpl->loop();
-                 if (rc)
-                 {
-                     impl->myMessageImpl->reconnect();
-                 }
-                 else
-                     impl->myMessageImpl->subscribe(NULL, PUBLISH_TOPIC);
-                     
-        */
         AgoConnectionMessage message = impl->fetchMessage(std::chrono::seconds(3));
         /*
         if(!impl->fetchMessage("", content, std::chrono::seconds(3))) {
