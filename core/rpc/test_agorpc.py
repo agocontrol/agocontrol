@@ -13,7 +13,12 @@ import time
 
 import logging
 
-from qpid.messaging import Connection, Message, Empty, LinkClosed
+try:
+    from qpid.messaging import Connection, Message, Empty, LinkClosed
+    HAS_QPID=True
+except ImportError:
+    HAS_QPID=False
+
 
 logging.basicConfig()
 
@@ -71,6 +76,7 @@ class RPCTest(unittest.TestCase):
         self.jsonrpc_request('no-real', rpc_error_code = RPC_METHOD_NOT_FOUND)
 
     def testBusMessage(self):
+        if not HAS_QPID: return
         def mock(msg):
             self.assertIn('command', msg.content)
             self.assertEquals('some-command', msg.content['command'])
@@ -88,6 +94,7 @@ class RPCTest(unittest.TestCase):
             qpr.shutdown()
 
     def testBusMessageErr(self):
+        if not HAS_QPID: return
         def mock(msg):
             self.assertIn('command', msg.content)
             self.assertEquals('some-err-command', msg.content['command'])
@@ -105,8 +112,10 @@ class RPCTest(unittest.TestCase):
         finally:
             qpr.shutdown()
 
-    def testUnknownBusMessage(self):
+    def testEmptyBusMessage(self):
         self.jsonrpc_request('message', None, rpc_error_code = RPC_INVALID_PARAMS)
+
+    def testNoReplyTimeout(self):
         s = time.time()
         # Must take at least 0.5s
         ret = self.bus_message('', {'command':'non-existent'}, rpc_error_code = RPC_MESSAGE_ERROR, timeout=0.5)
@@ -138,6 +147,7 @@ class RPCTest(unittest.TestCase):
         err = self.jsonrpc_request('getevent', {'uuid':'123'}, rpc_error_code=RPC_INVALID_PARAMS)
 
     def testSubscribe(self):
+        if not HAS_QPID: return
         sub_id = self.jsonrpc_request('subscribe', None)
         self.assertIn(type(sub_id), (str,unicode))
         err = self.jsonrpc_request('getevent', {'uuid':sub_id, 'timeout':0}, rpc_error_code = RPC_NO_EVENT)
@@ -166,6 +176,7 @@ class RPCTest(unittest.TestCase):
 
 
     def testSubscribeTimeout(self):
+        if not HAS_QPID: return
         # Ensure we can do subseccond precision on getevent timeouts
         sub_id = self.jsonrpc_request('subscribe', None)
         self.assertIn(type(sub_id), (str,unicode))
@@ -223,6 +234,7 @@ class RPCTest(unittest.TestCase):
         rep_body = json.loads(rep_raw)
 
 
+        self.assertTrue('jsonrpc' in rep_body, dbg_msg)
         self.assertEquals('2.0', rep_body['jsonrpc'], dbg_msg)
         self.assertEquals(req_id, rep_body['id'], dbg_msg)
 
