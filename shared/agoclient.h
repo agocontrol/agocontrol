@@ -18,7 +18,6 @@
 #include "agoproto.h"
 
 #include <chrono>
-#include <uuid/uuid.h>
 
 namespace agocontrol {
     bool nameval(const std::string& in, std::string& name, std::string& value);

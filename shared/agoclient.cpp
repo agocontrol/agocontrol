@@ -11,6 +11,8 @@
 
 #include <boost/bind.hpp>
 
+#include <uuid/uuid.h>
+
 #include "build_config.h"
 
 #include "agoclient.h"
