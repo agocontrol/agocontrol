@@ -209,8 +209,13 @@ void AgoRpc::jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mu
         response = agoConnection->sendRequest(subject.asString(), content, timeout);
     }
 
-    AGO_TRACE() << "JsonRPC Response: " << response.getResponse();
-    responseRoot.swap(response.getResponse());
+    AGO_TRACE() << "RPC Response: " << response.getResponse();
+	 // responseRoot has JSONRPC fields too, which we need to keep. Merge.
+	 Json::Value& remoteResponse(response.getResponse());
+	 auto members = remoteResponse.getMemberNames();
+	 for(auto it = members.begin(); it != members.end(); ++it) {
+		 responseRoot[*it].swap(remoteResponse[*it]);
+	 }
 }
 
 
