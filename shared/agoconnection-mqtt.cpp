@@ -2,6 +2,7 @@
 #include <mosquittopp.h>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/locks.hpp>
+#include <boost/thread/thread.hpp> 
 
 #include "agoconnection-mqtt.h"
 #include "agolog.h"
@@ -178,15 +179,22 @@ agocontrol::AgoResponse agocontrol::AgoMQTTImpl::sendRequest(const std::string& 
 agocontrol::AgoConnectionMessage agocontrol::AgoMQTTImpl::fetchMessage(std::chrono::milliseconds timeout)
 {
     agocontrol::AgoConnectionMessage ret;
+
+    boost::system_time const targettime=boost::get_system_time() + boost::posix_time::milliseconds(timeout.count());
+
+    while (targettime > boost::get_system_time())
     {
         boost::lock_guard<boost::mutex> lock(adapter->mutexCon);
 
-        // AGO_DEBUG() << "Queue size: " << adapter->messageDeque.size() ;
         if (adapter->messageDeque.size() > 0) {
             AGO_DEBUG() << "Popping MQTT Message";
             ret = *adapter->messageDeque.front();
             adapter->messageDeque.pop_front();
+            return ret;
+        } else {
+            boost::this_thread::sleep_for(boost::chrono::milliseconds(5));
         }
+
     }
     return ret;
 }
