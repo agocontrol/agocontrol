@@ -41,6 +41,7 @@ public:
 private:
     std::deque<AgoConnectionMessage *> messageDeque;
     boost::mutex mutexCon;
+    boost::condition_variable_any cond;
     const std::string host;
     int port;
 
@@ -124,6 +125,7 @@ void agocontrol::MosquittoAdapter::on_message(const struct mosquitto_message *me
         {
             boost::lock_guard<boost::mutex> lock(mutexCon);
             messageDeque.push_back(newMessage);
+            cond.notify_one();
         }
     } else {
         AGO_ERROR() << "cannot parse MQTT message to JSON: " << errors;
@@ -185,16 +187,17 @@ agocontrol::AgoConnectionMessage agocontrol::AgoMQTTImpl::fetchMessage(std::chro
     while (targettime > boost::get_system_time())
     {
         boost::lock_guard<boost::mutex> lock(adapter->mutexCon);
-
         if (adapter->messageDeque.size() > 0) {
             AGO_DEBUG() << "Popping MQTT Message";
             ret = *adapter->messageDeque.front();
             adapter->messageDeque.pop_front();
             return ret;
         } else {
-            boost::this_thread::sleep_for(boost::chrono::milliseconds(5));
+            //boost::this_thread::sleep_for(boost::chrono::milliseconds(5));
+            adapter->cond.timed_wait(adapter->mutexCon, targettime);
         }
 
     }
+    AGO_DEBUG() << "Timed out in fetchMessage";
     return ret;
 }
