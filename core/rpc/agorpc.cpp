@@ -209,8 +209,23 @@ void AgoRpc::jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mu
         response = agoConnection->sendRequest(subject.asString(), content, timeout);
     }
 
-    AGO_TRACE() << "JsonRPC Response: " << response.getResponse();
-    responseRoot.swap(response.getResponse());
+    AGO_TRACE() << "RPC Response: " << response.getResponse();
+
+    Json::Value& remoteResponse(response.getResponse());
+    if(response.isError()) {
+        // Need to add "code" to make this a proper JsonRPC error.
+        responseRoot["error"] = Json::Value(Json::objectValue);
+        responseRoot["error"]["code"] = AGO_JSONRPC_COMMAND_ERROR;
+        responseRoot["error"]["message"] = remoteResponse["error"]["message"];
+        if(remoteResponse["error"].isMember("data")) {
+            responseRoot["error"]["data"].swap(remoteResponse["error"]["data"]);
+        }
+        // This is not permitted in jsonrpc spec..
+        responseRoot["error"]["identifier"] = remoteResponse["error"]["identifier"];
+    } else {
+        // Swap the result 1:1 from backend
+        responseRoot["result"].swap(remoteResponse["result"]);
+    }
 }
 
 
@@ -337,7 +352,7 @@ bool AgoRpc::handleJsonRpcRequest(JsonRpcReqRep *reqRep, const Json::Value &requ
     // If ID is missing, this is a notification and no response should be sent (unless error).
     if(!request.isMember("id")) {
         //... but we do not have any methods which are notifications..
-        jsonrpcErrorResponse(responseRoot, JSONRPC_INVALID_REQUEST, "Invalid request, 'id' missing");
+        return jsonrpcErrorResponse(responseRoot, JSONRPC_INVALID_REQUEST, "Invalid request, 'id' missing");
     }
     responseRoot["id"] = request["id"];
 

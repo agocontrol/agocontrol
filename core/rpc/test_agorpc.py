@@ -75,7 +75,7 @@ class RPCTest(unittest.TestCase):
             self.assertIn('command', msg.content)
             self.assertEquals('some-command', msg.content['command'])
             self.assertEquals(1234, msg.content['int-param'])
-            return {'_newresponse':True, 'result':{'int':4321, 'string':'test'}}
+            return {'_newresponse':True, 'result':{'int':4321, 'identifier': 'success', 'string':'test'}}
 
         qpr = DummyQpidResponder(self.qpid_session, mock)
         try:
@@ -92,16 +92,15 @@ class RPCTest(unittest.TestCase):
             self.assertIn('command', msg.content)
             self.assertEquals('some-err-command', msg.content['command'])
             self.assertEquals(12345, msg.content['int-param'])
-            return {'_newresponse':True, 'error':{'int':4321, 'string':'test'}}
+            return {'_newresponse':True, 'error':{'data':{'int':4321}, 'identifier': 'success', 'message':'test error message'}}
 
         qpr = DummyQpidResponder(self.qpid_session, mock)
         try:
             qpr.start()
             rep = self.bus_message('', {'command':'some-err-command', 'int-param':12345, 'UT-EXP':True}, rpc_error_code=RPC_COMMAND_ERROR)
             # rep is error from response; contains message, code and data.
-            self.assertEquals('Command returned error', rep['message'])
+            self.assertEquals('test error message', rep['message'])
             self.assertEquals(4321, rep['data']['int'])
-            self.assertEquals('test', rep['data']['string'])
         finally:
             qpr.shutdown()
 
@@ -109,9 +108,10 @@ class RPCTest(unittest.TestCase):
         self.jsonrpc_request('message', None, rpc_error_code = RPC_INVALID_PARAMS)
         s = time.time()
         # Must take at least 0.5s
-        ret = self.bus_message('', {'command':'non-existent'}, rpc_error_code = RPC_MESSAGE_ERROR, timeout=0.5)
+        ret = self.bus_message('', {'command':'non-existent'}, rpc_error_code = RPC_COMMAND_ERROR, timeout=0.5)
         e = time.time()
-        self.assertEquals("error.no.reply", ret['message'])
+        self.assertEquals("error.no.reply", ret['identifier'])
+        self.assertEquals("Timeout", ret['message'])
         self.assertGreaterEqual(e-s, 0.5)
         self.assertLessEqual(e-s, 1.0) # but quite near 0.5..
 
