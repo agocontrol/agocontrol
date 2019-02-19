@@ -20,10 +20,9 @@ public:
 
     virtual bool start() = 0;
 
-    virtual bool sendMessage(const std::string &topic, const Json::Value &content) = 0;
+    virtual bool sendMessage(const Json::Value &message) = 0;
 
-    virtual AgoResponse sendRequest(const std::string &topic, const Json::Value &content,
-                                                std::chrono::milliseconds timeout) = 0;
+    virtual AgoResponse sendRequest(const Json::Value &message, std::chrono::milliseconds timeout) = 0;
 
     virtual AgoConnectionMessage fetchMessage(std::chrono::milliseconds timeout) = 0;
 

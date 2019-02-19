@@ -12,9 +12,9 @@ public:
     ~AgoMQTTImpl();
 
     bool start();
-    bool sendMessage(const std::string &topic, const Json::Value &content);
+    bool sendMessage(const Json::Value &message);
 
-    agocontrol::AgoResponse sendRequest(const std::string &topic, const Json::Value &content, std::chrono::milliseconds timeout);
+    agocontrol::AgoResponse sendRequest(const Json::Value &message, std::chrono::milliseconds timeout);
     AgoConnectionMessage fetchMessage(std::chrono::milliseconds timeout);
 
 private:

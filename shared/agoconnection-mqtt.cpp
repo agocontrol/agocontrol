@@ -175,17 +175,18 @@ void agocontrol::MosquittoAdapter::on_log(int level, const char* msg) {
     }
 }
 
-bool agocontrol::AgoMQTTImpl::sendMessage(const std::string& topic, const Json::Value& content)
+bool agocontrol::AgoMQTTImpl::sendMessage(const Json::Value& message)
 {
     Json::StreamWriterBuilder builder;
 
     builder["indentation"] = "";
-    std::string payload = Json::writeString(builder, content);
+
+    std::string payload = Json::writeString(builder, message);
     adapter->publish(NULL, PUBLISH_TOPIC, strlen(payload.c_str()), payload.c_str(), 1, false);
     return true;
 }
 
-agocontrol::AgoResponse agocontrol::AgoMQTTImpl::sendRequest(const std::string& topic, const Json::Value& content, std::chrono::milliseconds timeout)
+agocontrol::AgoResponse agocontrol::AgoMQTTImpl::sendRequest(const Json::Value& message, std::chrono::milliseconds timeout)
 {
     AgoResponse r;
 

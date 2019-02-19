@@ -428,13 +428,12 @@ bool agocontrol::AgoConnection::addEventHandler(boost::function<void (const std:
 
 
 bool agocontrol::AgoConnection::sendMessage(const std::string& subject, const Json::Value& content) {
-    Json::StreamWriterBuilder builder;
-    builder["indentation"] = "";
-    Json::Value myMessage(content);
+    Json::Value message;
+    message["content"] = content;
     if(!subject.empty())
-        myMessage["subject"] = subject;
-    //myMessage["content"] = content;
-    impl->sendMessage("", myMessage);
+        message["subject"] = subject;
+
+    impl->sendMessage(message);
     return true;
 }
 
@@ -447,10 +446,10 @@ agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string
 }
 
 agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string& subject, const Json::Value& content, std::chrono::milliseconds timeout) {
-    Json::Value cs(content);
+    Json::Value msg(content);
     if(!subject.empty())
-        cs["subject"] = subject; // XXX: remove concept of subject from API?
-    return impl->sendRequest("", cs, std::chrono::seconds(3));
+        msg["subject"] = subject;
+    return impl->sendRequest(msg, timeout);
 }
 
 bool agocontrol::AgoConnection::sendMessage(const Json::Value& content) {
