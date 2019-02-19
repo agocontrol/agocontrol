@@ -111,7 +111,7 @@ std::string Inventory::getDeviceRoomName(const std::string& uuid) {
 } 
 
 Json::Value Inventory::getRooms() {
-    Json::Value result;
+    Json::Value result(Json::objectValue);
     sqlite3_stmt *stmt;
     int rc;
 
@@ -282,7 +282,7 @@ bool Inventory::deleteFloorplan(const std::string& uuid) {
 }
 
 Json::Value Inventory::getFloorplans() {
-    Json::Value result;
+    Json::Value result(Json::objectValue);
     sqlite3_stmt *stmt;
     int rc;
 
@@ -376,7 +376,7 @@ bool Inventory::deleteLocation(const std::string& uuid) {
 }
 
 Json::Value Inventory::getLocations() {
-    Json::Value result;
+    Json::Value result(Json::objectValue);
     sqlite3_stmt *stmt;
     int rc;
 
