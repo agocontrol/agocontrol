@@ -219,7 +219,10 @@ void agocontrol::AgoConnection::run() {
                     // or if it was the special command inventory when the filterCommands was false, that's used by the resolver
                     // to reply to "anonymous" requests not destined to any specific uuid
                     if (isOurDevice || (content["command"]=="inventory" && filterCommands==false)) {
-                        message.replyFuction(commandResponse);
+                        if(message.replyFuction.empty())
+                            AGO_WARNING() << "Attempted to send a reply to a incoming message which did not expect a reply: " << content;
+                        else
+                            message.replyFuction(commandResponse);
                     }
                 }
             } else if (!eventHandler.empty()) {
