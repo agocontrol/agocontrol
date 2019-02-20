@@ -210,12 +210,13 @@ void AgoRpc::jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mu
     }
 
     AGO_TRACE() << "RPC Response: " << response.getResponse();
-	 // responseRoot has JSONRPC fields too, which we need to keep. Merge.
-	 Json::Value& remoteResponse(response.getResponse());
-	 auto members = remoteResponse.getMemberNames();
-	 for(auto it = members.begin(); it != members.end(); ++it) {
-		 responseRoot[*it].swap(remoteResponse[*it]);
-	 }
+    // TODO: Should we inject "code" here if we have error? Or just keep jsonrpc errors there.
+    // responseRoot has JSONRPC fields too, which we need to keep. Merge.
+    Json::Value& remoteResponse(response.getResponse());
+    auto members = remoteResponse.getMemberNames();
+    for(auto it = members.begin(); it != members.end(); ++it) {
+        responseRoot[*it].swap(remoteResponse[*it]);
+    }
 }
 
 
