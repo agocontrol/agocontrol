@@ -97,7 +97,7 @@ private:
     void staleFunction(const boost::system::error_code& error);
 
     void setupApp();
-    void cleanupApp();
+    void doShutdown();
 public:
     AGOAPP_CONSTRUCTOR_HEAD(AgoResolver)
         , inventory(Json::objectValue)
@@ -940,11 +940,11 @@ void AgoResolver::setupApp()
     staleTimer.async_wait(boost::bind(&AgoResolver::staleFunction, this, _1));
 }
 
-void AgoResolver::cleanupApp()
-{
+void AgoResolver::doShutdown() {
     //stop timers
     staleTimer.cancel();
     discoveryTimer.cancel();
+    AgoApp::doShutdown();
 }
 
 AGOAPP_ENTRY_POINT(AgoResolver);
