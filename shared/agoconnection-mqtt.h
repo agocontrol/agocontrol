@@ -18,6 +18,7 @@ public:
     AgoConnectionMessage fetchMessage(std::chrono::milliseconds timeout);
 
 private:
+    void sendReply(const Json::Value& content, std::string replyAddress);
     std::unique_ptr<MosquittoAdapter> adapter;
 };
 

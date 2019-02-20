@@ -42,6 +42,10 @@ private:
     std::deque<AgoConnectionMessage *> messageDeque;
     boost::mutex mutexCon;
     boost::condition_variable_any cond;
+    boost::mutex mutexReply;
+    boost::condition_variable_any replyCond;
+    std::string replyExpectedUuid;
+    AgoConnectionMessage *replyMessage;
     const std::string host;
     int port;
 
@@ -120,12 +124,30 @@ void agocontrol::MosquittoAdapter::on_message(const struct mosquitto_message *me
     delete reader;
     if (parsingSuccessful) {
         AGO_DEBUG() << "parsed JSON from MQTT message";
-        AgoConnectionMessage *newMessage = new AgoConnectionMessage();
-        newMessage->msg = root;
-        {
-            boost::lock_guard<boost::mutex> lock(mutexCon);
-            messageDeque.push_back(newMessage);
-            cond.notify_one();
+        if (root.isMember("type") && root["type"] == "reply") { // reply for request
+            AGO_DEBUG() << "message is a reply";
+            boost::lock_guard<boost::mutex> lock(mutexReply);
+            if (root["reply-id"] == replyExpectedUuid) {
+                AGO_DEBUG() << "reply message is for us: " << root["reply-id"] << " matches " << replyExpectedUuid;
+                AgoConnectionMessage *newMessage = new AgoConnectionMessage();
+                newMessage->msg = root;
+                {
+                    replyMessage = newMessage;
+                    replyCond.notify_one();
+                }
+            } else {
+                AGO_DEBUG() << "reply message is not for us: " << root["reply-id"] << " vs " << replyExpectedUuid;
+            }
+
+
+        } else { // regular message or event
+            AgoConnectionMessage *newMessage = new AgoConnectionMessage();
+            newMessage->msg = root;
+            {
+                boost::lock_guard<boost::mutex> lock(mutexCon);
+                messageDeque.push_back(newMessage);
+                cond.notify_one();
+            }
         }
     } else {
         AGO_ERROR() << "cannot parse MQTT message to JSON: " << errors;
@@ -166,15 +188,45 @@ bool agocontrol::AgoMQTTImpl::sendMessage(const std::string& topic, const Json::
 agocontrol::AgoResponse agocontrol::AgoMQTTImpl::sendRequest(const std::string& topic, const Json::Value& content, std::chrono::milliseconds timeout)
 {
     AgoResponse r;
+
+    boost::system_time const targettime=boost::get_system_time() + boost::posix_time::milliseconds(timeout.count());
+
     Json::StreamWriterBuilder builder;
     Json::Value message;
     message = content;
-    message["reply-id"] = generateUuid();
+    std::string replyUuid = generateUuid();
+    message["reply-id"] = replyUuid;
     message["type"] = "request";
 
     builder["indentation"] = "";
     std::string payload = Json::writeString(builder, message);
     adapter->publish(NULL, PUBLISH_TOPIC, strlen(payload.c_str()), payload.c_str(), 1, false);
+
+    boost::lock_guard<boost::mutex> lock(adapter->mutexReply);
+    adapter->replyMessage = NULL;
+    adapter->replyExpectedUuid = replyUuid;
+
+    while (targettime > boost::get_system_time())
+    {
+        AGO_TRACE() << "[sendRequest] expected reply UUID: " << adapter->replyExpectedUuid;
+        if (adapter->replyMessage != NULL) {
+            Json::Value response;
+            response = adapter->replyMessage->msg;
+
+            r.init(response);
+            AGO_TRACE() << "[sendRequest] reply received, emptying replyExpectedUuid";
+            adapter->replyExpectedUuid = "";
+            AGO_INFO() << "Remote response received: " << r.response;
+            return r;
+        } else {
+            //boost::this_thread::sleep_for(boost::chrono::milliseconds(5));
+            adapter->replyCond.timed_wait(adapter->mutexReply, targettime);
+        }
+    }
+
+    AGO_WARNING() << "No reply for request message";
+    r.init(responseError(RESPONSE_ERR_NO_REPLY, "Timeout"));
+
     return r;
 }
 
@@ -188,9 +240,11 @@ agocontrol::AgoConnectionMessage agocontrol::AgoMQTTImpl::fetchMessage(std::chro
     {
         boost::lock_guard<boost::mutex> lock(adapter->mutexCon);
         if (adapter->messageDeque.size() > 0) {
-            AGO_DEBUG() << "Popping MQTT Message";
+            AGO_TRACE() << "Popping MQTT Message";
             ret = *adapter->messageDeque.front();
             adapter->messageDeque.pop_front();
+            std::string replyaddress= ret.msg.isMember("reply-id") ? ret.msg["reply-id"].asString() : "";
+            ret.replyFuction = boost::bind(&AgoMQTTImpl::sendReply, this, _1, replyaddress);
             return ret;
         } else {
             //boost::this_thread::sleep_for(boost::chrono::milliseconds(5));
@@ -198,6 +252,24 @@ agocontrol::AgoConnectionMessage agocontrol::AgoMQTTImpl::fetchMessage(std::chro
         }
 
     }
-    AGO_DEBUG() << "Timed out in fetchMessage";
+    AGO_TRACE() << "Timed out in fetchMessage";
     return ret;
 }
+
+void agocontrol::AgoMQTTImpl::sendReply(const Json::Value& content, std::string replyAddress) 
+{
+    Json::StreamWriterBuilder builder;
+    Json::Value message;
+    message = content;
+    message["reply-id"] = replyAddress;
+    message["type"] = "reply";
+
+    builder["indentation"] = "";
+    std::string payload = Json::writeString(builder, message);
+    AGO_TRACE() << "[mqtt] sending reply for " << replyAddress;
+
+
+    adapter->publish(NULL, PUBLISH_TOPIC, strlen(payload.c_str()), payload.c_str(), 1, false);
+
+}
+
