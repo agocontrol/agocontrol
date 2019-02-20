@@ -16,3 +16,6 @@ version.h
 *.save
 
 .idea/
+
+*.pyc
+*.swp
