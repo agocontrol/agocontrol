@@ -10,6 +10,7 @@ set(LIBAGOCLIENT_SOURCE_FILES
     agolog.cpp
     agoapp.cpp
     agoconfig.cpp
+    agoutils.cpp
     base64.cpp
 )
 

@@ -8,6 +8,7 @@
 #include <cerrno>
 
 #include "agoapp.h"
+#include "agoutils.h"
 
 #ifndef SCENARIOMAPFILE
 #define SCENARIOMAPFILE "maps/scenariomap.json"
@@ -87,7 +88,7 @@ Json::Value AgoScenario::commandHandler(const Json::Value& content)
             if(content.isMember("scenario"))
                 scenariouuid = content["scenario"].asString();
             else
-                scenariouuid = generateUuid();
+                scenariouuid = agocontrol::utils::generateUuid();
 
             AGO_TRACE() << "Scenario content:" << newscenario;
             AGO_TRACE() << "scenario uuid:" << scenariouuid;

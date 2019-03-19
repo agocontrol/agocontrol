@@ -10,6 +10,7 @@
 #include <cerrno>
 
 #include "agoapp.h"
+#include "agoutils.h"
 #include "bool.h"
 
 #ifndef EVENTMAPFILE
@@ -225,7 +226,7 @@ Json::Value AgoEvent::commandHandler(const Json::Value& content)
             Json::Value newevent = content["eventmap"];
             std::string eventuuid = content["event"].asString();
             if (eventuuid.empty())
-                eventuuid = generateUuid();
+                eventuuid = agocontrol::utils::generateUuid();
 
             AGO_TRACE() << "event content:" << newevent;
             AGO_TRACE() << "event uuid:" << eventuuid;

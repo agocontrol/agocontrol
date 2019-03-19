@@ -17,6 +17,7 @@
 #include "wsaapi.h"
 
 #include "agoclient.h"
+#include "agoutils.h"
 
 using namespace agocontrol;
 
@@ -494,7 +495,7 @@ int main (int argc, char ** argv)
 
     printf("Sending probes\n");
     for (int i=0;i<2;i++) {
-        std::string tmpuuid = "urn:uuid:" +  generateUuid();
+        std::string tmpuuid = "urn:uuid:" +  agocontrol::utils::generateUuid();
 
         wsddProxy *discoverProxy = new wsddProxy("soap.udp://239.255.255.250:3702/");
         discoverProxy->soap_header((char*)tmpuuid.c_str(), NULL, NULL, NULL, NULL, (char*)"urn:schemas-xmlsoap-org:ws:2005:04:discovery", (char*)"http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);

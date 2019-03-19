@@ -26,6 +26,7 @@
 #include <boost/tokenizer.hpp>
 
 #include "agoapp.h"
+#include "agoutils.h"
 
 #include "agohttp/agohttp.h"
 
@@ -381,7 +382,7 @@ bool AgoRpc::handleJsonRpcRequest(JsonRpcReqRep *reqRep, const Json::Value &requ
     else if (method == "subscribe")
     {
         // Local call possible
-        const std::string subscriptionId = generateUuid();
+        const std::string subscriptionId = agocontrol::utils::generateUuid();
         if (subscriptionId == "")
             return jsonrpcErrorResponse(responseRoot, JSONRPC_INTERNAL_ERROR, "Failed to generate UUID");
 

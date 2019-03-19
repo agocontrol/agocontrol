@@ -29,6 +29,7 @@
 #include "Telegram.h"
 
 #include "agoapp.h"
+#include "agoutils.h"
 
 #ifndef KNXDEVICEMAPFILE
 #define KNXDEVICEMAPFILE "maps/knx.json"
@@ -386,7 +387,7 @@ Json::Value AgoKnx::commandHandler(const Json::Value& content) {
             if(content.isMember("device"))
                 deviceuuid = content["device"].asString();
             else
-                deviceuuid = generateUuid();
+                deviceuuid = agocontrol::utils::generateUuid();
 
             /* XXX: No control over what's feed in here.
              * Web UI currently sends something like this:

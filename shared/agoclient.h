@@ -18,7 +18,6 @@
 #include "agoproto.h"
 
 #include <chrono>
-#include <uuid/uuid.h>
 
 namespace agocontrol {
     bool nameval(const std::string& in, std::string& name, std::string& value);
@@ -29,9 +28,6 @@ namespace agocontrol {
     // string split helper
     std::vector<std::string> split(const std::string &s, char delimiter);
     std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems);
-
-    /// helper to generate a string containing a uuid.
-    std::string generateUuid();
 
     /// helper for conversions
     std::string uint64ToString(uint64_t i);

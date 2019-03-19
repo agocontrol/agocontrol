@@ -16,6 +16,7 @@
 #include <boost/bind.hpp>
 
 #include "agoclient.h"
+#include "agoutils.h"
 #include "agojson.h"
 
 #include "agojson-qpid.h"
@@ -75,15 +76,6 @@ std::vector<std::string> agocontrol::split(const std::string &s, char delimiter)
     std::vector<std::string> elements;
     split(s, delimiter, elements);
     return elements;
-}
-
-// generates a uuid as std::string via libuuid
-std::string agocontrol::generateUuid() {
-    std::unique_ptr<char> name(new char[38]);
-    uuid_t tmpuuid;
-    uuid_generate(tmpuuid);
-    uuid_unparse(tmpuuid, name.get());
-    return std::string(name.get());
 }
 
 std::string agocontrol::uint64ToString(uint64_t i) {
@@ -350,7 +342,7 @@ bool agocontrol::AgoConnection::addDevice(const std::string& internalId, const s
 bool agocontrol::AgoConnection::addDevice(const std::string& internalId, const std::string& deviceType, const std::string& initialName) {
     if (internalIdToUuid(internalId).size()==0) {
         // need to generate new uuid
-        uuidMap[generateUuid()] = internalId;
+        uuidMap[agocontrol::utils::generateUuid()] = internalId;
         storeUuidMap();
     }
     Json::Value device(Json::ValueType::objectValue);

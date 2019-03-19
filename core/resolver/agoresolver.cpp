@@ -32,6 +32,7 @@
 #include <boost/asio/deadline_timer.hpp>
 
 #include "agoapp.h"
+#include "agoutils.h"
 
 #include "build_config.h"
 
@@ -328,7 +329,7 @@ Json::Value AgoResolver::commandHandler(const Json::Value& content)
         {
             std::string roomUuid = content["room"].asString();
             // if no uuid is provided, we need to generate one for a new room
-            if (roomUuid == "") roomUuid = generateUuid();
+            if (roomUuid == "") roomUuid = agocontrol::utils::generateUuid();
             if (inv->setRoomName(roomUuid, content["name"].asString()))
             {
                 // return room UUID
@@ -429,7 +430,7 @@ Json::Value AgoResolver::commandHandler(const Json::Value& content)
             // if no uuid is provided, we need to generate one for a new floorplan
             if (uuid == "")
             {
-                uuid = generateUuid();
+                uuid = agocontrol::utils::generateUuid();
             }
 
             if (inv->setFloorplanName(uuid, content["name"].asString()))

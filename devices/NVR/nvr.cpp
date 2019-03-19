@@ -19,6 +19,7 @@
 #include "agoapp.h"
 #include "base64.h"
 #include "frameprovider.h"
+#include "agoutils.h"
 
 #ifndef VIDEOMAPFILE
 #define VIDEOMAPFILE "maps/videomap.json"
@@ -1210,7 +1211,7 @@ Json::Value AgoSurveillance::commandHandler(const Json::Value& content)
             fillStream(stream, content);
 
             //and save it
-            std::string internalid = generateUuid();
+            std::string internalid = agocontrol::utils::generateUuid();
             streams[internalid] = stream;
             videomap["streams"] = streams;
 
@@ -1259,7 +1260,7 @@ Json::Value AgoSurveillance::commandHandler(const Json::Value& content)
             fillTimelapse(timelapse, content);
 
             //and save it
-            std::string internalid = generateUuid();
+            std::string internalid = agocontrol::utils::generateUuid();
             timelapses[internalid] = timelapse;
             videomap["timelapses"] = timelapses;
             if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
@@ -1336,7 +1337,7 @@ Json::Value AgoSurveillance::commandHandler(const Json::Value& content)
             fillMotion(motion, content_);
 
             //and save it
-            std::string internalid = generateUuid();
+            std::string internalid = agocontrol::utils::generateUuid();
             motions[internalid] = motion;
             if( writeJsonFile(videomap, getConfigPath(VIDEOMAPFILE)) )
             {
