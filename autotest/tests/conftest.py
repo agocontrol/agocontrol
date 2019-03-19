@@ -2,7 +2,7 @@ import logging
 import pytest
 
 # Automatically imports
-pytest_plugins = ['testlib.qpid_transport']
+pytest_plugins = ['testlib.qpid_transport', 'testlib.mqtt_transport']
 
 logging.basicConfig()
 
@@ -23,6 +23,8 @@ def pytest_addoption(parser):
 def transport_adapter(request, variables):
     if variables['transport'] == 'qpid':
         adapter = request.getfixturevalue('qpid_transport_adapter')
+    elif variables['transport'] == 'mqtt':
+        adapter = request.getfixturevalue('mqtt_transport_adapter')
     else:
         raise AssertionError('Invalid transport configured')
 
