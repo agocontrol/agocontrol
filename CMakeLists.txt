@@ -146,8 +146,12 @@ find_package(Qpid)
 log_pkg_found(qpid "${QPID_FOUND}" "${QPID_VERSION}" STATUS ", QPID communication support will not be built")
 set(WITH_QPID ${QPID_FOUND})
 
-if(NOT ${QPID_FOUND})
-    message(FATAL_ERROR "qpid not found. Required for communications")
+find_package(Mosquittopp)
+log_pkg_found(mosquittopp "${MOSQUITTOPP_FOUND}" "${MOSQUITTOPP_VERSION}" WARNING ", MQTT communication support will not be built")
+set(WITH_MQTT ${MOSQUITTOPP_FOUND})
+
+if(NOT ${MOSQUITTOPP_FOUND} AND NOT ${QPID_FOUND})
+    message(FATAL_ERROR "Neither mosquittopp nor qpid found. One or both is required")
 endif()
 
 if(OS_LINUX)

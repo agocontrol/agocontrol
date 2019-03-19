@@ -19,6 +19,7 @@
 #include "agojson.h"
 
 #include "agotransport-qpid.h"
+#include "agotransport-mqtt.h"
 
 namespace fs = ::boost::filesystem;
 
@@ -146,17 +147,32 @@ agocontrol::AgoConnection::~AgoConnection() {
 }
 
 void agocontrol::AgoConnection::initTransport(ConfigNameList &cfgfiles) {
-    auto *f = loadTransportLibrary<agotransport_qpid_factory>("agotransport-qpid");
-    if(!f) {
-        _exit(1);
+    if (getConfigSectionOption("system", "messaging", "", cfgfiles) == "mqtt") {
+        auto *f = loadTransportLibrary<agotransport_mqtt_factory>("agotransport-mqtt");
+        if(!f) {
+            _exit(1);
+        }
+
+        std::string broker = getConfigSectionOption("system", "broker", "localhost:1883", cfgfiles);
+        agocontrol::transport::AgoTransport* trp = f(instance.c_str(),
+                                                     broker.c_str(),
+                                                     getConfigSectionOption("system", "username", "agocontrol", cfgfiles).c_str(),
+                                                     getConfigSectionOption("system", "password", "letmein", cfgfiles).c_str());
+
+        transport.reset(trp);
+    } else {
+        auto *f = loadTransportLibrary<agotransport_qpid_factory>("agotransport-qpid");
+        if(!f) {
+            _exit(1);
+        }
+
+        std::string broker = getConfigSectionOption("system", "broker", "localhost:5672", cfgfiles);
+        agocontrol::transport::AgoTransport* trp = f(broker.c_str(),
+                                                     getConfigSectionOption("system", "username", "agocontrol", cfgfiles).c_str(),
+                                                     getConfigSectionOption("system", "password", "letmein", cfgfiles).c_str());
+
+        transport.reset(trp);
     }
-
-    std::string broker = getConfigSectionOption("system", "broker", "localhost:5672", cfgfiles);
-    agocontrol::transport::AgoTransport* trp = f(broker.c_str(),
-                                                 getConfigSectionOption("system", "username", "agocontrol", cfgfiles).c_str(),
-                                                 getConfigSectionOption("system", "password", "letmein", cfgfiles).c_str());
-
-    transport.reset(trp);
 }
 
 void agocontrol::AgoConnection::run() {

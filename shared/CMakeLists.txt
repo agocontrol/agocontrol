@@ -66,6 +66,13 @@ target_link_libraries(agocore ${AGOCORE_LIBRARIES})
 
 set(AGOLIBS agoclient agocore)
 
+if(WITH_MQTT)
+    add_library (agotransport-mqtt SHARED agotransport-mqtt.cpp)
+    set_target_properties (agotransport-mqtt PROPERTIES VERSION 1 SOVERSION 1)
+    target_link_libraries(agotransport-mqtt agocore ${MOSQUITTOPP_LIBRARIES} ${Boost_THREAD_LIBRARY} ${Boost_LOG_LIBRARY})
+    list(APPEND AGOLIBS agotransport-mqtt)
+endif()
+
 if(WITH_QPID)
     add_library (agotransport-qpid SHARED agotransport-qpid.cpp agojson-qpid.cpp)
     set_target_properties (agotransport-qpid PROPERTIES VERSION 1 SOVERSION 1)
