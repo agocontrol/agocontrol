@@ -142,6 +142,14 @@ log_pkg_found(cppdb "${CPPDB_FOUND}" "" WARNING ", parts of core will not be bui
 pkg_search_module(LIBRRD librrd)
 log_pkg_found(librrd "${LIBRRD_FOUND}" "${LIBRRD_VERSION}" WARNING ", parts of core will not be built")
 
+find_package(Qpid)
+log_pkg_found(qpid "${QPID_FOUND}" "${QPID_VERSION}" STATUS ", QPID communication support will not be built")
+set(WITH_QPID ${QPID_FOUND})
+
+if(NOT ${QPID_FOUND})
+    message(FATAL_ERROR "qpid not found. Required for communications")
+endif()
+
 if(OS_LINUX)
     # used by agosystem
     pkg_search_module(LIBPROCPS REQUIRED libprocps)

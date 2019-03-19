@@ -10,7 +10,6 @@ set(LIBAGOCLIENT_SOURCE_FILES
 set(LIBAGOCORE_SOURCE_FILES
     agoproto.cpp
     agojson.cpp
-    agojson-qpid.cpp
     jsoncpp/jsoncpp.cpp
     agoutils.cpp
     agolog.cpp
@@ -24,8 +23,6 @@ endif()
 
 set (AGOCLIENT_LIBRARIES
     agocore
-    qpidmessaging
-    qpidtypes
     ${AUGEAS_LIBRARIES}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
@@ -68,6 +65,14 @@ set_target_properties (agocore PROPERTIES VERSION 1 SOVERSION 1)
 target_link_libraries(agocore ${AGOCORE_LIBRARIES})
 
 set(AGOLIBS agoclient agocore)
+
+if(WITH_QPID)
+    add_library (agotransport-qpid SHARED agotransport-qpid.cpp agojson-qpid.cpp)
+    set_target_properties (agotransport-qpid PROPERTIES VERSION 1 SOVERSION 1)
+    target_link_libraries(agotransport-qpid agocore ${QPID_LIBRARIES} ${Boost_LOG_LIBRARY})
+    list(APPEND AGOLIBS agotransport-qpid)
+endif()
+
 
 install (TARGETS ${AGOLIBS} LIBRARY DESTINATION ${LIBDIR})
 
