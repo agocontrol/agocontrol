@@ -50,7 +50,9 @@ else()
     set (CONFDIR ${ETCDIR}/opt/agocontrol CACHE STRING "Directory for agocontrol settings")
     set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
     set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
-    set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
+    if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+        set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
+    endif()
 endif()
 
 # Common structure

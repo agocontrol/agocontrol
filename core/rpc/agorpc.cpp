@@ -571,7 +571,7 @@ boost::shared_ptr<HttpReqRep> AgoRpc::uploadFiles(struct mg_connection *conn, st
                         AGO_ERROR() << "Uploaded file \"" << tempfile.string() << "\" not fully written (no space left?)";
                         FILE_UPLOAD_ERROR("Failed to write file, no space left?");
                     }else{
-                        request["filesize"] = data_len;
+                        request["filesize"] = (Json::UInt64)data_len;
                         response["size"] = (Json::UInt64)data_len;
                     }
                 }
