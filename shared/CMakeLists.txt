@@ -1,73 +1,85 @@
 cmake_minimum_required (VERSION 3.0)
 
-
 set(LIBAGOCLIENT_SOURCE_FILES
     agoclient.cpp
+    agoapp.cpp
+    agoconfig.cpp
+    base64.cpp
+)
+
+set(LIBAGOCORE_SOURCE_FILES
     agoproto.cpp
     agojson.cpp
     agojson-qpid.cpp
     jsoncpp/jsoncpp.cpp
-    agolog.cpp
-    agoapp.cpp
-    agoconfig.cpp
     agoutils.cpp
-    base64.cpp
+    agolog.cpp
 )
 
 if(Boost_LOG_FOUND)
-    list(APPEND LIBAGOCLIENT_SOURCE_FILES agolog_boost.cpp)
+    list(APPEND LIBAGOCORE_SOURCE_FILES agolog_boost.cpp)
 else()
-    list(APPEND LIBAGOCLIENT_SOURCE_FILES agolog_basic.cpp)
+    list(APPEND LIBAGOCORE_SOURCE_FILES agolog_basic.cpp)
 endif()
 
-add_library (agoclient SHARED ${LIBAGOCLIENT_SOURCE_FILES})
-set_target_properties (agoclient PROPERTIES VERSION 1 SOVERSION 1)
-
 set (AGOCLIENT_LIBRARIES
+    agocore
     qpidmessaging
     qpidtypes
-    uuid
     ${AUGEAS_LIBRARIES}
-    ${Boost_SYSTEM_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT} # for pthread
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
 )
 
+set (AGOCORE_LIBRARIES
+    uuid
+    ${Boost_LOG_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+    ${CMAKE_THREAD_LIBS_INIT} # for pthread
+)
+
 if(Boost_LOG_FOUND)
-    LIST(APPEND AGOCLIENT_LIBRARIES ${Boost_LOG_LIBRARY})
+    LIST(APPEND AGOCORE_LIBRARIES ${Boost_LOG_LIBRARY})
 else()
-    LIST(APPEND AGOCLIENT_LIBRARIES ${Boost_DATE_TIME_LIBRARY})
+    LIST(APPEND AGOCORE_LIBRARIES ${Boost_DATE_TIME_LIBRARY})
 endif()
 
-target_link_libraries (agoclient ${AGOCLIENT_LIBRARIES})
 
-include_directories("${AUGEAS_INCLUDE_DIRS}")
-
-set_property(
-    TARGET agoclient
-    PROPERTY COMPILE_DEFINITIONS
+set_property(DIRECTORY
+    APPEND PROPERTY COMPILE_DEFINITIONS
     DEFAULT_CONFDIR=${CONFDIR}
     DEFAULT_LOCALSTATEDIR=${LOCALSTATEDIR}
 )
 
-set_property(
-    TARGET agoclient
+set_property(DIRECTORY
     APPEND PROPERTY
     COMPILE_OPTIONS
     -Werror)
 
-install (TARGETS agoclient LIBRARY DESTINATION ${LIBDIR})
+include_directories("${AUGEAS_INCLUDE_DIRS}")
+
+add_library (agoclient SHARED ${LIBAGOCLIENT_SOURCE_FILES})
+set_target_properties (agoclient PROPERTIES VERSION 1 SOVERSION 1)
+target_link_libraries (agoclient ${AGOCLIENT_LIBRARIES})
+
+add_library (agocore SHARED ${LIBAGOCORE_SOURCE_FILES})
+set_target_properties (agocore PROPERTIES VERSION 1 SOVERSION 1)
+target_link_libraries(agocore ${AGOCORE_LIBRARIES})
+
+set(AGOLIBS agoclient agocore)
+
+install (TARGETS ${AGOLIBS} LIBRARY DESTINATION ${LIBDIR})
+
+
 add_subdirectory (agohttp)
 install (DIRECTORY DESTINATION ${CONFDIR}/uuidmap)
 
 ####### Python version of agoclient
-
 configure_file (
-        "${CMAKE_CURRENT_SOURCE_DIR}/agoclient/_directories.py.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/agoclient/_directories.py"
-        @ONLY
+    "${CMAKE_CURRENT_SOURCE_DIR}/agoclient/_directories.py.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/agoclient/_directories.py"
+    @ONLY
 )
 
 set(PYTHON_AGOCLIENT_SOURCE_FILES
