@@ -23,6 +23,7 @@ endif()
 
 set (AGOCLIENT_LIBRARIES
     agocore
+    dl
     ${AUGEAS_LIBRARIES}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
