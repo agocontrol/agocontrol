@@ -60,7 +60,8 @@ namespace agocontrol {
     public:
         AgoConnection(const std::string& interfacename);
         ~AgoConnection();
-        void start();
+
+        bool start();
         void run();
         void shutdown();
         bool addDevice(const std::string& internalId, const std::string& deviceType, const std::string& initialName = {});

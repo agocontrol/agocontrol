@@ -6,6 +6,7 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/asio/placeholders.hpp>
 #include <boost/program_options/parsers.hpp>
+#include <boost/thread/reverse_lock.hpp>
 
 
 
@@ -23,9 +24,8 @@ namespace agocontrol {
 
 AgoApp::AgoApp(const char *appName_)
     : appName(appName_)
-      , exit_signaled(false)
+      , exitSignaled(0)
       , signals(ioService_)
-      , agoConnection(NULL)
 {
     // Keep a "short" name too, trim leading 'Ago' from app name
     // This will be used for getConfigOption section names
@@ -139,20 +139,18 @@ int AgoApp::parseCommandLine(int argc, const char **argv) {
 }
 
 
-void AgoApp::setup() {
+bool AgoApp::setup() {
+    boost::unique_lock<boost::mutex> lock(appMutex);
     setupSignals();
     setupLogging();
     setupIoThread();
-    setupAgoConnection();
-    setupApp();
 
-    //Send event app is started
-    //This is useful to monitor app (most of the time systemd restarts app before agosystem find it has crashed)
-    //And it fix enhancement #143
-    Json::Value content;
-    content["process"] = appShortName;
-    //no internalid specified, processname is in event content
-    agoConnection->emitEvent("", "event.monitoring.processstarted", content);
+    if (!setupAgoConnection(lock)) {
+        AGO_ERROR() << "Failed to connect to broker. Exiting";
+        return false;
+    }
+
+    return !exitSignaled;
 }
 
 void AgoApp::cleanup() {
@@ -216,18 +214,17 @@ void AgoApp::setupLogging() {
 }
 
 
-void AgoApp::setupAgoConnection() {
-    agoConnection = new AgoConnection(appShortName.c_str());
-    // This allows signal handler to reach a pending connection
-    agoConnection->start();
+bool AgoApp::setupAgoConnection(boost::unique_lock<boost::mutex> &lock) {
+    agoConnection.reset(new AgoConnection(appShortName));
+
+    boost::reverse_lock<boost::unique_lock<boost::mutex>> unlockThenLock(lock);
+    // We want to unlock the lock while were doing the actual connecting
+    // but then re-acquire it before leaving here.
+    return agoConnection->start();
 }
 
 void AgoApp::cleanupAgoConnection() {
-    if(agoConnection == NULL)
-        return;
-
-    delete agoConnection;
-    agoConnection = NULL;
+    agoConnection.reset();
 }
 
 void AgoApp::addCommandHandler() {
@@ -296,30 +293,32 @@ void AgoApp::signal_handler(const boost::system::error_code& error, int signal_n
             break;
     }
 
-    // Wait for next signal
+    // Wait for next signal. But not if we where terminated.
+    boost::unique_lock<boost::mutex> lock(appMutex);
+    if(!ioWork)
+        return;
+
     signals.async_wait(boost::bind(&AgoApp::signal_handler, this,
                                    boost::asio::placeholders::error,
                                    boost::asio::placeholders::signal_number));
 }
 
 void AgoApp::signalExit() {
-    if(exit_signaled) return;
+    boost::unique_lock<boost::mutex> lock(appMutex);
+    exitSignaled++;
 
-    exit_signaled = true;
-
-    // Dispatch signalExitThr call in separate thread, for application
-    // to do more serious shutdown procedures
-    // TODO: Revise now when it's running in boost::asio
-    boost::thread t(boost::bind(&AgoApp::doShutdown, this));
-    t.detach();
-}
-
-void AgoApp::doShutdown() {
-    try {
-        if(agoConnection)
+    // Tell agoConnection to prepare shutdown. This will exit the mainloop which begins shutdown.
+    // If we do not have an agoconnection yet, it will ensure we cleanup..
+    // TODO: lock
+    if(exitSignaled == 1) {
+        lock.unlock();
+        if(agoConnection.get())
             agoConnection->shutdown();
-
-    } catch(std::exception &e) {
+    } else if (exitSignaled == 2) {
+        AGO_WARNING() << "Waiting for shutdown.. SIGINT/SIGTERM again to force kill";
+    } else {
+        AGO_FATAL() << "Hard termination";
+        _exit(1);
     }
 }
 
@@ -346,6 +345,8 @@ void AgoApp::setupIoThread() {
 }
 
 void AgoApp::cleanupIoThread(){
+    boost::unique_lock<boost::mutex> lock(appMutex);
+
     // Stop listening for signals (it blocks the ioService)
     signals.cancel();
     if(!ioThread.joinable()) {
@@ -353,8 +354,10 @@ void AgoApp::cleanupIoThread(){
         return;
     }
 
-    AGO_TRACE() << "Resetting work & joining IO thread, waiting for it to exit";
+    AGO_TRACE() << "Resetting iowork & joining thread, waiting for it to exit";
     ioWork.reset();
+    lock.unlock();
+
     ioThread.join();
     AGO_TRACE() << "IO thread dead";
 }
@@ -367,7 +370,7 @@ boost::asio::io_service& AgoApp::threadPool() {
 }
 
 void AgoApp::setupThreadPool() {
-    if(threadpoolIoWork.get())
+    if(threadpoolIoWork)
         // already inited.
         return;
 
@@ -384,11 +387,11 @@ void AgoApp::setupThreadPool() {
 }
 
 void AgoApp::cleanupThreadPool(){
-    if(!threadpoolIoWork.get())
+    if(!threadpoolIoWork)
         // Not inited, or already cancelled
         return;
 
-    AGO_TRACE() << "Resetting threadPool work & joining IO thread, waiting for it to exit";
+    AGO_TRACE() << "Resetting threadPool work & joining, waiting for it to exit";
     threadpoolIoWork.reset();
     threadpool.join_all();
     AGO_TRACE() << "Threadpool dead";
@@ -404,7 +407,14 @@ int AgoApp::main(int argc, const char **argv) {
     try {
         if(parseCommandLine(argc, argv) != 0)
             return 1;
-        setup();
+
+        if(!setup()) {
+            cleanup();
+            return 1;
+        }
+
+        // Finally setup app. after this stage, doShutdown should be called to shutdown.
+        setupApp();
     }catch(StartupError &e) {
         cleanup();
         return 1;
@@ -418,12 +428,34 @@ int AgoApp::main(int argc, const char **argv) {
         return 1;
     }
 
-    AGO_INFO() << "Starting " << appName;
+    // If user signalled kill, lets abort startup
+    int ret = 1;
 
-    int ret = this->appMain();
+    {
+        boost::unique_lock<boost::mutex> lock(appMutex);
+        if (!exitSignaled) {
+            lock.unlock();
+
+            AGO_INFO() << "Starting " << appName;
+
+            //Send event app is started
+            //This is useful to monitor app (most of the time systemd restarts app before agosystem find it has crashed)
+            //And it fix enhancement #143
+            Json::Value content;
+            content["process"] = appShortName;
+            //no internalid specified, processname is in event content
+            agoConnection->emitEvent("", "event.monitoring.processstarted", content);
+
+            ret = this->appMain();
+        }
+    }
 
     AGO_DEBUG() << "Shutting down " << appName;
 
+    // Tell app to initiate shutdown
+    doShutdown();
+
+    // and now clean up all resource.
     cleanup();
 
     if(ret == 0)

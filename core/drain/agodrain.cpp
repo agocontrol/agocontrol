@@ -21,7 +21,7 @@ private:
     qpid::messaging::Connection *connection;
 
     // Override, we do not use a AgoConnection in drain
-    void setupAgoConnection() { }
+    bool setupAgoConnection(boost::unique_lock<boost::mutex> &lock) { return true; }
     void doShutdown() ;
 
     int appMain();

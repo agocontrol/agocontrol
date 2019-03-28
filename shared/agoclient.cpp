@@ -136,11 +136,8 @@ agocontrol::AgoConnection::AgoConnection(const std::string& interfacename)
     // Must call start() to actually connect
 }
 
-void agocontrol::AgoConnection::start() {
-    if(!transport->start()) {
-        AGO_FATAL() << "Broker connection failed. Exiting";
-        _exit(1);
-    }
+bool agocontrol::AgoConnection::start() {
+    return transport->start();
 }
 
 agocontrol::AgoConnection::~AgoConnection() {
