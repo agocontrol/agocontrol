@@ -87,22 +87,3 @@ install (TARGETS ${AGOLIBS} LIBRARY DESTINATION ${LIBDIR})
 
 add_subdirectory (agohttp)
 install (DIRECTORY DESTINATION ${CONFDIR}/uuidmap)
-
-####### Python version of agoclient
-configure_file (
-    "${CMAKE_CURRENT_SOURCE_DIR}/agoclient/_directories.py.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/agoclient/_directories.py"
-    @ONLY
-)
-
-set(PYTHON_AGOCLIENT_SOURCE_FILES
-    agoclient/agoapp.py
-    agoclient/agoconnection.py
-    agoclient/config.py
-    agoclient/__init__.py
-    agoclient/_logging.py
-)
-
-CopyFilesFromSource(agoclient-python "${PYTHON_AGOCLIENT_SOURCE_FILES}")
-
-InstallFiles(${PYTHON2DIST}/agoclient "${PYTHON_AGOCLIENT_SOURCE_FILES};agoclient/_directories.py")

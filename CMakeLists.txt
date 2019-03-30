@@ -218,10 +218,8 @@ endif()
 install(DIRECTORY DESTINATION ${BINDIR})
 
 # add sub directories
-option(BUILD_SHARED "Build the agoclient shared library" ON)
-if (BUILD_SHARED)
-  add_subdirectory (shared)
-endif()
+add_subdirectory (shared)
+add_subdirectory (python)
 
 option(BUILD_TESTS "Build the unittests" ON)
 if (BUILD_TESTS AND CPPUNIT_FOUND)
