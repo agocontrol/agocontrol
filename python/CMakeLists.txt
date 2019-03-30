@@ -9,6 +9,9 @@ configure_file (
 set(PYTHON_AGOCLIENT_SOURCE_FILES
         agoclient/agoapp.py
         agoclient/agoconnection.py
+        agoclient/agoproto.py
+        agoclient/agotransport.py
+        agoclient/agotransport_qpid.py
         agoclient/config.py
         agoclient/__init__.py
         agoclient/_logging.py

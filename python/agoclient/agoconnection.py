@@ -1,73 +1,19 @@
 import errno
 import logging
-import simplejson
+import json
 import time
-from config import get_config_option, get_config_path
-from qpid.log import enable, DEBUG, WARN
-from qpid.messaging import *
-from qpid.util import URL
-from select import error as SelectError
+import uuid
+
+from agoclient import agoproto
+from agoclient.config import get_config_option, get_config_path
 
 __all__ = ["AgoConnection"]
 
-
-class AgoResponse:
-    """This class represents a response as obtained from AgoConnection.send_request"""
-
-    def __init__(self, response):
-        self.response = response
-        if self.is_ok():
-            self.root = self.response["result"]
-        elif self.is_error():
-            self.root = self.response["error"]
-        else:
-            raise Exception("Invalid response, neither result or error present")
-
-    def __str__(self):
-        if self.is_error():
-            return 'AgoResponse[ERROR] message="%s" data=[%s]' % (self.message(), str(self.data()))
-        else:
-            return 'AgoResponse[OK] message="%s" data=[%s]' % (self.message(), str(self.data()))
-
-    def is_error(self):
-        return "error" in self.response
-
-    def is_ok(self):
-        return "result" in self.response
-
-    def identifier(self):
-        return self.root["identifier"]
-
-    def message(self):
-        if "message" in self.root:
-            return self.root["message"]
-
-        return None
-
-    def data(self):
-        if "data" in self.root:
-            return self.root["data"]
-
-        return None
-
-
-class ResponseError(Exception):
-    def __init__(self, response):
-        if not response.is_error():
-            raise Exception("Not an error response")
-
-        self.response = response
-
-        super(ResponseError, self).__init__(self.message())
-
-    def identifier(self):
-        return self.response.identifier()
-
-    def message(self):
-        return self.response.message()
-
-    def data(self):
-        return self.response.data()
+try:
+    from agoclient.agotransport_qpid import AgoQpidTransport
+    HAS_QPID = True
+except ImportError:
+    HAS_QPID = False
 
 
 class AgoConnection:
@@ -87,19 +33,18 @@ class AgoConnection:
         self.uuidmap_file = get_config_path('uuidmap/' + self.instance + '.json')
         self.log = logging.getLogger('AgoConnection')
 
+        messaging = str(get_config_option("system", "messaging", "qpid"))
         broker = str(get_config_option("system", "broker", "localhost"))
         username = str(get_config_option("system", "username", "agocontrol"))
         password = str(get_config_option("system", "password", "letmein"))
 
         self.log.debug("Connecting to broker %s", broker)
-        self.connection = Connection(broker,
-                                     username=username, password=password, reconnect=True)
-        self.connection.open()
-        self.session = self.connection.session()
-        self.receiver = self.session.receiver(
-            "agocontrol; {create: always, node: {type: topic}}")
-        self.sender = self.session.sender(
-            "agocontrol; {create: always, node: {type: topic}}")
+        if messaging == 'qpid':
+            if not HAS_QPID: raise RuntimeError('Qpid support is not available')
+            self.transport = AgoQpidTransport(broker, username, password)
+        else:
+            raise RuntimeError('Invalid messaging type ' + messaging)
+
         self.devices = {}
         self.uuids = {}
         self.handler = None
@@ -109,28 +54,23 @@ class AgoConnection:
         self.inventory_last_update = 0
         self.inventory_max_age = 60
         self.load_uuid_map()
+        self._shutting_down = False
+
+    def start(self):
+        return self.transport.start()
 
     def __del__(self):
         self.shutdown()
 
+    def prepare_shutdown(self):
+        self._shutting_down = True
+        if self.transport:
+            self.transport.prepare_shutdown()
+
     def shutdown(self):
-        self.begin_shutdown()
-        if self.session:
-            self.log.trace("Shutting down QPid session")
-            self.session.acknowledge()
-            self.session.close()
-            self.session = None
-
-        if self.connection:
-            self.log.trace("Shutting down QPid connection")
-            self.connection.close()
-            self.connection = None
-
-    def begin_shutdown(self):
-        if self.receiver:
-            self.log.trace("Shutting down QPid receiver")
-            self.receiver.close()
-            self.receiver = None
+        if self.transport:
+            self.transport.shutdown()
+            self.transport = None
 
     def add_handler(self, handler):
         """Add a command handler to be called when
@@ -144,7 +84,7 @@ class AgoConnection:
     def internal_id_to_uuid(self, internalid):
         """Convert a local (internal) id to an agocontrol UUID."""
         for uuid in self.uuids:
-            if (self.uuids[uuid] == internalid):
+            if self.uuids[uuid] == internalid:
                 return uuid
 
     def uuid_to_internal_id(self, uuid):
@@ -160,7 +100,7 @@ class AgoConnection:
         internal ids into a JSON file."""
         try:
             with open(self.uuidmap_file, 'w') as outfile:
-                simplejson.dump(self.uuids, outfile)
+                json.dump(self.uuids, outfile)
         except (OSError, IOError) as exception:
             self.log.error("Cannot write uuid map file: %s", exception)
         except ValueError as exception:  # includes simplejson error
@@ -171,7 +111,7 @@ class AgoConnection:
         internal ids from a JSON file."""
         try:
             with open(self.uuidmap_file, 'r') as infile:
-                self.uuids = simplejson.load(infile)
+                self.uuids = json.load(infile)
         except (OSError, IOError) as exception:
             if exception.errno == errno.ENOENT:
                 # This is not fatal, it just haven't been created yet
@@ -229,7 +169,7 @@ class AgoConnection:
         The devicetype corresponds to an entry in the schema.
         If an initial_name is set, the device will be given that name when it's first seen."""
         if self.internal_id_to_uuid(internalid) is None:
-            self.uuids[str(uuid4())] = internalid
+            self.uuids[str(uuid.uuid4())] = internalid
             self.store_uuid_map()
 
         device = {}
@@ -242,7 +182,7 @@ class AgoConnection:
 
     def remove_device(self, internalid):
         """Remove a device."""
-        if (self.internal_id_to_uuid(internalid) is not None):
+        if self.internal_id_to_uuid(internalid) is not None:
             self.emit_device_remove(self.internal_id_to_uuid(internalid))
             del self.devices[self.internal_id_to_uuid(internalid)]
 
@@ -350,88 +290,27 @@ class AgoConnection:
 
     def send_message(self, subject, content):
         """Method to send an agocontrol message with a subject. Subject can be None if necessary"""
-        _content = content
-        _content["instance"] = self.instance
-        if self.log.isEnabledFor(logging.TRACE):
-            self.log.trace("Sending message [sub=%s]: %s", subject, content)
+        message = dict(
+            content=content,
+            instance=self.instance  # XXX: This does not exist in C++
+        )
 
-        try:
-            message = Message(content=_content, subject=subject)
-            self.sender.send(message)
-            return True
-        except SendError as exception:
-            self.log.error("Failed to send message: %s", exception)
-            return False
+        if subject:
+            message['subject'] = subject
 
-    def send_request(self, content):
+        return self.transport.send_message(message)
+
+    def send_request(self, content, timeout=3.0):
         """Send message and fetch reply.
         
         Response will be an AgoResponse object
         """
-        _content = content
-        _content["instance"] = self.instance
-        try:
-            replyuuid = str(uuid4())
-            replyreceiver = self.session.receiver(
-                "reply-%s; {create: always, delete: always}" % replyuuid)
-            message = Message(content=_content)
-            message.reply_to = 'reply-%s' % replyuuid
+        message = dict(
+            content=content,
+            instance=self.instance  # XXX: This does not exist in C++
+        )
 
-            if self.log.isEnabledFor(logging.TRACE):
-                self.log.trace("Sending message [reply-to=%s]: %s", message.reply_to, content)
-
-            self.sender.send(message)
-            replymessage = replyreceiver.fetch(timeout=3)
-            self.session.acknowledge()
-
-            response = AgoResponse(replymessage.content)
-
-            if self.log.isEnabledFor(logging.TRACE):
-                self.log.trace("Received response: %s", response.response)
-
-            return response
-
-        except Empty:
-            self.log.warn("Timeout waiting for reply to %s", content)
-            return AgoResponse({"error": {"message": "no.reply"}})
-        except ReceiverError:
-            self.log.warn("ReceiverError waiting for reply to %s", content)
-            return AgoResponse({"error": {"message": "receiver.error"}})
-        except SendError:
-            self.log.warn("SendError when sending %s", content)
-            return AgoResponse({"error": {"message": "send.error"}})
-        finally:
-            replyreceiver.close()
-
-    def send_message_reply(self, content):
-        """Send message and fetch reply.
-        This is deprecated! Use send_request instead.
-        """
-        _content = content
-        _content["instance"] = self.instance
-        try:
-            replyuuid = str(uuid4())
-            replyreceiver = self.session.receiver(
-                "reply-%s; {create: always, delete: always}" % replyuuid)
-            message = Message(content=_content)
-            message.reply_to = 'reply-%s' % replyuuid
-
-            if self.log.isEnabledFor(logging.TRACE):
-                self.log.trace("Sending message [reply-to=%s]: %s", message.reply_to, content)
-
-            self.sender.send(message)
-            replymessage = replyreceiver.fetch(timeout=3)
-            self.session.acknowledge()
-        except Empty:
-            replymessage = None
-        except ReceiverError:
-            replymessage = None
-        except SendError:
-            replymessage = False
-        finally:
-            replyreceiver.close()
-
-        return replymessage
+        return self.transport.send_request(message, timeout)
 
     def get_inventory(self, cached_allowed=False):
         """Returns the inventory from the resolver. Return value is a dict. If cached_allowed is true, it may return a cached version"""
@@ -459,11 +338,11 @@ class AgoConnection:
             return self.agocontroller
 
         retry = 10
-        while retry > 0:
+        while retry > 0 and not self._shutting_down:
             try:
                 inventory = self.get_inventory(allow_cache)
 
-                if inventory != None and "devices" in inventory:
+                if inventory is not None and "devices" in inventory:
                     devices = inventory['devices']
                     for uuid in devices.keys():
                         d = devices[uuid]
@@ -474,10 +353,10 @@ class AgoConnection:
                             self.log.debug("agoController found: %s", uuid)
                             self.agocontroller = uuid
                             return uuid
-            except ResponseError as e:
+            except agoproto.ResponseError as e:
                 self.log.warning("Unable to resolve agocontroller (%s), retrying", e)
             else:
-                #self.log.warning("Unable to resolve agocontroller, not in inventory response? retrying")
+                # self.log.warning("Unable to resolve agocontroller, not in inventory response? retrying")
                 self.log.warning("Unable to resolve agocontroller, retrying")
 
             allow_cache = False
@@ -513,7 +392,7 @@ class AgoConnection:
         device_uuid = self.internal_id_to_uuid(internal_id)
         dev = inv.get('devices', {}).get(device_uuid)
         self.log.debug("For %s / %s got device %s", internal_id, device_uuid, dev)
-        if (dev == None or dev['name'] == ''):
+        if dev is None or dev['name'] == '':
             self.set_device_name(internal_id, proposed_name)
 
     def set_device_name(self, internal_id, name):
@@ -528,7 +407,6 @@ class AgoConnection:
         content["device"] = self.internal_id_to_uuid(internal_id)
         content["name"] = name
 
-        message = Message(content=content)
         self.send_message(None, content)
         self.log.debug("'setdevicename' message sent for %s, name=%s", internal_id, name)
 
@@ -542,83 +420,47 @@ class AgoConnection:
             # if self.devices[device]["stale"]==0:
             self.emit_device_discover(device, self.devices[device])
 
-    def _sendreply(self, addr, content):
-        """Internal used to send a reply."""
-        if self.log.isEnabledFor(logging.TRACE):
-            self.log.trace("Sending reply to %s: %s", addr, content)
-
-        try:
-            replysession = self.connection.session()
-            replysender = replysession.sender(addr)
-            response = Message(content)
-            replysender.send(response)
-        except SendError as exception:
-            self.log.error("Failed to send reply: %s", exception)
-        except AttributeError as exception:
-            self.log.error("Failed to encode reply: %s", exception)
-        except MessagingError as exception:
-            self.log.error("Failed to send reply message: %s", exception)
-        finally:
-            replysession.close()
-
     def run(self):
         """This will start command and event handling.
         Be aware that this is blocking."""
         self.log.debug("Startup complete, waiting for messages")
-        while self.connection:
-            try:
-                message = self.receiver.fetch()
-                self.session.acknowledge()
-                if self.log.isEnabledFor(logging.TRACE):
-                    self.log.trace("Processing message [src=%s, sub=%s]: %s",
-                                   message.reply_to, message.subject, message.content)
+        while self.transport and self.transport.is_active() and not self._shutting_down:
+            transport_message = self.transport.fetch_message(10.0)
+            if not transport_message:
+                continue
 
-                if (message.content and 'command' in message.content):
-                    if (message.content['command'] == 'discover'):
+            try:
+                content = transport_message.message.get('content', None)
+
+                self.log.trace("Processing message: %s", content)
+
+                if content and 'command' in content:
+                    if content['command'] == 'discover':
                         self.report_devices()
                     else:
-                        if ('uuid' in message.content and
-                                message.content['uuid'] in self.devices):
+                        if 'uuid' in content and content['uuid'] in self.devices:
                             # this is for one of our children
-                            myid = self.uuid_to_internal_id(
-                                message.content["uuid"])
-                            if (myid is not None and self.handler):
-                                returnval = self.handler(myid, message.content)
+                            myid = self.uuid_to_internal_id(content["uuid"])
+
+                            if myid is not None and self.handler:
+                                returnval = self.handler(myid, content)
                                 if returnval is None:
-                                    logging.error("No return value from Handler for %s, not valid behaviour",
-                                                  message.content)
+                                    logging.error("No return value from Handler for %s, not valid behaviour", content)
                                     returnval = self.response_failed(
                                         message='Component "%s" has not been update properly, please contact developers with logs' % self.instance)
 
-                                if (message.reply_to):
+                                if transport_message.reply_function:
                                     replydata = {}
-                                    if (isinstance(returnval, dict)):
+                                    if isinstance(returnval, dict):
                                         replydata = returnval
                                     else:
                                         replydata["result"] = returnval
-                                    self._sendreply(
-                                        message.reply_to, replydata)
-                if (message.subject):
-                    if ('event' in message.subject and self.eventhandler):
-                        self.eventhandler(message.subject, message.content)
-            except Empty as exception:
-                pass
 
-            except ReceiverError as exception:
-                self.log.error("Error while receiving message: %s", exception)
-                time.sleep(0.05)
+                                    transport_message.reply_function(replydata)
 
-            except SelectError as e:
-                # Modern QPID guards against this itself, but older qpid does not.
-                # When SIGINT is used to shutdown, this bubbles up here on older qpid.
-                # See http://svn.apache.org/viewvc/qpid/trunk/qpid/python/qpid/compat.py?r1=926766&r2=1558503
-                if e[0] == errno.EINTR:
-                    self.log.trace("EINTR while waiting for message, ignoring")
-                    time.sleep(0.05)
-                else:
-                    raise e
-
-            except LinkClosed:
-                # connection explicitly closed
-                self.log.debug("LinkClosed exception")
-                break
+                if 'subject' in transport_message.message:
+                    subj = transport_message.message['subject']
+                    if 'event' in subj and self.eventhandler:
+                        self.eventhandler(subj, content)
+            except:
+                self.log.exception("Failed to handle incoming message: %s", transport_message)

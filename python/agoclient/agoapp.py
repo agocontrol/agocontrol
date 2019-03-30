@@ -211,14 +211,14 @@ class AgoApp:
 
         self.log_handler.setFormatter(self.log_formatter)
 
-        # Forcibly limit QPID logging to INFO
-        logging.getLogger('qpid').setLevel(max(root.level, logging.INFO))
         root.addHandler(self.log_handler)
         self.log = logging.getLogger(self.app_name)
 
     def setup_connection(self):
         """Create an AgoConnection instance, assigned to self.connection"""
         self.connection = AgoConnection(self.app_short_name)
+        if not self.connection.start():
+            raise StartupError()
 
     def cleanup_connection(self):
         """Shutdown and clean up our AgoConnection instance"""
@@ -250,7 +250,7 @@ class AgoApp:
 
     def _do_shutdown(self):
         if self.connection:
-            self.connection.begin_shutdown()
+            self.connection.prepare_shutdown()
 
     def setup_app(self):
         """This should be overriden by the application to setup app specifics"""
@@ -461,7 +461,7 @@ class AgoApp:
                     self.log.debug('new_value=%s isinstance=%s len=%d' % (
                         new_value, str(isinstance(new_value, str)), len(new_value)))
                     if empty and isinstance(new_value, str) and len(new_value) == 0:
-                        self.log.debug('Parameter "%s" is empty' % (param))
+                        self.log.debug('Parameter "%s" is empty' % param)
                         return False, value
                     else:
                         return True, new_value
@@ -478,7 +478,7 @@ class AgoApp:
         else:
             # check if str is empty
             if empty and isinstance(value, str) and len(value) == 0:
-                self.log.trace('Parameter "%s" is empty' % (param))
+                self.log.trace('Parameter "%s" is empty' % param)
                 return False, value
 
         return True, param
