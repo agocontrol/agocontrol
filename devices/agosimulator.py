@@ -6,6 +6,7 @@ import time
 import logging
 
 import agoclient
+from agoclient import agoproto
 
 class AgoSimulator(agoclient.AgoApp):
     def message_handler(self, internalid, content):
@@ -23,11 +24,11 @@ class AgoSimulator(agoclient.AgoApp):
                     print "device level changed", content["level"]
                     self.connection.emit_event(internalid, "event.device.statechanged", content["level"], "")
             else:
-                return self.connection.response_unknown_command()
+                return agoproto.response_unknown_command()
 
-            return self.connection.response_success()
+            return agoproto.response_success()
         else:
-            return self.connection.response_bad_parameters()
+            return agoproto.response_bad_parameters()
 
 
     def app_cmd_line_options(self, parser):

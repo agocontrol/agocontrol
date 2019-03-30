@@ -6,6 +6,7 @@
 
 import sys
 import agoclient
+from agoclient import agoproto
 import threading
 import time
 from Queue import Queue
@@ -1210,22 +1211,22 @@ class AgoAlert(agoclient.AgoApp):
             command = content['command']
         if not command:
             self.log.error('No command specified')
-            return self.connection.response_failed('No command specified')
+            return agoproto.response_failed('No command specified')
 
         if command=='status':
             #return module status
             try:
-                return self.connection.response_success({'twitter':self.twitter.get_config(), 'mail':self.mail.get_config(), 'sms':self.sms.get_config(), 'push':self.push.get_config()})
+                return agoproto.response_success({'twitter':self.twitter.get_config(), 'mail':self.mail.get_config(), 'sms':self.sms.get_config(), 'push':self.push.get_config()})
             except Exception as e:
                 self.log.exception('commandHandler: status exception:')
-                return self.connection.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
 
         #=========================================
         elif command == 'test':
             if not self.check_command_param(content, 'type')[0]:
                 msg = 'Missing "type" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
 
             type = content['type']
             if type=='twitter':
@@ -1234,13 +1235,13 @@ class AgoAlert(agoclient.AgoApp):
                 if msg:
                     (error, msg) = self.twitter.test(msg)
                     if not error:
-                        return self.connection.response_success(None, 'Tweet successful')
+                        return agoproto.response_success(None, 'Tweet successful')
                     else:
                         self.log.error('CommandHandler: failed to tweet [%s]' % msg)
-                        return self.connection.response_failed('Failed to tweet (%s)' % msg)
+                        return agoproto.response_failed('Failed to tweet (%s)' % msg)
                 else:
                     self.log.error('CommandHandler: failed to tweet [%s]' % msg)
-                    return self.connection.response_failed(error)
+                    return agoproto.response_failed(error)
 
             elif type == 'sms':
                 #test sms
@@ -1251,33 +1252,33 @@ class AgoAlert(agoclient.AgoApp):
                 if msg:
                     (error, msg) = self.sms.test(msg)
                     if not error:
-                        return self.connection.response_success(None, 'SMS sent successfully')
+                        return agoproto.response_success(None, 'SMS sent successfully')
                     else:
                         self.log.error('CommandHandler: Failed to send SMS (%s)' % msg)
-                        return self.connection.response_failed('Failed to send SMS (%s)' % msg)
+                        return agoproto.response_failed('Failed to send SMS (%s)' % msg)
                 else:
                     self.log.error('CommandHandler: failed to tweet [%s]' % error)
-                    return self.connection.response_failed(error)
+                    return agoproto.response_failed(error)
 
             elif type == 'mail':
                 #mail test
                 if not self.check_command_param(content, 'tos')[0] or len(content['tos'])==0:
                     msg = 'Missing "tos" parameter'
                     self.log.error(msg)
-                    return self.connection.response_missing_parameters(msg)
+                    return agoproto.response_missing_parameters(msg)
 
                 tos = content['tos'].split(';')
                 (msg, error) = self.mail.prepare_message({'tos':tos, 'subject':'agocontrol mail test', 'body':'If you receive this email it means agocontrol alert is working fine!', 'attachment':''})
                 if msg:
                     (error, msg) = self.mail.test(msg)
                     if not error:
-                        return self.connection.response_success(None, 'Email sent successfully')
+                        return agoproto.response_success(None, 'Email sent successfully')
                     else:
                         self.log.error('CommandHandler: Failed to send email (%s)' % msg)
-                        return self.connection.response_failed('Failed to send email (%s)' % msg)
+                        return agoproto.response_failed('Failed to send email (%s)' % msg)
                 else:
                     self.log.error('CommandHandler: failed to send email [%s]' % error)
-                    return self.connection.response_failed(error)
+                    return agoproto.response_failed(error)
 
 
             elif type=='push':
@@ -1293,13 +1294,13 @@ class AgoAlert(agoclient.AgoApp):
                 if msg:
                     (error, msg) = self.push.test(msg)
                     if not error:
-                        return self.connection.response_success(None, 'Message pushed successfully')
+                        return agoproto.response_success(None, 'Message pushed successfully')
                     else:
                         self.log.error('CommandHandler: Failed to push message (%s)' % msg)
-                        return self.connection.response_failed('Failed to push message (%s)' % msg)
+                        return agoproto.response_failed('Failed to push message (%s)' % msg)
                 else:
                     self.log.error('CommandHandler: failed to push message [%s]' % error)
-                    return self.connection.response_failed(error)
+                    return agoproto.response_failed(error)
 
             else:
                 #TODO add here new alert test
@@ -1311,49 +1312,49 @@ class AgoAlert(agoclient.AgoApp):
             if not self.check_command_param(content, 'tweet')[0]:
                 msg = 'Missing "tweet" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
 
             (msg, error) = self.twitter.prepare_message({'tweet':content['tweet']})
             if msg:
                 self.twitter.add_message(msg)
-                return self.connection.response_success(None, 'Tweet posted successfully')
+                return agoproto.response_success(None, 'Tweet posted successfully')
             else:
                 self.log.error('CommandHandler: failed to tweet [%s]' % error)
-                return self.connection.response_failed(error)
+                return agoproto.response_failed(error)
 
         elif command=='sendsms':
             #send sms
             if not self.check_command_param(content, 'text')[0]:
                 msg = 'Missing "text" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
             if not self.check_command_param(content, 'to')[0]:
                 msg = 'Missing "to" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
 
             (msg, error) = self.sms.prepare_message({'to':content['to'], 'text':content['text']})
             if msg:
                 self.sms.add_message(msg)
-                return self.connection.response_success(None, 'SMS sent successfully')
+                return agoproto.response_success(None, 'SMS sent successfully')
             else:
                 self.log.error('CommandHandler: failed to send SMS [%s]' % error)
-                return self.connection.response_failed(error)
+                return agoproto.response_failed(error)
 
         elif command == 'sendmail':
             #send mail
             if not self.check_command_param(content, 'to')[0]:
                 msg = 'Missing "to" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
             if not self.check_command_param(content, 'subject')[0]:
                 msg = 'Missing "subject" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
             if not self.check_command_param(content, 'body')[0]:
                 msg = 'Missing "body" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
 
             tos = content['to'].split(';')
             if not content.has_key('attachment'):
@@ -1362,44 +1363,44 @@ class AgoAlert(agoclient.AgoApp):
             (msg, error) = self.mail.prepare_message({'tos':tos, 'subject':content['subject'], 'body':content['body'], 'attachment':content['attachment']})
             if msg:
                 self.mail.add_message(msg)
-                return self.connection.response_success(None, 'Mail sent successfully')
+                return agoproto.response_success(None, 'Mail sent successfully')
             else:
                 self.log.error('CommandHandler: failed to send email [%s]' % error)
-                return self.connection.response_failed(error)
+                return agoproto.response_failed(error)
 
         elif command == 'sendpush':
             #send push
             if not self.check_command_param(content, 'message')[0]:
                 msg = 'Missing "message" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
 
             (msg, error) = self.push.prepare_message({'message':content['message']})
             if msg:
                 self.push.add_message(msg)
-                return self.connection.response_success(None, 'Message pushed successfully')
+                return agoproto.response_success(None, 'Message pushed successfully')
             else:
                 self.log.error('CommandHandler: failed to push message [%s]' % error)
-                return self.connection.response_failed(error)
+                return agoproto.response_failed(error)
 
         #=========================================
         elif command == 'setconfig':
             if not self.check_command_param(content, 'type')[0]:
                 msg = 'Missing "type" parameter'
                 self.log.error(msg)
-                return self.connection.response_missing_parameters(msg)
+                return agoproto.response_missing_parameters(msg)
             type = content['type']
 
             if type == 'twitter':
                 if not self.check_command_param(content, 'accesscode')[0]:
                     msg = 'Missing "accesscode" parameter'
                     self.log.error(msg)
-                    return self.connection.response_missing_parameters(msg)
+                    return agoproto.response_missing_parameters(msg)
 
                 accessCode = content['accesscode'].strip()
                 if len(accessCode)==0:
                     #get authorization url
-                    return self.connection.response_success(self.twitter.get_authorization_url())
+                    return agoproto.response_success(self.twitter.get_authorization_url())
 
                 elif len(accessCode)>0:
                     #set twitter config
@@ -1408,18 +1409,18 @@ class AgoAlert(agoclient.AgoApp):
                         self.config['twitter']['key'] = key
                         self.config['twitter']['secret'] = secret
                         if self.twitter.set_config(key, secret) and self.save_config():
-                            return self.connection.response_success(None, 'Configuration saved successfully')
+                            return agoproto.response_success(None, 'Configuration saved successfully')
                         else:
-                            return self.connection.response_failed('Failed to save configuration')
+                            return agoproto.response_failed('Failed to save configuration')
                     else:
-                        return self.connection.response_failed('Unable to get credentials from access code (%s)' % msg)
+                        return agoproto.response_failed('Unable to get credentials from access code (%s)' % msg)
 
             elif type == 'sms':
                 #set sms config
                 if not self.check_command_param(content, 'provider')[0]:
                     msg = 'Missing "provider" parameter'
                     self.log.error(msg)
-                    return self.connection.response_missing_parameters(msg)
+                    return agoproto.response_missing_parameters(msg)
 
                 provider = content['provider']
                 if provider!=self.sms.name:
@@ -1442,35 +1443,35 @@ class AgoAlert(agoclient.AgoApp):
                     if not self.check_command_param(content, 'username')[0]:
                         msg = 'Missing "uername" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
                     if not self.check_command_param(content, 'password')[0]:
                         msg = 'Missing "password" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
 
                     self.config['12voip']['username'] = content['username']
                     self.config['12voip']['password'] = content['password']
                     if self.sms.set_config(content['username'], content['password']) and self.save_config():
-                        return self.connection.response_success(None, 'Configuration saved successfully')
+                        return agoproto.response_success(None, 'Configuration saved successfully')
                     else:
-                        return self.connection.response_failed('Failed to save configuration')
+                        return agoproto.response_failed('Failed to save configuration')
 
                 elif provider == 'freemobile':
                     if not self.check_command_param(content, 'user')[0]:
                         msg = 'Missing "user" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
                     if not self.check_command_param(content, 'apikey')[0]:
                         msg = 'Missing "apikey" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
 
                     self.config['freemobile']['user'] = content['user']
                     self.config['freemobile']['apikey'] = content['apikey']
                     if self.sms.set_config(content['user'], content['apikey']) and self.save_config():
-                        return self.connection.response_success(None, 'Configuration saved successfully')
+                        return agoproto.response_success(None, 'Configuration saved successfully')
                     else:
-                        return self.connection.response_failed('Failed to save configuration')
+                        return agoproto.response_failed('Failed to save configuration')
 
                 else:
                     #TODO add here new provider
@@ -1481,19 +1482,19 @@ class AgoAlert(agoclient.AgoApp):
                 if not self.check_command_param(content, 'smtp')[0]:
                     msg = 'Missing "smtp" parameter'
                     self.log.error(msg)
-                    return self.connection.response_missing_parameters(msg)
+                    return agoproto.response_missing_parameters(msg)
                 if not self.check_command_param(content, 'sender')[0]:
                     msg = 'Missing "sender" parameter'
                     self.log.error(msg)
-                    return self.connection.response_missing_parameters(msg)
+                    return agoproto.response_missing_parameters(msg)
                 if not self.check_command_param(content, 'loginpassword')[0]:
                     msg = 'Missing "loginpassword" parameter'
                     self.log.error(msg)
-                    return self.connection.response_missing_parameters(msg)
+                    return agoproto.response_missing_parameters(msg)
                 if not self.check_command_param(content, 'tls')[0]:
                     msg = 'Missing "tls" parameter'
                     self.log.error(msg)
-                    return self.connection.response_missing_parameters(msg)
+                    return agoproto.response_missing_parameters(msg)
 
 
                 #format login%_%password
@@ -1503,7 +1504,7 @@ class AgoAlert(agoclient.AgoApp):
                     (login, password) = content['loginpassword'].split('%_%')
                 except:
                     self.log.error('commandHandler: unable to split login%_%password [%s]' % content['loginpassword'])
-                    return self.connection.response_failed('Internal error')
+                    return agoproto.response_failed('Internal error')
                 tls = content['tls']
 
                 self.config['mail']['smtp'] = content['smtp']
@@ -1512,16 +1513,16 @@ class AgoAlert(agoclient.AgoApp):
                 self.config['mail']['password'] = password
                 self.config['mail']['tls'] = tls
                 if self.mail.set_config(content['smtp'], content['sender'], login , password, tls) and self.save_config():
-                    return self.connection.response_success(None, 'Configuration saved successfully')
+                    return agoproto.response_success(None, 'Configuration saved successfully')
                 else:
-                    return self.connection.response_failed('Failed to save configuration')
+                    return agoproto.response_failed('Failed to save configuration')
 
             elif type=='push':
                 #set push config
                 if not self.check_command_param(content, 'provider')[0]:
                     msg = 'Missing "provider" parameter'
                     self.log.error(msg)
-                    return self.connection.response_missing_parameters(msg)
+                    return agoproto.response_missing_parameters(msg)
 
                 provider = content['provider']
                 if provider!=self.push.name:
@@ -1548,76 +1549,76 @@ class AgoAlert(agoclient.AgoApp):
                     if not self.check_command_param(content, 'subcmd')[0]:
                         msg = 'Missing "subcmd" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
 
                     subCmd = content['subcmd']
                     if subCmd == 'getdevices':
                         if not self.check_command_param(content, 'apikey')[0]:
                             msg = 'Missing "apikey" parameter'
                             self.log.error(msg)
-                            return self.connection.response_missing_parameters(msg)
+                            return agoproto.response_missing_parameters(msg)
 
                         devices = self.push.getPushbulletDevices(content['apikey'])
-                        return self.connection.response_success({'devices':devices}, 'Device list retrieved successfully')
+                        return agoproto.response_success({'devices':devices}, 'Device list retrieved successfully')
 
                     elif subCmd == 'save':
                         if not self.check_command_param(content, 'apikey')[0]:
                             msg = 'Missing "apikey" parameter'
                             self.log.error(msg)
-                            return self.connection.response_missing_parameters(msg)
+                            return agoproto.response_missing_parameters(msg)
                         if not self.check_command_param(content, 'devices')[0]:
                             msg = 'Missing "devices" parameter'
                             self.log.error(msg)
-                            return self.connection.response_missing_parameters(msg)
+                            return agoproto.response_missing_parameters(msg)
 
                         self.config['pushbullet']['apikey'] = content['apikey']
                         devices = json.dumps(content['devices'])
                         self.config['pushbullet']['devices'] = devices
                         if self.push.set_config(content['apikey'], devices) and self.save_config():
-                            return self.connection.response_success(None, 'Configuration saved successfully')
+                            return agoproto.response_success(None, 'Configuration saved successfully')
                         else:
-                            return self.connection.response_failed('Failed to save configuration')
+                            return agoproto.response_failed('Failed to save configuration')
 
                 elif provider == 'pushover':
                     if not self.check_command_param(content, 'userid')[0]:
                         msg = 'Missing "userid" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
                     if not self.check_command_param(content, 'token')[0]:
                         msg = 'Missing "token" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
 
                     self.config['pushover']['userid'] = content['userid']
                     self.config['pushover']['token'] = content['token']
                     if self.push.set_config(content['userid'], content['token']) and self.save_config():
-                        return self.connection.response_success(None, 'Configuration saved successfully')
+                        return agoproto.response_success(None, 'Configuration saved successfully')
                     else:
-                        return self.connection.response_failed('Failed to save configuration')
+                        return agoproto.response_failed('Failed to save configuration')
 
                 elif provider == 'pushsafer':
                     if not self.check_command_param(content, 'key')[0]:
                         msg = 'Missing "key" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
 
                     self.config['pushsafer']['key'] = content['key']
                     if self.push.set_config(content['key']) and self.save_config():
-                        return self.connection.response_success(None, 'Configuration saved successfully')
+                        return agoproto.response_success(None, 'Configuration saved successfully')
                     else:
-                        return self.connection.response_failed('Failed to save configuration')
+                        return agoproto.response_failed('Failed to save configuration')
 
                 elif provider == 'notifymyandroid':
                     if not self.check_command_param(content, 'apikeys')[0]:
                         msg = 'Missing "apikeys" parameter'
                         self.log.error(msg)
-                        return self.connection.response_missing_parameters(msg)
+                        return agoproto.response_missing_parameters(msg)
 
                     self.config['notifymyandroid']['apikeys'] = json.dumps(content['apikeys'])
                     if self.push.set_config(content['apikeys']) and self.save_config():
-                        return self.connection.response_success(None, 'Configuration saved successfully')
+                        return agoproto.response_success(None, 'Configuration saved successfully')
                     else:
-                        return self.connection.response_failed('Failed to save configuration')
+                        return agoproto.response_failed('Failed to save configuration')
 
                 else:
                     #TODO add here new provider

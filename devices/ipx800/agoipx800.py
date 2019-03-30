@@ -8,11 +8,12 @@
 import sys
 import os
 import agoclient
+from agoclient import agoproto
 import threading
 import time
 import logging
 from pyipx800v3 import Ipx800v3
-from qpid.datatypes import uuid4
+from uuid import uuid4
 import json
 
 DEVICEMAPFILE = os.path.join(agoclient.CONFDIR, 'maps/ipx800.json')
@@ -1191,7 +1192,7 @@ def commandHandler(internalid, content):
         command = content['command']
     else:
         logger.error('No command specified')
-        return client.response_unknown_command('No command specified')
+        return agoproto.response_unknown_command('No command specified')
 
     if internalid=='ipx800controller':
         #controller command
@@ -1199,21 +1200,21 @@ def commandHandler(internalid, content):
             if content.has_key('ip'):
                 logger.info('Add IPX800v3 board with IP "%s"' % content['ip'])
                 if addIpx800v3Board(content['ip']):
-                    return client.response_success(message='Board added successfully')
+                    return agoproto.response_success(message='Board added successfully')
                 else:
-                    return client.response_failed('Board already registered')
+                    return agoproto.response_failed('Board already registered')
             else:
                 logger.error('Missing "ip" parameter')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
                 
         elif command=='getboards':
             boards = []
             for ipxIp in devices:
                 boards.append(ipxIp)
-            return client.response_success({'boards': boards})
+            return agoproto.response_success({'boards': boards})
 
         else:
-            return client.response_unknown_command()
+            return agoproto.response_unknown_command()
     else:
         #device command
         
@@ -1221,13 +1222,13 @@ def commandHandler(internalid, content):
         ipxIp = getIpx800Ip(internalid)
         if not ipxIp:
             logger.error('No Ipx ip found!')
-            return client.response_failed('Internal error')
+            return agoproto.response_failed('Internal error')
             
         if command=='adddevice':
             #check type presence
             if not content.has_key('type'):
                 logger.error('Missing "type" parameter')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
 
             logger.info('Add device of type "%s"' % content['type'])
             if content['type']==DEVICE_OUTPUT_SWITCH:
@@ -1235,113 +1236,113 @@ def commandHandler(internalid, content):
                     logger.info('Add switch on "%s" using Out%s' % (ipxIp, str(content['pin1'])))
                     (res, msg) = addOutputSwitch(ipxIp, content['pin1'])
                     if res:
-                        return client.response_success(message='Device added successfully')
+                        return agoproto.response_success(message='Device added successfully')
                     else:
-                        return client.response_failed(msg)
+                        return agoproto.response_failed(msg)
                 else:
                     logger.error('Missing "pin1" parameter')
-                    return client.response_failed('Internal error')
+                    return agoproto.response_failed('Internal error')
                     
             elif content['type']==DEVICE_OUTPUT_DRAPES:
                 if content.has_key('pin1') and content.has_key('pin2'):
                     logger.info('Add drapes on "%s" using Out%s and Out%s' % (ipxIp, str(content['pin1']), str(content['pin2'])))
                     (res, msg) = addOutputDrapes(ipxIp, content['pin1'], content['pin2'])
                     if res:
-                        return client.response_success(message='Device added successfully')
+                        return agoproto.response_success(message='Device added successfully')
 
                     else:
-                        return client.response_failed(msg)
+                        return agoproto.response_failed(msg)
                 else:
                     logger.error('Missing "pin1" and/or "pin2" parameters')
-                    return client.response_failed('Internal error')
+                    return agoproto.response_failed('Internal error')
                     
             elif content['type'] in (DEVICE_ANALOG_TEMPERATURE, DEVICE_ANALOG_HUMIDITY, DEVICE_ANALOG_VOLT, DEVICE_ANALOG_LIGHT, DEVICE_ANALOG_BINARY):
                 if content.has_key('pin1'):
                     logger.info('Add analog on "%s" using An%s' % (ipxIp, str(content['pin1'])))
                     (res, msg) = addAnalog(ipxIp, content['type'], content['pin1'])
                     if res:
-                        return client.response_success(message='Device added successfully')
+                        return agoproto.response_success(message='Device added successfully')
                     else:
-                        return client.response_failed(msg)
+                        return agoproto.response_failed(msg)
                 else:
                     logger.error('Missing "pin1" parameter')
-                    return client.response_failed('Internal error')
+                    return agoproto.response_failed('Internal error')
                     
             elif content['type']==DEVICE_COUNTER:
                 if content.has_key('pin1'):
                     logger.info('Add counter on "%s" using C%s' % (ipxIp, str(content['pin1'])))
                     (res, msg) = addCounter(ipxIp, content['pin1'])
                     if res:
-                        return client.response_success(message='Device added successfully')
+                        return agoproto.response_success(message='Device added successfully')
                     else:
-                        return client.response_failed(msg)
+                        return agoproto.response_failed(msg)
                 else:
                     logger.error('Missing "pin1" parameter')
-                    return client.response_failed('Internal error')
+                    return agoproto.response_failed('Internal error')
                     
             elif content['type']==DEVICE_DIGITAL_BINARY:
                 if content.has_key('pin1'):
                     logger.info('Add digital binary on "%s" using In%s' % (ipxIp, str(content['pin1'])))
                     (res, msg) = addDigitalBinary(ipxIp, content['pin1'])
                     if res:
-                        return client.response_success(message='Device added successfully')
+                        return agoproto.response_success(message='Device added successfully')
                     else:
-                        return client.response_failed(msg)
+                        return agoproto.response_failed(msg)
                 else:
                     logger.error('Missing "pin1" parameter')
-                    return client.response_failed('Internal error')
+                    return agoproto.response_failed('Internal error')
 
             elif content['type']==DEVICE_DIGITAL_PUSHBUTTON:
                 if content.has_key('pin1'):
                     logger.info('Add digital pushbutton on "%s" using In%s' % (ipxIp, str(content['pin1'])))
                     (res, msg) = addDigitalPushbutton(ipxIp, content['pin1'])
                     if res:
-                        return client.response_success(message='Device added successfully')
+                        return agoproto.response_success(message='Device added successfully')
                     else:
-                        return client.response_failed(msg)
+                        return agoproto.response_failed(msg)
                 else:
                     logger.error('Missing "pin1" parameter')
-                    return client.response_failed('Internal error')
+                    return agoproto.response_failed('Internal error')
 
             else:
                 logger.error('adddevice: unknown device type "%s"' % (content['type']))
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
                 
         elif command=='deletedevice':
             if content.has_key('device'):
                 logger.info('Delete device "%s"' % content['device'])
                 (res, msg) = deleteDevice(ipxIp, content['device'])
                 if res:
-                    return client.response_success(message='Device deleted successfully')
+                    return agoproto.response_success(message='Device deleted successfully')
                 else:
-                    return client.response_failed(msg)
+                    return agoproto.response_failed(msg)
             else:
                 logger.error('Missing "device" parameter')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
 
         elif command=='addlink':
             if content.has_key('output') and content.has_key('binary'):
                 logger.info('Create link between output "%s" and binary "%s"' % (str(content['output']), str(content['binary'])))
                 (res, msg) = addLink(ipxIp, content['output'], content['binary'])
                 if res:
-                    return client.response_success(message='Link created successfully')
+                    return agoproto.response_success(message='Link created successfully')
                 else:
-                    return client.response_failed(msg)
+                    return agoproto.response_failed(msg)
             else:
                 logger.error('Missing "output" and/or "binary" parameter')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
                     
         elif command=='deletelink':
             if content.has_key('output') and content.has_key('digital'):
                 logger.info('Delete link between output "%s" and digital "%s"' % (str(content['output']), str(content['digital'])))
                 (res, msg) = deleteLink(ipxIp, content['output'], content['digital'])
                 if res:
-                    return client.response_success(message='Link deleted successfully')
+                    return agoproto.response_success(message='Link deleted successfully')
                 else:
-                    return client.response_failed(msg)
+                    return agoproto.response_failed(msg)
             else:
                 logger.error('Missing "output" and/or "digital" parameter')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
 
         elif command=='on':
             device = getDevice(ipxIp, internalid)
@@ -1352,14 +1353,14 @@ def commandHandler(internalid, content):
                         turnOnSwitch(ipxIp, internalid)
                     else:
                         logger.error('command turnOn: outputs is not valid (1 awaited, %d received) [%s]' % (len(device['outputs']), device['outputs']))
-                        return client.response_failed('Internal error')
+                        return agoproto.response_failed('Internal error')
                 elif device['type']==DEVICE_OUTPUT_DRAPES:
                     logger.info('Open drapes "%s@%s"' % (ipxIp, internalid))
                     openDrapes(ipxIp, internalid)
-                return client.response_success()
+                return agoproto.response_success()
             else:
                 logger.error('commandHandler: command stop: no device found "%s"' % internalid)
-                return client.response_failed('No device found')
+                return agoproto.response_failed('No device found')
                     
         elif command=='off':
             device = getDevice(ipxIp, internalid)
@@ -1370,14 +1371,14 @@ def commandHandler(internalid, content):
                         turnOffSwitch(internalid, ipxIp, device['outputs'][0])
                     else:
                         logger.error('command turnOff: outputs is not valid (1 awaited, %d received) [%s]' % (len(device['outputs']), device['outputs']))
-                        return client.response_failed('Internal error')
+                        return agoproto.response_failed('Internal error')
                 elif device['type']==DEVICE_OUTPUT_DRAPES:
                     logger.info('Close drapes "%s@%s"' % (ipxIp, internalid))
                     closeDrapes(ipxIp, internalid)
-                return client.response_success()
+                return agoproto.response_success()
             else:
                 logger.error('commandHandler: command stop: no device found "%s"' % internalid)
-                return client.response_failed('No device found')
+                return agoproto.response_failed('No device found')
                     
         elif command=='allon':
             for internalid in devices[ipxIp]:
@@ -1388,8 +1389,8 @@ def commandHandler(internalid, content):
                         turnOnSwitch(ipxIp, internalid)
                     else:
                         logger.error('command allOn: outputs is not valid (1 awaited, %d received) [%s]' % (len(devices[ipxIp][internalid]['outputs']), devices[ipxIp][internalid]['outputs']))
-                        return client.response_failed('Internal error')
-            return client.response_success()
+                        return agoproto.response_failed('Internal error')
+            return agoproto.response_success()
             
         elif command=='alloff':
             for internalid in devices[ipxIp]:
@@ -1400,14 +1401,14 @@ def commandHandler(internalid, content):
                         turnOffSwitch(internalid, ipxIp, devices[ipxIp][internalid]['outputs'][0])
                     else:
                         logger.error('command allOff: outputs is not valid (1 awaited, %d received) [%s]' % (len(devices[ipxIp][internalid]['outputs']), devices[ipxIp][internalid]['outputs']))
-                        return client.response_failed('Internal error')
-            return client.response_success()
+                        return agoproto.response_failed('Internal error')
+            return agoproto.response_success()
             
         elif command=='reset':
             #command only available for counters (multilevelsensors)
             if not content.has_key('device'):
                 logger.error('command reset: missing parameter "device"')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
 
             internalid = content['device']
             device = getDevice(ipxIp, internalid)
@@ -1417,11 +1418,11 @@ def commandHandler(internalid, content):
                     resetCounter(ipxIp, internalid)
                 else:
                     logger.error('command reset: counters is not valid (1 awaited, %d received) [%s]' % (len(device['counters']), device['counters']))
-                    return client.response_failed('Internal error')
-                return client.response_success()
+                    return agoproto.response_failed('Internal error')
+                return agoproto.response_success()
             else:
                 logger.error('commandHandler: command reset: no device found "%s"' % internalid)
-                return client.response_failed('No device found')
+                return agoproto.response_failed('No device found')
                 
         elif command=='status':
             outputs = []
@@ -1474,18 +1475,18 @@ def commandHandler(internalid, content):
             
             status = {'outputs':" ".join(outputs), 'digitals':" ".join(digitals), 'analogs':" ".join(analogs), 'counters':" ".join(counters)}
             logger.info(status)
-            return client.response_success({'status':status, 'devices':devs, 'links':links})
+            return agoproto.response_success({'status':status, 'devices':devs, 'links':links})
             
         elif command=='setlevel':
             if not content.has_key('level'):
                 logger.error('setlevel command: missing parameters')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
             level = 0
             try:
                 level = int(content['level'])
             except:
                 logger.error('setlevel command: unable to convert level to int')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
             device = getDevice(ipxIp, internalid)
             logger.info("device=%s" % str(device))
             if device:
@@ -1523,22 +1524,22 @@ def commandHandler(internalid, content):
                         else:
                             #unable to setlevel of operating drapes
                             logger.warning('setlevel command: unable to set level on operating drape')
-                            return client.response_failed('Set level can be done only on non operating drape')
+                            return agoproto.response_failed('Set level can be done only on non operating drape')
                     else:
                         logger.warning('setlevel command: device duration is not setted. Unable to setlevel')
-                        return client.response_failed('Drapes must be initialized first (full open or close) before setting level')
+                        return agoproto.response_failed('Drapes must be initialized first (full open or close) before setting level')
                 else:
                     logger.error('setlevel command: specified device [%s] is not a drape' % internalid)
-                    return client.response_failed('Device is not a drape. Unable to set level.')
-                return client.response_success()
+                    return agoproto.response_failed('Device is not a drape. Unable to set level.')
+                return agoproto.response_success()
             else:
                 logger.error('commandHandler: command setlevel: no device found "%s"' % internalid)
-                return client.response_failed('No device found')
+                return agoproto.response_failed('No device found')
             
         elif command=='forcestate':
             if not content.has_key('device') or not content.has_key('state'):
                 logger.error('forcestate command: missing parameters')
-                return client.response_failed('Internal error')
+                return agoproto.response_failed('Internal error')
             state = content['state']
             internalid = content['device']
             device = getDevice(ipxIp, internalid)
@@ -1560,10 +1561,10 @@ def commandHandler(internalid, content):
                     else:
                         logger.info('Force switch "%s@%s" state to ON' % (ipxIp, internalid))
                         emitDeviceValueChanged(ipxIp, internalid, STATE_ON)
-                return client.response_success()
+                return agoproto.response_success()
             else:
                 logger.error('commandHandler: command forcestate: no device found "%s"' % internalid)
-                return client.response_failed('No device found')
+                return agoproto.response_failed('No device found')
                        
         elif command=='stop':
             device = getDevice(ipxIp, internalid)
@@ -1571,16 +1572,16 @@ def commandHandler(internalid, content):
                 if device['type']==DEVICE_OUTPUT_DRAPES:
                     if not stopDrapes(ipxIp, internalid):
                         return {'error':1, 'msg':'Failed to stop drapes'}
-                return client.response_success()
+                return agoproto.response_success()
             else:
                 logger.error('commandHandler: command stop: no device found "%s"' % internalid)
-                return client.response_failed('No device found')
+                return agoproto.response_failed('No device found')
 
         elif command=='saveconfig':
             if saveDevices():
-                return client.response_success(message='Config saved')
+                return agoproto.response_success(message='Config saved')
             else:
-                return client.response_failed('Unable to save config')
+                return agoproto.response_failed('Unable to save config')
 
         else:
             return {'error':1, 'msg':'Unknown command'}

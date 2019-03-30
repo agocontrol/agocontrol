@@ -19,14 +19,6 @@ except ImportError:
 class AgoConnection:
     """This is class will handle the connection to ago control."""
 
-    """Response codes"""
-    RESPONSE_SUCCESS = 'success'
-    RESPONSE_ERR_FAILED = 'failed'
-    RESPONSE_ERR_UNKNOWN_COMMAND = 'unknown.command'
-    RESPONSE_ERR_BAD_PARAMETERS = 'bad.parameters'
-    RESPONSE_ERR_NO_COMMANDS_FOR_DEVICE = 'no.commands.for.device'
-    RESPONSE_ERR_MISSING_PARAMETERS = 'missing.parameters'
-
     def __init__(self, instance):
         """The constructor."""
         self.instance = instance
@@ -190,7 +182,7 @@ class AgoConnection:
         """suspend a device"""
         uuid = self.internal_id_to_uuid(internalid)
         if uuid:
-            if self.devices.has_key(uuid):
+            if uuid in self.devices:
                 self.devices[uuid]["stale"] = 1
                 self.emit_device_stale(uuid, 1)
 
@@ -198,7 +190,7 @@ class AgoConnection:
         """resume a device"""
         uuid = self.internal_id_to_uuid(internalid)
         if uuid:
-            if self.devices.has_key(uuid):
+            if uuid in self.devices:
                 self.devices[uuid]["stale"] = 0
                 self.emit_device_stale(uuid, 0)
 
@@ -212,81 +204,6 @@ class AgoConnection:
                 return True
         else:
             return False
-
-    def response_error(self, **kwargs):
-        """
-        parameters are voluntary shortened!
-        @param iden: response identifier <mandatory>
-        @param mess: response message <optional>
-        @param data: response data <optional>
-        """
-        response = {}
-        error = {}
-
-        # identifier
-        if kwargs.has_key('iden') and kwargs['iden'] != None:
-            error['identifier'] = kwargs['iden']
-        else:
-            # iden is mandatory
-            raise Exception('Response without identifier (param "iden") not permitted')
-
-        # message
-        if kwargs.has_key('mess') and kwargs['mess'] != None:
-            error['message'] = kwargs['mess']
-        else:
-            # mess is mandatory
-            raise Exception('Error response without message (param "mess") not permitted')
-
-        # data
-        if kwargs.has_key('data') and kwargs['data'] != None:
-            error['data'] = kwargs['data']
-
-        response['error'] = error
-        response['_newresponse'] = True  # TODO: remove thits after everything is using new response style
-        return response
-
-    def response_unknown_command(self, message="Unhandled command", data=None):
-        return self.response_error(iden=self.RESPONSE_ERR_UNKNOWN_COMMAND, mess=message, data=data)
-
-    def response_missing_parameters(self, message="Missing parameter", data=None):
-        return self.response_error(iden=self.RESPONSE_ERR_MISSING_PARAMETERS, mess=message, data=data)
-
-    def response_bad_parameters(self, message="Bad parameter", data=None):
-        return self.response_error(iden=self.RESPONSE_ERR_BAD_PARAMETERS, mess=message, data=data)
-
-    def response_failed(self, message, data=None):
-        return self.response_error(iden=self.RESPONSE_ERR_FAILED, mess=message, data=data)
-
-    def response_result(self, **kwargs):
-        """
-        parameters are voluntary shortened!
-        @param iden: response identifier 
-        @param mess: response message <optional>
-        @param data: response data <optional>
-        """
-        response = {}
-        result = {}
-
-        if kwargs.has_key('iden') and kwargs['iden'] != None:
-            result['identifier'] = kwargs['iden']
-        else:
-            raise Exception('Response without identifier (param "iden") not permitted')
-
-        if kwargs.has_key('mess') and kwargs['mess'] != None:
-            result['message'] = kwargs['mess']
-
-        if kwargs.has_key('data') and kwargs['data'] != None:
-            result['data'] = kwargs['data']
-
-        response['result'] = result
-        response['_newresponse'] = True  # TODO: remove thits after everything is using new response style
-        return response
-
-    def response_success(self, data=None, message=None):
-        """
-        First parameter is data because data is more often returned than message when response is successful
-        """
-        return self.response_result(iden=self.RESPONSE_SUCCESS, mess=message, data=data)
 
     def send_message(self, subject, content):
         """Method to send an agocontrol message with a subject. Subject can be None if necessary"""
@@ -415,7 +332,7 @@ class AgoConnection:
         self.log.debug("Reporting child devices")
         for device in self.devices:
             # only report not stale device
-            # if not self.devices[device].has_key("stale"):
+            # if not "stale" in self.devices[device]:
             #    self.devices[device]["stale"] = 0
             # if self.devices[device]["stale"]==0:
             self.emit_device_discover(device, self.devices[device])
@@ -446,7 +363,7 @@ class AgoConnection:
                                 returnval = self.handler(myid, content)
                                 if returnval is None:
                                     logging.error("No return value from Handler for %s, not valid behaviour", content)
-                                    returnval = self.response_failed(
+                                    returnval = agoproto.response_failed(
                                         message='Component "%s" has not been update properly, please contact developers with logs' % self.instance)
 
                                 if transport_message.reply_function:
