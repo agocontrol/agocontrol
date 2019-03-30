@@ -1,19 +1,19 @@
-import time
+import errno
 import logging
 import simplejson
-import errno
+import time
 from config import get_config_option, get_config_path
-
-from select import error as SelectError
-
+from qpid.log import enable, DEBUG, WARN
 from qpid.messaging import *
 from qpid.util import URL
-from qpid.log import enable, DEBUG, WARN
+from select import error as SelectError
 
 __all__ = ["AgoConnection"]
 
+
 class AgoResponse:
     """This class represents a response as obtained from AgoConnection.send_request"""
+
     def __init__(self, response):
         self.response = response
         if self.is_ok():
@@ -36,19 +36,20 @@ class AgoResponse:
         return "result" in self.response
 
     def identifier(self):
-        return self.root["identifier"];
+        return self.root["identifier"]
 
     def message(self):
         if "message" in self.root:
-            return self.root["message"];
+            return self.root["message"]
 
         return None
 
     def data(self):
         if "data" in self.root:
-            return self.root["data"];
+            return self.root["data"]
 
         return None
+
 
 class ResponseError(Exception):
     def __init__(self, response):
@@ -58,7 +59,7 @@ class ResponseError(Exception):
         self.response = response
 
         super(ResponseError, self).__init__(self.message())
-    
+
     def identifier(self):
         return self.response.identifier()
 
@@ -67,6 +68,7 @@ class ResponseError(Exception):
 
     def data(self):
         return self.response.data()
+
 
 class AgoConnection:
     """This is class will handle the connection to ago control."""
@@ -91,7 +93,7 @@ class AgoConnection:
 
         self.log.debug("Connecting to broker %s", broker)
         self.connection = Connection(broker,
-            username=username, password=password, reconnect=True)
+                                     username=username, password=password, reconnect=True)
         self.connection.open()
         self.session = self.connection.session()
         self.receiver = self.session.receiver(
@@ -128,7 +130,7 @@ class AgoConnection:
         if self.receiver:
             self.log.trace("Shutting down QPid receiver")
             self.receiver.close()
-            self.receiver= None
+            self.receiver = None
 
     def add_handler(self, handler):
         """Add a command handler to be called when
@@ -264,7 +266,7 @@ class AgoConnection:
         """return True if a device is stale"""
         uuid = self.internal_id_to_uuid(internalid)
         if uuid:
-            if self.devices[uuid]["stale"]==0:
+            if self.devices[uuid]["stale"] == 0:
                 return False
             else:
                 return True
@@ -281,26 +283,26 @@ class AgoConnection:
         response = {}
         error = {}
 
-        #identifier
-        if kwargs.has_key('iden') and kwargs['iden']!=None:
+        # identifier
+        if kwargs.has_key('iden') and kwargs['iden'] != None:
             error['identifier'] = kwargs['iden']
         else:
-            #iden is mandatory
+            # iden is mandatory
             raise Exception('Response without identifier (param "iden") not permitted')
 
-        #message
-        if kwargs.has_key('mess') and kwargs['mess']!=None:
+        # message
+        if kwargs.has_key('mess') and kwargs['mess'] != None:
             error['message'] = kwargs['mess']
         else:
-            #mess is mandatory
+            # mess is mandatory
             raise Exception('Error response without message (param "mess") not permitted')
 
-        #data
-        if kwargs.has_key('data') and kwargs['data']!=None:
+        # data
+        if kwargs.has_key('data') and kwargs['data'] != None:
             error['data'] = kwargs['data']
 
         response['error'] = error
-        response['_newresponse'] = True #TODO: remove thits after everything is using new response style
+        response['_newresponse'] = True  # TODO: remove thits after everything is using new response style
         return response
 
     def response_unknown_command(self, message="Unhandled command", data=None):
@@ -325,19 +327,19 @@ class AgoConnection:
         response = {}
         result = {}
 
-        if kwargs.has_key('iden') and kwargs['iden']!=None:
+        if kwargs.has_key('iden') and kwargs['iden'] != None:
             result['identifier'] = kwargs['iden']
         else:
             raise Exception('Response without identifier (param "iden") not permitted')
 
-        if kwargs.has_key('mess') and kwargs['mess']!=None:
+        if kwargs.has_key('mess') and kwargs['mess'] != None:
             result['message'] = kwargs['mess']
 
-        if kwargs.has_key('data') and kwargs['data']!=None:
+        if kwargs.has_key('data') and kwargs['data'] != None:
             result['data'] = kwargs['data']
 
         response['result'] = result
-        response['_newresponse'] = True #TODO: remove thits after everything is using new response style
+        response['_newresponse'] = True  # TODO: remove thits after everything is using new response style
         return response
 
     def response_success(self, data=None, message=None):
@@ -357,7 +359,7 @@ class AgoConnection:
             message = Message(content=_content, subject=subject)
             self.sender.send(message)
             return True
-        except SendError, exception:
+        except SendError as exception:
             self.log.error("Failed to send message: %s", exception)
             return False
 
@@ -391,13 +393,13 @@ class AgoConnection:
 
         except Empty:
             self.log.warn("Timeout waiting for reply to %s", content)
-            return AgoResponse({"error": {"message":"no.reply"}})
+            return AgoResponse({"error": {"message": "no.reply"}})
         except ReceiverError:
             self.log.warn("ReceiverError waiting for reply to %s", content)
-            return AgoResponse({"error": {"message":"receiver.error"}})
+            return AgoResponse({"error": {"message": "receiver.error"}})
         except SendError:
             self.log.warn("SendError when sending %s", content)
-            return AgoResponse({"error": {"message":"send.error"}})
+            return AgoResponse({"error": {"message": "send.error"}})
         finally:
             replyreceiver.close()
 
@@ -449,7 +451,7 @@ class AgoConnection:
             self.inventory = None
             self.inventory_last_update = 0
             return {}
-            #raise ResponseError(response)
+            # raise ResponseError(response)
 
     def get_agocontroller(self, allow_cache=True):
         """Returns the uuid of the agocontroller device"""
@@ -475,7 +477,7 @@ class AgoConnection:
             except ResponseError as e:
                 self.log.warning("Unable to resolve agocontroller (%s), retrying", e)
             else:
-#                self.log.warning("Unable to resolve agocontroller, not in inventory response? retrying")
+                #self.log.warning("Unable to resolve agocontroller, not in inventory response? retrying")
                 self.log.warning("Unable to resolve agocontroller, retrying")
 
             allow_cache = False
@@ -534,10 +536,10 @@ class AgoConnection:
         """Report all our devices."""
         self.log.debug("Reporting child devices")
         for device in self.devices:
-            #only report not stale device
-            #if not self.devices[device].has_key("stale"):
+            # only report not stale device
+            # if not self.devices[device].has_key("stale"):
             #    self.devices[device]["stale"] = 0
-            #if self.devices[device]["stale"]==0:
+            # if self.devices[device]["stale"]==0:
             self.emit_device_discover(device, self.devices[device])
 
     def _sendreply(self, addr, content):
@@ -550,11 +552,11 @@ class AgoConnection:
             replysender = replysession.sender(addr)
             response = Message(content)
             replysender.send(response)
-        except SendError, exception:
+        except SendError as exception:
             self.log.error("Failed to send reply: %s", exception)
-        except AttributeError, exception:
+        except AttributeError as exception:
             self.log.error("Failed to encode reply: %s", exception)
-        except MessagingError, exception:
+        except MessagingError as exception:
             self.log.error("Failed to send reply message: %s", exception)
         finally:
             replysession.close()
@@ -569,22 +571,24 @@ class AgoConnection:
                 self.session.acknowledge()
                 if self.log.isEnabledFor(logging.TRACE):
                     self.log.trace("Processing message [src=%s, sub=%s]: %s",
-                            message.reply_to, message.subject, message.content)
+                                   message.reply_to, message.subject, message.content)
 
                 if (message.content and 'command' in message.content):
                     if (message.content['command'] == 'discover'):
                         self.report_devices()
                     else:
                         if ('uuid' in message.content and
-                            message.content['uuid'] in self.devices):
-                            #this is for one of our children
+                                message.content['uuid'] in self.devices):
+                            # this is for one of our children
                             myid = self.uuid_to_internal_id(
                                 message.content["uuid"])
                             if (myid is not None and self.handler):
                                 returnval = self.handler(myid, message.content)
                                 if returnval is None:
-                                    logging.error("No return value from Handler for %s, not valid behaviour", message.content)
-                                    returnval = self.response_failed(message='Component "%s" has not been update properly, please contact developers with logs' % self.instance)
+                                    logging.error("No return value from Handler for %s, not valid behaviour",
+                                                  message.content)
+                                    returnval = self.response_failed(
+                                        message='Component "%s" has not been update properly, please contact developers with logs' % self.instance)
 
                                 if (message.reply_to):
                                     replydata = {}
@@ -597,14 +601,14 @@ class AgoConnection:
                 if (message.subject):
                     if ('event' in message.subject and self.eventhandler):
                         self.eventhandler(message.subject, message.content)
-            except Empty, exception:
+            except Empty as exception:
                 pass
 
-            except ReceiverError, exception:
+            except ReceiverError as exception:
                 self.log.error("Error while receiving message: %s", exception)
                 time.sleep(0.05)
 
-            except SelectError, e:
+            except SelectError as e:
                 # Modern QPID guards against this itself, but older qpid does not.
                 # When SIGINT is used to shutdown, this bubbles up here on older qpid.
                 # See http://svn.apache.org/viewvc/qpid/trunk/qpid/python/qpid/compat.py?r1=926766&r2=1558503
@@ -618,4 +622,3 @@ class AgoConnection:
                 # connection explicitly closed
                 self.log.debug("LinkClosed exception")
                 break
-
