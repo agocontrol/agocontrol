@@ -12,6 +12,7 @@ set(PYTHON_AGOCLIENT_SOURCE_FILES
         agoclient/agoproto.py
         agoclient/agotransport.py
         agoclient/agotransport_qpid.py
+        agoclient/agotransport_mqtt.py
         agoclient/config.py
         agoclient/__init__.py
         agoclient/_logging.py

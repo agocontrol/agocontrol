@@ -15,6 +15,12 @@ try:
 except ImportError:
     HAS_QPID = False
 
+try:
+    from agoclient.agotransport_mqtt import AgoMqttTransport
+    HAS_MQTT = True
+except ImportError:
+    HAS_MQTT = False
+
 
 class AgoConnection:
     """This is class will handle the connection to ago control."""
@@ -34,6 +40,9 @@ class AgoConnection:
         if messaging == 'qpid':
             if not HAS_QPID: raise RuntimeError('Qpid support is not available')
             self.transport = AgoQpidTransport(broker, username, password)
+        elif messaging == 'mqtt':
+            if not HAS_MQTT: raise RuntimeError('MQTT support is not available')
+            self.transport = AgoMqttTransport(instance, broker, username, password)
         else:
             raise RuntimeError('Invalid messaging type ' + messaging)
 
