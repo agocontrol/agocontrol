@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from __future__ import print_function
+
 import time
 import agoclient
 from agoclient import agoproto
@@ -195,7 +197,7 @@ class AgoTellstick(agoclient.AgoApp):
     def listNewSensors(self):
         sensors = self.tellstick.listSensors()
         self.log.debug("listSensors returned %d items", len(sensors))
-        for id, value in sensors.iteritems():
+        for id, value in sensors.items():
             self.log.trace("listNewSensors: devId: %s ", str(id))
             if not value["new"]:
                 continue
@@ -312,7 +314,7 @@ class AgoTellstick(agoclient.AgoApp):
                 from tellstickduo import tellstickduo
                 self.tellstick = tellstickduo(self)
                 self.log.debug("Stick: Defaulting to Tellstick Duo")
-        except OSError, e:
+        except OSError as e:
             self.log.error("Failed to load Tellstick stick version code: %s", e)
             raise agoclient.agoapp.StartupError()
 
@@ -384,7 +386,7 @@ class AgoTellstick(agoclient.AgoApp):
 
     def listNewDevices(self):
         switches = self.tellstick.listSwitches()
-        for devId, dev in switches.iteritems():
+        for devId, dev in switches.items():
             model = dev["model"]
             name = dev["name"]
 

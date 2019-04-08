@@ -18,6 +18,8 @@
 # Listing of sensors added
 #
 # *******************************************
+from __future__ import print_function
+
 import platform
 import time
 from datetime import datetime
@@ -26,7 +28,7 @@ from ctypes import c_int, c_ubyte, c_void_p, c_char_p, POINTER, string_at, creat
 debug = False
 
 # platform specific imports and CFUNC definitions:
-if (platform.system() == 'Windows'):
+if platform.system() == 'Windows':
     # Windows
     from ctypes import windll, WINFUNCTYPE
 
@@ -38,7 +40,7 @@ if (platform.system() == 'Windows'):
     RAWDEVICEFUNC = WINFUNCTYPE(None, c_char_p, c_int, c_int, c_void_p)
 
 else:
-    if (platform.system() == 'Darwin'):
+    if platform.system() == 'Darwin':
         # Mac
         from ctypes import cdll, CFUNCTYPE
 
@@ -336,12 +338,12 @@ callbacks = {'lastAdd': 0,
 
 def deviceEvent(deviceId, method, data, callbackId, context):
     if debug:
-        print ('DeviceEvent')
-        print ('deviceId:', deviceId)
-        print ('method:', method)
-        print ('data:', data)
-        print ('callbackId:', callbackId)
-        print ('context:', context)
+        print('DeviceEvent')
+        print('deviceId:', deviceId)
+        print('method:', method)
+        print('data:', data)
+        print('callbackId:', callbackId)
+        print('context:', context)
 
     for key in callbacks['deviceEvent']:
         f = callbacks['deviceEvent'][key]
@@ -355,11 +357,11 @@ def deviceEvent(deviceId, method, data, callbackId, context):
 
 def deviceChangeEvent(deviceId, changeEvent, changeType, callbackId, context):
     if debug:
-        print ('DeviceChangeEvent')
-        print ('deviceId:', deviceId)
-        print ('changeEvent:', changeEvent)
-        print ('changeType:', changeType)
-        print ('callbackId:', callbackId)
+        print('DeviceChangeEvent')
+        print('deviceId:', deviceId)
+        print('changeEvent:', changeEvent)
+        print('changeType:', changeType)
+        print('callbackId:', callbackId)
 
     for key in callbacks['deviceChangeEvent']:
         f = callbacks['deviceChangeEvent'][key]
@@ -373,15 +375,15 @@ def deviceChangeEvent(deviceId, changeEvent, changeType, callbackId, context):
 
 def sensorEvent(protocol, model, id, dataType, value, timestamp, callbackId, context):
     if debug:
-        print ('SensorEvent')
-        print ('protocol:', protocol)
-        print ('model:', model)
-        print ('id:', id)
-        print ('datatype:', dataType)
-        print ('value:', value)
-        print ('timestamp:', timestamp)
-        print ('callbackId:', callbackId)
-        print ('context:', context)
+        print('SensorEvent')
+        print('protocol:', protocol)
+        print('model:', model)
+        print('id:', id)
+        print('datatype:', dataType)
+        print('value:', value)
+        print('timestamp:', timestamp)
+        print('callbackId:', callbackId)
+        print('context:', context)
 
     for key in callbacks['sensorEvent']:
         f = callbacks['sensorEvent'][key]
@@ -395,11 +397,11 @@ def sensorEvent(protocol, model, id, dataType, value, timestamp, callbackId, con
 
 def rawDeviceEvent(data, controllerId, callbackId, context):
     if debug:
-        print ('RawDeviceEvent')
-        print ('data:', data)
-        print ('controllerId:', controllerId)
-        print ('callbackId:', callbackId)
-        print ('context:', context)
+        print('RawDeviceEvent')
+        print('data:', data)
+        print('controllerId:', controllerId)
+        print('callbackId:', callbackId)
+        print('context:', context)
 
     for key in callbacks['rawDeviceEvent']:
         f = callbacks['rawDeviceEvent'][key]
@@ -439,7 +441,7 @@ def registerEvent(func, eventType):
         elif eventType == 'rawDeviceEvent':
             _callbackFuncs['rawCallbackId'] = tdlib.tdRegisterRawDeviceEvent(_callbackFuncs['raw'], 0)
         else:
-            print ('Unknown event type', eventType)
+            print('Unknown event type', eventType)
 
     callbacks[eventType][callbacks['lastAdd']] = func
 
@@ -532,7 +534,7 @@ def listSensors():
     model = create_string_buffer(modellength)
     idvalue = c_int()
     dataTypes = c_int()
-    while (tdlib.tdSensor(protocol, protocollength, model, modellength, byref(idvalue), byref(dataTypes)) == 0):
+    while tdlib.tdSensor(protocol, protocollength, model, modellength, byref(idvalue), byref(dataTypes)) == 0:
         s = {}
         # print "Sensor: ", protocol.value, model.value, "id:", idvalue.value
         s["protocol"] = protocol.value
@@ -542,7 +544,7 @@ def listSensors():
         value = create_string_buffer(valuelength)
         timestampvalue = c_int()
 
-        if ((dataTypes.value & TELLSTICK_TEMPERATURE) != 0):
+        if (dataTypes.value & TELLSTICK_TEMPERATURE) != 0:
             success = tdlib.tdSensorValue(protocol.value, model.value, idvalue.value, TELLSTICK_TEMPERATURE, value,
                                           valuelength, byref(timestampvalue))
             # print "Temperature: ", value.value, "C,", datetime.fromtimestamp(timestampvalue.value)
@@ -552,7 +554,7 @@ def listSensors():
         else:
             s["isTempSensor"] = False
 
-        if ((dataTypes.value & TELLSTICK_HUMIDITY) != 0):
+        if (dataTypes.value & TELLSTICK_HUMIDITY) != 0:
             success = tdlib.tdSensorValue(protocol.value, model.value, idvalue.value, TELLSTICK_HUMIDITY, value,
                                           valuelength, byref(timestampvalue))
             # print "Humidity: ", value.value, "%,", datetime.fromtimestamp(timestampvalue.value)
@@ -580,68 +582,68 @@ if __name__ == '__main__':
     init(
         defaultMethods=TELLSTICK_TURNON | TELLSTICK_TURNOFF | TELLSTICK_BELL | TELLSTICK_TOGGLE | TELLSTICK_DIM | TELLSTICK_LEARN)
 
-    print "listSensors"
+    print("listSensors")
     listSensors()
 
-    print ('getNumberOfDevices', getNumberOfDevices())
+    print('getNumberOfDevices', getNumberOfDevices())
 
     print ('Id\tName')
     for i in range(getNumberOfDevices()):
         devId = getDeviceId(i)
-        print (devId, getName(devId), methods(devId))
+        print(devId, getName(devId), methods(devId))
 
     if 0:
-        print ('Methods(1)', methods(1))
-        print ('methods(1, readable=True)', methods(1, readable=True))
-        print ('methods(3124, readable=True)', methods(3124, readable=True))
-        print ('TurnOn(1)', turnOn(1))
+        print('Methods(1)', methods(1))
+        print('methods(1, readable=True)', methods(1, readable=True))
+        print('methods(3124, readable=True)', methods(3124, readable=True))
+        print('TurnOn(1)', turnOn(1))
         time.sleep(1)
-        print ('TurnOff(1)', turnOff(1))
+        print('TurnOff(1)', turnOff(1))
         time.sleep(1)
-        print ('Dim (1, 121)', dim(1, 121))
+        print('Dim (1, 121)', dim(1, 121))
 
-        print ('LastSentCommand(1)', lastSentCommand(1))
-        print ('LastSentValue(1)', lastSentValue(1))
-        print ('GetErrorString(-2)', getErrorString(-2))
+        print('LastSentCommand(1)', lastSentCommand(1))
+        print('LastSentValue(1)', lastSentValue(1))
+        print('GetErrorString(-2)', getErrorString(-2))
 
-    print ('getDeviceIdFromStr', getDeviceIdFromStr('2'))
-    print ('getDeviceIdFromStr', getDeviceIdFromStr('Vardagsrum'))
-    print ('getDeviceIdFromStr', getDeviceIdFromStr('234'))
+    print('getDeviceIdFromStr', getDeviceIdFromStr('2'))
+    print('getDeviceIdFromStr', getDeviceIdFromStr('Vardagsrum'))
+    print('getDeviceIdFromStr', getDeviceIdFromStr('234'))
 
     devId = add_device()
     if devId > 0:
-        print ('AddDevice', devId)
-        print ('setName', repr(setName(devId, 'Test')))
-        print ('getName', repr(getName(devId)))
-        print ('getProtocol', getProtocol(devId))
-        print ('setProtocol', setProtocol(devId, 'arctech'))
-        print ('getProtocol', getProtocol(devId))
+        print('AddDevice', devId)
+        print('setName', repr(setName(devId, 'Test')))
+        print('getName', repr(getName(devId)))
+        print('getProtocol', getProtocol(devId))
+        print('setProtocol', setProtocol(devId, 'arctech'))
+        print('getProtocol', getProtocol(devId))
 
-        print ('getModel', getModel(devId))
-        print ('setModel', setModel(devId, 'selflearning-switch'))
-        print ('getModel', getModel(devId))
+        print('getModel', getModel(devId))
+        print('setModel', setModel(devId, 'selflearning-switch'))
+        print('getModel', getModel(devId))
 
-        print ('getDeviceParameter (unit)', repr(getDeviceParameter(devId, "unit", "")))
-        print ('setDeviceParameter (unit)', repr(setDeviceParameter(devId, 'unit', '123')))
-        print ('getDeviceParameter (unit)', repr(getDeviceParameter(devId, "unit", "")))
+        print('getDeviceParameter (unit)', repr(getDeviceParameter(devId, "unit", "")))
+        print('setDeviceParameter (unit)', repr(setDeviceParameter(devId, 'unit', '123')))
+        print('getDeviceParameter (unit)', repr(getDeviceParameter(devId, "unit", "")))
 
-        print ('getDeviceParameter (house)', repr(getDeviceParameter(devId, "house", "")))
-        print ('setDeviceParameter (house)', repr(setDeviceParameter(devId, "house", "321")))
-        print ('getDeviceParameter (house)', repr(getDeviceParameter(devId, "house", "")))
+        print('getDeviceParameter (house)', repr(getDeviceParameter(devId, "house", "")))
+        print('setDeviceParameter (house)', repr(setDeviceParameter(devId, "house", "321")))
+        print('getDeviceParameter (house)', repr(getDeviceParameter(devId, "house", "")))
 
         print ('\n\nId\tName')
         for i in range(getNumberOfDevices()):
             devId = getDeviceId(i)
-            print (devId, getName(devId), methods(devId))
+            print(devId, getName(devId), methods(devId))
 
-        print ('Remove Device', remove_device(devId))
+        print('Remove Device', remove_device(devId))
 
     else:
-        print ('add_device returned error', getErrorString(devId))
+        print('add_device returned error', getErrorString(devId))
 
     print ('\n\nId\tName')
     for i in range(getNumberOfDevices()):
         devId = getDeviceId(i)
-        print (devId, getName(devId), methods(devId))
+        print(devId, getName(devId), methods(devId))
 
     print ('Done with unit test')
