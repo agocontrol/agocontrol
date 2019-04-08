@@ -98,13 +98,13 @@ class ConfigTest(ConfigTestBase):
         if os.getuid() == 0:
             # TODO: Fix builders so they dont run as root, then change to self.fail instead.
             #self.fail("You cannot run this test as. Also, do not develop as root!")
-            print "You cannot run this test as. Also, do not develop as root!"
+            print("You cannot run this test as. Also, do not develop as root!")
             return
 
         with open(config.get_config_path('conf.d/blocked.conf'), 'w') as f:
             f.write("[blocked]\nnop=nop\n")
 
-        os.chmod(config.get_config_path('conf.d/blocked.conf'), 0444)
+        os.chmod(config.get_config_path('conf.d/blocked.conf'), 0o444)
 
         self.assertEqual(gco('blocked', 'nop'), 'nop')
 

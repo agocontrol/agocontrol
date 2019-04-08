@@ -3,7 +3,7 @@ from __future__ import print_function
 import agoclient._directories
 import agoclient._logging
 import argparse
-import config
+from . import config
 import logging
 import os.path
 import signal
@@ -70,7 +70,7 @@ class AgoApp:
         parser.add_argument('--log-method', dest="log_method",
                             help='Where to log', choices=['console', 'syslog'])
 
-        facilities = SysLogHandler.facility_names.keys()
+        facilities = list(SysLogHandler.facility_names.keys())
         facilities.sort()
         parser.add_argument('--log-syslog-facility', dest="syslog_facility",
                             help='Which syslog facility to log to.',
@@ -167,7 +167,7 @@ class AgoApp:
                 raise ConfigurationError("Invalid log_level %s" % lvl_name)
 
         # ..and set it
-        lvl = logging._levelNames[lvl_name.upper()]
+        lvl = logging.getLevelName(lvl_name.upper())
         root.setLevel(lvl)
 
         # Find log method..

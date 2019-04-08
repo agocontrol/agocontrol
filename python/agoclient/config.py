@@ -4,7 +4,7 @@ from augeas import Augeas
 from threading import Lock
 import logging
 
-from _directories import *
+from ._directories import *
 
 # For old-style * exports
 # Do not add new methods here; instead import what you really need
@@ -131,7 +131,7 @@ def get_config_option(section, option, default_value=None, app=None):
                     if value:
                         # First match
                         return value
-                except ValueError, e:
+                except ValueError as e:
                     logging.error("Failed to read configuration from %s: %s",
                             aug_path, e)
     finally:
@@ -189,7 +189,7 @@ def set_config_option(section, option, value, app=None):
         augeas.save()
 
         return True
-    except IOError, exception:
+    except IOError as exception:
         # Try to extract error
         aug_err = augeas.match("/augeas//error")
         e = []

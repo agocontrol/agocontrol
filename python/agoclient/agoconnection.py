@@ -270,7 +270,7 @@ class AgoConnection:
 
                 if inventory is not None and "devices" in inventory:
                     devices = inventory['devices']
-                    for uuid in devices.keys():
+                    for uuid in list(devices.keys()):
                         d = devices[uuid]
                         if d == None:
                             continue
