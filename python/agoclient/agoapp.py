@@ -11,6 +11,11 @@ import sys
 from agoclient.agoconnection import AgoConnection
 from logging.handlers import SysLogHandler
 
+try:
+    import faulthandler
+except:
+    faulthandler = None
+
 __all__ = ["AgoApp"]
 
 agoclient._logging.init()
@@ -301,6 +306,11 @@ class AgoApp:
             OS Exit code
 
         """
+
+        if faulthandler:
+            faulthandler.enable()
+            faulthandler.register(signal.SIGINFO)
+
         if not self.parse_command_line(argv):
             return 1
 
