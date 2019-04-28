@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-import agoclient._directories
 import agoclient._logging
+
 import argparse
 from . import config
 import logging
@@ -12,6 +12,8 @@ from agoclient.agoconnection import AgoConnection
 from logging.handlers import SysLogHandler
 
 __all__ = ["AgoApp"]
+
+agoclient._logging.init()
 
 
 class StartupError(Exception):
@@ -163,11 +165,14 @@ class AgoApp:
             lvl_name = self.get_config_option("log_level", "INFO",
                                               section=[None, "system"])
 
-            if lvl_name.upper() not in logging._levelNames:
-                raise ConfigurationError("Invalid log_level %s" % lvl_name)
+            lvl_name = lvl_name.upper()
+
+        lvl = logging.getLevelName(lvl_name)
+        # ensure it was a defined level name; if it returns this string, it was unknown.
+        if lvl == "Level %s" % lvl_name:
+            raise ConfigurationError("Invalid log_level %s" % lvl_name)
 
         # ..and set it
-        lvl = logging.getLevelName(lvl_name.upper())
         root.setLevel(lvl)
 
         # Find log method..
