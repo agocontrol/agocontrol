@@ -527,6 +527,9 @@ void AgoHttp::start() {
 }
 
 void AgoHttp::shutdown() {
+    if(state ==  Stopped)
+        return;
+
     // Close all listeners
     AGO_DEBUG() << "Closing all listener sockets";
     if(state == Running) {
@@ -536,6 +539,9 @@ void AgoHttp::shutdown() {
 }
 
 void AgoHttp::close() {
+    if(state ==  Stopped)
+        return;
+
     AGO_TRACE() << "Waiting for webserver threads";
     mongooseThread.join();
 
