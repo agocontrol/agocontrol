@@ -194,7 +194,7 @@ class PullStatus(threading.Thread):
                     else:
                         self.log.error('PullStatus: Could not get status from light')
                 except TypeError as e:
-                    self.log.error("PullStatus: Exception occurred in background thread. {}".format(e.message))
+                    self.log.error("PullStatus: Exception occurred in background thread. {}".format(str(e)))
             time.sleep(float(self.PollDelay))  # TODO: Calculate ((60-n)/NoDevices)/60
 
 if __name__ == "__main__":

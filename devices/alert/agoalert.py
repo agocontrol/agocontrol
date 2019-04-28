@@ -133,7 +133,7 @@ class Alert(threading.Thread):
         except Exception as e:
             self.log.exception('Error testing alert:')
             error = 1
-            msg = str(e.message)
+            msg = str(e)
             if len(msg)==0:
                 if getattr(e, 'reason', None):
                     msg = str(e.reason)
@@ -730,7 +730,7 @@ class Pushover(Alert):
                     return True, 'Message pushed successfully'
             except:
                 self.log.exception('Pushover: Exception push message')
-                return False, str(e.message)
+                return False, 'Unhandled exception'
 
 class Pushsafer(Alert):
     """
@@ -816,7 +816,7 @@ class Pushsafer(Alert):
                     return True, 'Message pushed successfully'
             except:
                 self.log.exception('Pushsafer: Exception push message')
-                return False, str(e.message)
+                return False, 'Pushsafer: Unhandled exception'
 
 class Pushbullet(Alert):
     """
@@ -1052,7 +1052,7 @@ class Notifymyandroid(Alert):
                         return False, 'error code %s' % code
                 except:
                     self.log.exception('Notifymyandroid: Exception push message')
-                    return False, str(e.message)
+                    return False, 'Notifymyandroid: Unhandled exception'
 
 
 

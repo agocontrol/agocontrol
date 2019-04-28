@@ -313,10 +313,10 @@ class AgoApp:
             except ConfigurationError as e:
                 if self.log:
                     self.log.error("Failed to start %s due to configuration error: %s",
-                                   self.app_name, e.message)
+                                   self.app_name, e)
                 else:
                     # Print to stderr, in case logging setup failed
-                    print("Failed to start %s due to configuration error: %s" % (self.app_name, e.message),
+                    print("Failed to start %s due to configuration error: %s" % (self.app_name, e),
                           file=sys.stderr)
                 return 1
 
