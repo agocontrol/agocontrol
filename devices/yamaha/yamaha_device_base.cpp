@@ -62,7 +62,7 @@ void YamahaDeviceBase::connect_() {
     sendBuf.consume(sendBuf.size());
     recvBuf.consume(recvBuf.size());
 
-    socket = boost::make_shared<ip::tcp::socket>(boost::ref(io_service));
+    socket = boost::make_shared<ip::tcp::socket>(io_service);
 
     socket->async_connect(
             deviceEndpoint,
