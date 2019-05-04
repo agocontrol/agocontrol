@@ -1,12 +1,11 @@
 cmake_minimum_required (VERSION 3.0)
 
-file (GLOB CONFD_FILES *.in)
+file (GLOB CONFD_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.in)
 
 foreach (infile ${CONFD_FILES})
 
     string(REGEX REPLACE ".in$" "" outfile ${infile})
     string(REGEX REPLACE ".*/" "" outfile ${outfile})
-
 
     configure_file(
         "${infile}"
@@ -14,9 +13,12 @@ foreach (infile ${CONFD_FILES})
         @ONLY
     )
 
-    LIST(APPEND CONFD_FILES_DONE ${CMAKE_CURRENT_BINARY_DIR}/${outfile})
+    LIST(APPEND CONFD_FILES_DONE ${outfile})
 
 endforeach (infile)
 
-file (GLOB CONFD_FILES *.conf)
-install (FILES ${CONFD_FILES_DONE} ${CONFD_FILES} DESTINATION ${CONFDIR}/conf.d)
+file (GLOB CONFD_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.conf)
+
+CopyFilesFromSource(conf_files "${CONFD_FILES}")
+
+InstallFiles(${CONFDIR}/conf.d "${CONFD_FILES_DONE};${CONFD_FILES}")
