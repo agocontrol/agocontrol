@@ -9,17 +9,11 @@
 namespace agocontrol {
 namespace log {
 
-static AGO_LOGGER_IMPL default_inst;
 typedef std::map<std::string, int> str_int_map;
 
 static str_int_map syslog_facilities;
 static std::vector<std::string> syslog_facility_names;
 static std::vector<std::string> log_levels;
-
-/* Static global accessor */
-AGO_LOGGER_IMPL & log_container::get() {
-    return default_inst;
-}
 
 void init_static() {
     if(log_levels.empty()) {
@@ -86,6 +80,7 @@ const std::vector<std::string>& log_container::getSyslogFacilities() {
     init_static();
     return syslog_facility_names;
 }
+
 severity_level log_container::getLevel(const std::string &level) {
     init_static();
     std::string ulevel(boost::to_upper_copy(level));
@@ -97,6 +92,14 @@ severity_level log_container::getLevel(const std::string &level) {
     }
 
     throw std::runtime_error("Invalid log level '" + level + "'");
+}
+
+std::map<std::string, severity_level> log_container::getLevels(const std::map<std::string, std::string>& src) {
+    std::map<std::string, severity_level> result;
+    for(auto i = src.cbegin(); i != src.cend(); i++) {
+        result[i->first] = getLevel(i->second);
+    }
+    return result;
 }
 
 const std::string& log_container::getLevel(severity_level level) {

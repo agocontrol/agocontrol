@@ -173,9 +173,13 @@ void AgoApp::setupLogging() {
     else
         level_str = getConfigOption("log_level", "info", ExtraConfigNameList("system"));
 
+    std::map<std::string, std::string> perChannelLevels = getConfigSection("loggers", ExtraConfigNameList("system"));
+
     try {
         logLevel = log_container::getLevel(level_str);
-        log_container::setCurrentLevel(logLevel);
+        auto channeLevels = log_container::getLevels(perChannelLevels);
+
+        log_container::setCurrentLevel(logLevel, channeLevels);
     }catch(std::runtime_error &e) {
         throw ConfigurationError(e.what());
     }

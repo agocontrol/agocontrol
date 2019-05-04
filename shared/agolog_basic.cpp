@@ -56,6 +56,10 @@ record_pump::~record_pump()
 
 
 
+static AGO_LOGGER_IMPL default_inst;
+AGO_LOGGER_IMPL & log_container::get() {
+    return default_inst;
+}
 
 void log_container::setOutputConsole() {
     get().setSink(boost::shared_ptr<log_sink>( new console_sink() ) );
@@ -72,11 +76,11 @@ void log_container::initDefault() {
         return;
     inited = true;
 
-    setCurrentLevel(AGO_DEFAULT_LEVEL);
+    get().setLevel(AGO_DEFAULT_LEVEL);
     // Default inited with console sink
 }
 
-void log_container::setCurrentLevel(severity_level lvl) {
+void log_container::setCurrentLevel(severity_level lvl, const std::map<std::string, severity_level>& ignored) {
     get().setLevel(lvl);
 }
 

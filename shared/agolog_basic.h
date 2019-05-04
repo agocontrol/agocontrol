@@ -160,4 +160,18 @@ class simple_logger {
 #define AGO_ERROR() AGO_LOG_SEV(AGO_GET_LOGGER, ::agocontrol::log::error)
 #define AGO_FATAL() AGO_LOG_SEV(AGO_GET_LOGGER, ::agocontrol::log::fatal)
 
+
+// Named loggers are not supported; automatically logs to default logger.
+// Usage is often "static AGO_LOGGER(..)" though so must declare something.
+#define AGO_LOGGER(name) AGO_LOGGER_ALIAS(name, name)
+#define AGO_LOGGER_ALIAS(name, alias) int __attribute__((unused)) __not_used_ ## name
+
+#define AGOL_TRACE(name) AGO_LOG_SEV(AGO_GET_LOGGER, ::agocontrol::log::trace)
+#define AGOL_DEBUG(name) AGO_LOG_SEV(AGO_GET_LOGGER, ::agocontrol::log::debug)
+#define AGOL_INFO(name) AGO_LOG_SEV(AGO_GET_LOGGER, ::agocontrol::log::info)
+#define AGOL_WARNING(name) AGO_LOG_SEV(AGO_GET_LOGGER, ::agocontrol::log::warning)
+#define AGOL_ERROR(name) AGO_LOG_SEV(AGO_GET_LOGGER, ::agocontrol::log::error)
+#define AGOL_FATAL(name) AGO_LOG_SEV(AGO_GET_LOGGER, ::agocontrol::log::fatal)
+
+
 #endif
