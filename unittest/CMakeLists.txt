@@ -17,7 +17,9 @@ target_link_libraries (testrunner ${TEST_LIBRARIES})
 
 add_test( cpp-test testrunner )
 
-add_test( python-test python -m unittest discover -s ../shared/ )
+add_test(NAME python-test
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-pytest.sh -v ${CMAKE_CURRENT_SOURCE_DIR}/python/
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # Shortcut to build and run all tests
 add_custom_target(check
