@@ -3,6 +3,7 @@ from __future__ import print_function
 import agoclient._logging
 
 import argparse
+
 from . import config
 import logging
 import os.path
@@ -423,6 +424,29 @@ class AgoApp:
         config._iterable_replace_none(app, self.app_short_name)
 
         return config.get_config_option(section, option, default_value, app)
+
+    def get_config_section(self, section=None, app=None):
+        """Read all options in the given section(s) from the configuration subsystem.
+
+        Same as get_config_option, but will return a dict with all defined values under the given
+        section(s). If more than one section/app is defined, all will be looked at, in the order
+        specified. If an option is set in multiple sections/app, the last one seen will be used.
+
+        Returns a dict with key/values.
+        """
+        if section is None:
+            section = self.app_short_name
+
+        if app is None:
+            if type(section) == str:
+                app = [self.app_short_name, section]
+            else:
+                app = [self.app_short_name] + section
+
+        config._iterable_replace_none(section, self.app_short_name)
+        config._iterable_replace_none(app, self.app_short_name)
+
+        return config.get_config_section(section, app)
 
     def set_config_option(self, option, value, section=None, app=None):
         """Write a config option to the configuration subsystem.

@@ -21,6 +21,7 @@ class TestAgoConfig : public CppUnit::TestFixture
     CPPUNIT_TEST( testSetError );
     CPPUNIT_TEST( testAppSet );
     CPPUNIT_TEST( testAppGet );
+    CPPUNIT_TEST( testAppGetSection );
     CPPUNIT_TEST_SUITE_END();
 
     ConfigNameList empty;
@@ -39,6 +40,7 @@ public:
     void testSetError();
 
     void testAppGet();
+    void testAppGetSection();
     void testAppSet();
 };
 
@@ -56,6 +58,9 @@ public:
     CPPUNIT_ASSERT_EQUAL(std::string(expected), (actual))
 #define ASSERT_NOSTR(actual) \
     CPPUNIT_ASSERT_EQUAL(std::string(), (actual))
+#define ASSERT_MAP_STR(expected, key, map) \
+    CPPUNIT_ASSERT(map.find(key) != map.end()); \
+    ASSERT_STR(expected, map.find(key)->second)
 
 void TestAgoConfig::setUp() {
     tempDir = fs::temp_directory_path() / fs::unique_path();
@@ -102,6 +107,11 @@ void TestAgoConfig::testBasicGet() {
 
     ASSERT_STR("localhost", getConfigSectionOption("system", "broker", nullptr));
     ASSERT_STR("value", getConfigSectionOption("test", "existing_key", nullptr));
+
+    auto map = getConfigSection("test", nullptr);
+
+    CPPUNIT_ASSERT_EQUAL((size_t)1, map.size());
+    ASSERT_MAP_STR("value", "existing_key", map);
 }
 
 void TestAgoConfig::testFallbackGet() {
@@ -136,6 +146,10 @@ void TestAgoConfig::testSimulatedAppGet() {
 
     // Overriden in test.conf
     ASSERT_STR("testpwd", getConfigSectionOption(section, "password", nullptr, app));
+    auto map = getConfigSection(section, app);
+    CPPUNIT_ASSERT_EQUAL((size_t)2, map.size());
+    ASSERT_MAP_STR("testpwd", "password", map);
+    ASSERT_MAP_STR("value", "existing_key", map);
 
     // from system.conf; will not be found since we only look in app test
     ASSERT_NOSTR(getConfigSectionOption(section, "broker", nullptr, app));
@@ -146,6 +160,13 @@ void TestAgoConfig::testSimulatedAppGet() {
     // Add system to app, and make sure we now can read broker
     app.add("system");
     ASSERT_STR("localhost", getConfigSectionOption(section, "broker", nullptr));
+
+    map = getConfigSection(section, app);
+    CPPUNIT_ASSERT(map.size() >= 8);
+    ASSERT_MAP_STR("testpwd", "password", map);
+    ASSERT_MAP_STR("value", "existing_key", map);
+    ASSERT_MAP_STR("00000000-0000-0000-000000000000", "uuid", map);
+    ASSERT_MAP_STR("SI", "units", map);
 }
 
 void TestAgoConfig::testBasicSet() {
@@ -191,13 +212,36 @@ void TestAgoConfig::testAppGet() {
 
     // This should go directly to system.conf, only
     ASSERT_STR("localhost", app.getConfigOption("broker", nullptr, "system"));
+    ASSERT_STR("letmein", app.getConfigOption("password", nullptr, "system"));
     ASSERT_NOSTR(app.getConfigOption("nonexisting_key", nullptr, "system"));
     ASSERT_NOSTR(app.getConfigOption("existing_key", nullptr, "system"));
 
     // This shall fall back on system.conf
     ASSERT_STR("localhost", app.getConfigOption("broker", nullptr, ExtraConfigNameList("system")));
+    ASSERT_STR("testpwd", app.getConfigOption("password", nullptr, ExtraConfigNameList("system")));
     ASSERT_NOSTR(app.getConfigOption("nonexisting_key", nullptr, ExtraConfigNameList("system")));
     ASSERT_STR("value", app.getConfigOption("existing_key", nullptr, ExtraConfigNameList("system")));
+}
+
+void TestAgoConfig::testAppGetSection() {
+    DummyUnitTestApp app;
+
+    // This should get the app only
+    auto map = app.getConfigSection(nullptr, nullptr);
+    CPPUNIT_ASSERT_EQUAL((size_t)1, map.size());
+    ASSERT_MAP_STR("value", "existing_key", map);
+
+    // This sould only get system
+    map = app.getConfigSection("system", "system");
+    ASSERT_MAP_STR("letmein", "password", map);
+
+    // This should fall back on system
+    map = app.getConfigSection("system", ExtraConfigNameList("system"));
+    ASSERT_MAP_STR("testpwd", "password", map);
+    ASSERT_MAP_STR("00000000-0000-0000-000000000000", "uuid", map);
+    ASSERT_MAP_STR("SI", "units", map);
+
+    CPPUNIT_ASSERT(map.find("existing_key") == map.end());
 }
 
 void TestAgoConfig::testAppSet() {

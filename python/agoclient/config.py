@@ -77,7 +77,6 @@ def _conf_file_path(filename):
 
 def _augeas_path(path, section, option):
     return "/files%s/%s/%s" % (path, section, option)
-    return "/files%s/%s/%s" % (path, section, option)
 
 
 def get_config_option(section, option, default_value=None, app=None):
@@ -110,7 +109,28 @@ def get_config_option(section, option, default_value=None, app=None):
         A unicode object with the value found in the data store, if found.
         If not found, default_value is passed through unmodified.
     """
-    if not augeas: _augeas_init()
+    value = _get_config_option(section, option, app)
+    if not value:
+        return default_value
+
+    return value
+
+
+def get_config_section(section, app=None):
+    """Read all options in the given section(s) from the configuration subsystem.
+
+    Same as get_config_option, but will return a dict with all defined values under the given
+    section(s). If more than one section/app is defined, all will be looked at, in the order
+    specified. If an option is set in multiple sections/app, the last one seen will be used.
+
+    Returns a dict with key/values.
+    """
+    return _get_config_option(section, None, app)
+
+
+def _get_config_option(section, option=None, app=None):
+    if not augeas:
+        _augeas_init()
 
     if type(section) == str:
         section = (section,)
@@ -120,25 +140,47 @@ def get_config_option(section, option, default_value=None, app=None):
     elif type(app) == str:
         app = (app,)
 
-    CONFIG_LOCK.acquire(True)
-    try:
-        for fn in app:
-            for s in section:
-                path = _conf_file_path(fn)
-                aug_path = _augeas_path(path, s, option)
-                try:
-                    value = augeas.get(aug_path)
-                    if value:
-                        # First match
-                        return value
-                except ValueError as e:
-                    logging.error("Failed to read configuration from %s: %s",
-                            aug_path, e)
-    finally:
-        CONFIG_LOCK.release()
+    results = {}  # Only used for multi-match
 
-    # Fall back on default value
-    return default_value
+    with CONFIG_LOCK:
+        for fn in app:
+            path = _conf_file_path(fn)
+
+            for s in section:
+                if option:
+                    try:
+                        aug_path = _augeas_path(path, s, option)
+                        value = augeas.get(aug_path)
+                        if value:
+                            return value
+                    except ValueError as e:
+                        logging.error("Failed to read configuration from %s: %s", aug_path, e)
+                else:
+                    # list find all options in section
+                    base_path = _augeas_path(path, s, '')
+                    try:
+                        matches = augeas.match(base_path + '*')
+                        # match returns a list of full paths; figure out each key and put in dict
+                        for path in matches:
+                            key = path[len(base_path):]
+
+                            # First found takes precedence, just as get_config_option behaves.
+                            if key[0] == '#' or key in results:
+                                continue
+
+                            try:
+                                value = augeas.get(path)
+                                results[key] = value
+                            except ValueError as e:
+                                logging.error("Failed to read configuration from %s: %s", path, e)
+
+                    except ValueError as e:
+                        logging.error("Failed to read configuration from %s: %s", aug_path, e)
+
+    if not option:
+        return results
+
+    return None
 
 
 def set_config_option(section, option, value, app=None):

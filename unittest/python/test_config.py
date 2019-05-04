@@ -86,6 +86,18 @@ class TestConfig:
         assert gco(['system'], 'units') == 'SI'
         assert gco(['test', 'system'], 'units') == 'inv'
 
+    def test_get_section(self, setup_config):
+        d = config.get_config_section(['system'], ['system'])
+        assert d['broker'] == 'localhost'
+        assert d['password'] == 'letmein'
+        assert d['uuid'] == '00000000-0000-0000-000000000000'
+
+        d = config.get_config_section(['system'], ['test', 'system'])
+        assert d['password'] == 'testpwd'
+        assert d['broker'] == 'localhost'
+        assert d['uuid'] == '00000000-0000-0000-000000000000'
+
+
     def test_set_basic(self, setup_config):
         assert sco('system', 'new_value', '666')
         assert gco('system', 'new_value') == '666'
@@ -144,6 +156,25 @@ class TestAppConfig:
 
         # Will give system.confs password
         assert app_sut.get_config_option('password', app=['other', 'system'], section='system') == 'letmein'
+
+
+    def test_get_section(self, app_sut):
+        d = app_sut.get_config_section()
+        assert d == dict(test_value_0='100',
+                         test_value_blank=None,
+                         local='4',
+                         units='inv')
+
+        d = app_sut.get_config_section(['system'], ['system'])
+        assert d['broker'] == 'localhost'
+        assert d['password'] == 'letmein'
+        assert d['uuid'] == '00000000-0000-0000-000000000000'
+
+        d = app_sut.get_config_section(['system'], ['test', 'system'])
+        assert d['password'] == 'testpwd'
+        assert d['broker'] == 'localhost'
+        assert d['uuid'] == '00000000-0000-0000-000000000000'
+        assert 'test_value_blank' not in d  # from test section
 
     def test_set_basic(self, app_sut):
         assert app_sut.set_config_option('new_value', '666') == True

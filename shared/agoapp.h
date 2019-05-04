@@ -217,6 +217,31 @@ namespace agocontrol {
         }
 
         /**
+         * Read all options in the given section from the configuration subsystem.
+         *
+         * Returns a map of all found values in the given section/app.
+         * If an explicit section/app is set, we only look in those.
+         * If extra section is used, we look in apps own section first, then on the given extra section.
+         * If extra app is used, we look in the apps own file first, then in the given extra file.
+         *
+         * Note that we do not automaticall set app = section in this method!
+         */
+        std::map<std::string, std::string> getConfigSection(const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
+            ConfigNameList section_(section, appConfigSection);
+            ConfigNameList app_;
+            if(!app.empty() && !app.isExtra()) {
+                app_.addAll(app);
+            }else if(!app.empty()) {
+                app_.add(appConfigSection);
+                app_.addAll(app);
+            }else
+                app_.add(appConfigSection);
+
+            return agocontrol::getConfigSection(section_, app_);
+        }
+
+
+        /**
          * Write a config option to the configuration subsystem.
          *
          * The system is based on per-app configuration files, which has sections
