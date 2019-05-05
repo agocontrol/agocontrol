@@ -174,12 +174,22 @@ class AgoApp:
             lvl_name = lvl_name.upper()
 
         lvl = logging.getLevelName(lvl_name)
-        # ensure it was a defined level name; if it returns this string, it was unknown.
-        if lvl == "Level %s" % lvl_name:
-            raise ConfigurationError("Invalid log_level %s" % lvl_name)
+        try:
+            root.setLevel(lvl)
+        except ValueError as e:
+            raise ConfigurationError("Invalid log_level %s: %s" % (lvl_name, str(e)))
 
-        # ..and set it
-        root.setLevel(lvl)
+        # Read logging-specific levels from configuration file. The same functionality is present in
+        # c++ version with Boost Log channels.
+        for logger_name, level in self.get_config_section('loggers', (self.app_short_name, 'system')).items():
+            # Our global level controls "maximum output level" rather than "root" level
+            # to mimic the way C++ agoapp does. Thus, cap each of the loggers to that level.
+            lvl = logging.getLevelName(level)
+            level = max(root.level, lvl)
+            try:
+                logging.getLogger(logger_name).setLevel(level)
+            except ValueError as e:
+                raise ConfigurationError("Invalid log level for logger %s: %s" % (logger_name, str(e)))
 
         # Find log method..
         if self.args.trace or self.args.debug:
