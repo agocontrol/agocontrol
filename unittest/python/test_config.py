@@ -97,6 +97,9 @@ class TestConfig:
         assert d['broker'] == 'localhost'
         assert d['uuid'] == '00000000-0000-0000-000000000000'
 
+        d = config.get_config_section(['loggers'], ['test', 'system'])
+        assert d['mqtt'] == 'INFO'
+        assert d['qpid'] == 'INFO'
 
     def test_set_basic(self, setup_config):
         assert sco('system', 'new_value', '666')
@@ -157,7 +160,6 @@ class TestAppConfig:
         # Will give system.confs password
         assert app_sut.get_config_option('password', app=['other', 'system'], section='system') == 'letmein'
 
-
     def test_get_section(self, app_sut):
         d = app_sut.get_config_section()
         assert d == dict(test_value_0='100',
@@ -175,6 +177,10 @@ class TestAppConfig:
         assert d['broker'] == 'localhost'
         assert d['uuid'] == '00000000-0000-0000-000000000000'
         assert 'test_value_blank' not in d  # from test section
+
+        d = app_sut.get_config_section(['loggers'], ['test', 'system'])
+        assert d['mqtt'] == 'INFO'
+        assert d['qpid'] == 'INFO'
 
     def test_set_basic(self, app_sut):
         assert app_sut.set_config_option('new_value', '666') == True

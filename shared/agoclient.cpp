@@ -23,6 +23,9 @@
 
 namespace fs = ::boost::filesystem;
 
+static AGO_LOGGER_ALIAS(connection, "connnection");
+
+
 bool agocontrol::nameval(const std::string& in, std::string& name, std::string& value) {
     std::string::size_type i = in.find("=");
     if (i == std::string::npos) {
@@ -185,7 +188,7 @@ void agocontrol::AgoConnection::run() {
         }
 
         if (!m.message.isObject() || !m.message.isMember("content")) {
-            AGO_ERROR() << "Invalid message: " << m.message;
+            AGOL_ERROR(connection) << "Invalid message: " << m.message;
             continue;
         }
 
@@ -216,16 +219,16 @@ void agocontrol::AgoConnection::run() {
 
                         // Catch any non-updated applications HARD.
                         if(!commandResponse.empty() && !commandResponse.isMember("result") && !commandResponse.isMember("error")) {
-                            AGO_ERROR() << "Application " << instance << " has not been updated properly and command handler returns non-valid responses.";
-                            AGO_ERROR() << "Input: " << content;
-                            AGO_ERROR() << "Output: " << content;
+                            AGOL_ERROR(connection) << "Application " << instance << " has not been updated properly and command handler returns non-valid responses.";
+                            AGOL_ERROR(connection) << "Input: " << content;
+                            AGOL_ERROR(connection) << "Output: " << content;
                             commandResponse = responseError(RESPONSE_ERR_INTERNAL,
                                     "Component "+instance+" has not been updated properly, please contact developers with logs");
                         }
                     }catch(const AgoCommandException& ex) {
                         commandResponse = ex.toResponse();
                     }catch(const std::exception &ex) {
-                        AGO_ERROR() << "Unhandled exception in command handler:" << ex.what();
+                        AGOL_ERROR(connection) << "Unhandled exception in command handler:" << ex.what();
                         commandResponse = responseError(RESPONSE_ERR_INTERNAL, "Unhandled exception in command handler");
                     }
 
@@ -235,7 +238,7 @@ void agocontrol::AgoConnection::run() {
                     // to reply to "anonymous" requests not destined to any specific uuid
                     if (isOurDevice || (content["command"]=="inventory" && filterCommands==false)) {
                         if(m.replyFuction.empty())
-                            AGO_WARNING() << "Attempted to send a reply to a incoming message which did not expect a reply: " << content;
+                            AGOL_WARNING(connection) << "Attempted to send a reply to a incoming message which did not expect a reply: " << content;
                         else
                             m.replyFuction(commandResponse);
                     }
@@ -247,7 +250,7 @@ void agocontrol::AgoConnection::run() {
             }
         }
     }
-    AGO_TRACE() << "Leaving run() message loop";
+    AGOL_TRACE(connection) << "Leaving run() message loop";
 }
 
 void agocontrol::AgoConnection::shutdown() {
@@ -414,7 +417,7 @@ bool agocontrol::AgoConnection::loadUuidMap() {
         if (uuidMap.type() == Json::ValueType::objectValue)
             return true;
 
-        AGO_ERROR() << "Invalid contents in " << uuidMapFile;
+        AGOL_ERROR(connection) << "Invalid contents in " << uuidMapFile;
     }
 
     return false;
@@ -526,7 +529,7 @@ int agocontrol::AgoConnection::isDeviceStale(const std::string& internalId)
         }
         else
         {
-            AGO_WARNING() << "internalid '" << internalId << "' doesn't exist in deviceMap";
+            AGOL_WARNING(connection) << "internalid '" << internalId << "' doesn't exist in deviceMap";
             return 0;
         }
     }
@@ -547,10 +550,10 @@ Json::Value agocontrol::AgoConnection::getInventory() {
     AgoResponse r = sendRequest(content);
 
     if(r.isOk()) {
-        AGO_TRACE() << "Inventory obtained";
+        AGOL_TRACE(connection) << "Inventory obtained";
         return r.getData();
     }else{
-        AGO_WARNING() << "Failed to obtain inventory: " << r.response;
+        AGOL_WARNING(connection) << "Failed to obtain inventory: " << r.response;
     }
 
     // TODO: Some way to report error?
@@ -567,20 +570,20 @@ std::string agocontrol::AgoConnection::getAgocontroller() {
             Json::Value& devices(inventory["devices"]);
             for (auto it = devices.begin(); it != devices.end(); it++) {
                 if ((*it)["devicetype"] == "agocontroller") {
-                    AGO_DEBUG() << "Found Agocontroller: " << it.name();
+                    AGOL_DEBUG(connection) << "Found Agocontroller: " << it.name();
                     agocontroller = it.name();
                 }
             }
         }
 
         if (agocontroller == "" && retry) {
-            AGO_WARNING() << "Unable to resolve agocontroller, retrying";
+            AGOL_WARNING(connection) << "Unable to resolve agocontroller, retrying";
             sleep(1);
         }
     }
 
     if (agocontroller == "")
-        AGO_WARNING() << "Failed to resolve agocontroller, giving up";
+        AGOL_WARNING(connection) << "Failed to resolve agocontroller, giving up";
 
     return agocontroller;
 }

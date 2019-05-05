@@ -16,6 +16,8 @@
 
 namespace agotransport = agocontrol::transport;
 
+static AGO_LOGGER(mqtt);
+static AGO_LOGGER(transport);
 
 /**
  * Factory function for creating AgoMqttTransport via dlsym.
@@ -85,7 +87,7 @@ agotransport::AgoMqttTransport::AgoMqttTransport(const std::string &id, const st
 
 agotransport::AgoMqttTransport::~AgoMqttTransport()
 {
-    AGO_DEBUG() << "MQTT: transport destroyed";
+    AGOL_DEBUG(transport) << "MQTT transport destroyed";
     impl->disconnect();
     // impl free'd trough unique_ptr
 }
@@ -109,8 +111,6 @@ agocontrol::AgoResponse agotransport::AgoMqttTransport::sendRequest(Json::Value&
 {
     // acquires a reply id from impl & tracks it. destructor will untrack it.
     MqttReply reply(*impl);
-
-    AGO_TRACE() << "MQTT: preparing reply-topic" << reply.replyTopic;
     message["reply-to"] = reply.replyTopic;
 
     sendMessage(message);
@@ -127,23 +127,19 @@ agocontrol::AgoResponse agotransport::AgoMqttTransport::sendRequest(Json::Value&
     }
 
     if(!got_reply) {
-        AGO_WARNING() << "MQTT: timeout waiting for reply on " << reply.replyTopic;
+        AGOL_WARNING(transport) << "Timeout waiting for reply to " << reply.replyTopic;
         r.init(responseError(RESPONSE_ERR_NO_REPLY, "Timeout"));
     }else{
         try {
             r.init(reply.msg);
-            AGO_TRACE() << "MQTT: response received: " << r.response;
+            AGOL_TRACE(transport) << "Received response: " << r.response;
         } catch(const std::invalid_argument& ex) {
-            AGO_ERROR() << "MQTT: Invalid message on reply topic, failed to init as reply: " << ex.what();
+            AGOL_ERROR(transport) << "Invalid message on reply topic, failed to init as reply: " << ex.what();
+            AGOL_ERROR(transport) << "Faulty msg: " << reply.msg;
             r.init(responseError(RESPONSE_ERR_INTERNAL, ex.what()));
         }
     }
 
-/*
-        AGO_ERROR() << "Exception in sendRequest: " << ex.what();
-
-        r.init(responseError(RESPONSE_ERR_INTERNAL, ex.what()));
-        */
     return r;
 }
 
@@ -166,12 +162,10 @@ agotransport::AgoTransportMessage agotransport::AgoMqttTransport::fetchMessage(s
 
     if(ret.message.isMember("reply-to")) {
         std::string replyTopic(ret.message["reply-to"].asString());
+        // Do not expose reply-to to client, transport specific.
         ret.message.removeMember("repy-to");
         ret.replyFuction = boost::bind(&MqttImpl::sendReply, boost::ref(*impl), _1, replyTopic);
     }
-
-    // Todo: Do we deliver just content key, or base msg?
-    // do we expose reply-to and stuff like that?
 
     return ret;
 }
@@ -189,13 +183,13 @@ MqttReply::MqttReply(agotransport::MqttImpl& impl_)
 
     boost::lock_guard<boost::mutex> lock(impl.mutex);
     replyTopic = impl.topic_replies_base + std::to_string(++impl.reply_seq);
-    //AGO_TRACE() << "MQTT: now tracking reply on " << replyTopic;
+    //AGOL_TRACE(transport) << "MQTT: now tracking reply on " << replyTopic;
     impl.pending_replies[replyTopic] = this;
 }
 
 MqttReply::~MqttReply() {
     boost::lock_guard<boost::mutex> lock(impl.mutex);
-    //AGO_TRACE() << "MQTT: no longer tracking reply on " << replyTopic;
+    //AGOL_TRACE(transport) << "MQTT: no longer tracking reply on " << replyTopic;
     impl.pending_replies.erase(replyTopic);
 
 }
@@ -237,10 +231,10 @@ bool agotransport::MqttImpl::start() {
     int keepalive = 60;
 
     if(!username.empty() && !password.empty()) {
-        AGO_INFO() << "MQTT: Connecting to " << host << ":" << port << " with user " << username;
+        AGOL_INFO(transport) << "Connecting to " << host << ":" << port << " with user " << username;
         username_pw_set(username.c_str(), password.c_str());
     } else {
-        AGO_INFO() << "MQTT: Connecting to " << host << ":" << port << " anonymously";
+        AGOL_INFO(transport) << "Connecting to " << host << ":" << port << " anonymously";
     }
 
     /* If starting the loop before calling connect(_async), then there is some kind of race condition
@@ -252,7 +246,7 @@ bool agotransport::MqttImpl::start() {
     while(!shutdownSignaled) {
         int rc = connect_async(host.c_str(), port, keepalive);
         if (rc == MOSQ_ERR_INVAL) {
-            AGO_ERROR() << "MQTT: Invalid connection parameters: " << host << ":" << port;
+            AGOL_ERROR(transport) << "Invalid connection parameters: " << host << ":" << port;
             return false;
         } else if(rc == MOSQ_ERR_SUCCESS) {
             break;
@@ -263,7 +257,7 @@ bool agotransport::MqttImpl::start() {
                 break;
             }
 
-            AGO_ERROR() << "MQTT: connection failed: " << mosquitto_strerror(rc);
+            AGOL_ERROR(transport) << "Connection failed: " << mosquitto_strerror(rc);
             sleep(1);
         }
     }
@@ -271,25 +265,25 @@ bool agotransport::MqttImpl::start() {
     if(shutdownSignaled)
         return false;
 
-    AGO_DEBUG() << "MQTT: Launching MQTT loop thread";
+    AGOL_DEBUG(transport) << "Launching MQTT loop thread";
     loop_start();
 
     // Now wait for mqtt to be connected and subscribed
     boost::unique_lock<boost::mutex> lock(mutex);
 
-    AGO_DEBUG() << "MQTT: waiting for subscriptions to be setup";
+    AGOL_DEBUG(transport) << "waiting for subscriptions to be setup";
     if(!connected)
         connected_condition.timed_wait(lock, boost::posix_time::milliseconds(1000));
 
     if(!connected)
         return false;
 
-    AGO_INFO() << "MQTT: Connection & subscriptions ready";
+    AGOL_INFO(transport) << "Connection & subscriptions ready";
     return true;
 }
 
 void agotransport::MqttImpl::shutdown() {
-    AGO_DEBUG() << "MQTT: shutting down";
+    AGOL_DEBUG(transport) << "Shutting down";
     shutdownSignaled = true;
     disconnect(); // breaks out of loop once network requests have finished.
     loop_stop();
@@ -301,7 +295,7 @@ void agotransport::MqttImpl::shutdown() {
     }
 
     // wake up the condition, in case were blocking in start()
-    AGO_DEBUG() << "MQTT: shutdown complete";
+    AGOL_DEBUG(transport) << "Shutdown complete";
     connected = false;
     connected_condition.notify_one();
 }
@@ -310,14 +304,14 @@ void agotransport::MqttImpl::on_connect(int rc)
 {
     if (!rc)
     {
-        AGO_INFO() << "MQTT: connected, subscribing to "
+        AGOL_INFO(transport) << "Connected, subscribing to "
             << PUBLISH_TOPIC << ", " << topic_replies_base << "/+";
 
         pending_subscribes = 2;
         subscribe(NULL, PUBLISH_TOPIC, 1);
         subscribe(NULL, (topic_replies_base + "+").c_str(), 1);
     }else {
-        AGO_WARNING() << "MQTT: connect failed " << rc;
+        AGOL_WARNING(transport) << "Connect failed " << rc;
 
         boost::unique_lock<boost::mutex> lock(mutex);
         connected = false;
@@ -331,7 +325,7 @@ void agotransport::MqttImpl::on_subscribe(int mid, int qos_count, const int *gra
     if(pending_subscribes > 0)
         return;
 
-    AGO_DEBUG() << "MQTT: Subscriptions succeeded.";
+    AGOL_DEBUG(transport) << "Subscriptions succeeded.";
 
     boost::unique_lock<boost::mutex> lock(mutex);
     connected = true;
@@ -341,32 +335,31 @@ void agotransport::MqttImpl::on_subscribe(int mid, int qos_count, const int *gra
 void agotransport::MqttImpl::on_log(int level, const char* msg) {
     switch(level) {
         case MOSQ_LOG_INFO:
-            AGO_INFO() << "MQTT[info]: " << msg;
+            AGOL_INFO(mqtt) << "MQTT[info]: " << msg;
             break;
         case MOSQ_LOG_NOTICE:
-            AGO_INFO() << "MQTT[notice]: " << msg;
+            AGOL_INFO(mqtt) << "MQTT[notice]: " << msg;
             break;
         case MOSQ_LOG_WARNING:
-            AGO_WARNING() << "MQTT[warning]: " << msg;
+            AGOL_WARNING(mqtt) << "MQTT[warning]: " << msg;
             break;
         case MOSQ_LOG_ERR:
-            AGO_ERROR() << "MQTT[error]: " << msg;
+            AGOL_ERROR(mqtt) << "MQTT[error]: " << msg;
             break;
         case MOSQ_LOG_DEBUG:
-            // MOSQ debug logging is very verbose...
-            AGO_TRACE() << "MQTT[debug]: " << msg;
+            AGOL_DEBUG(mqtt) << "MQTT[debug]: " << msg;
             break;
         default:
-            AGO_ERROR() << "MQTT[unknown " << level << "]: " << msg;
+            AGOL_ERROR(mqtt) << "MQTT[unknown " << level << "]: " << msg;
             break;
     }
 }
 
 void agotransport::MqttImpl::on_message(const struct mosquitto_message *message)
 {
-    std::string topic(message->topic);
+    std::string topic(message->topic);;
     if(topic.find(TOPIC_BASE) != 0) {
-        AGO_ERROR() << "MQTT: Ignoring message on unknown topic, should not have been received at all" << topic;
+        AGOL_ERROR(transport) << "Ignoring message on unknown topic, should not have been received at all" << topic;
         return;
     }
 
@@ -376,14 +369,14 @@ void agotransport::MqttImpl::on_message(const struct mosquitto_message *message)
         boost::lock_guard<boost::mutex> lock(mutex);
         auto it = pending_replies.find(topic);
         if(it == pending_replies.end()) {
-            AGO_WARNING() << "MQTT: Ignoring message on expired reply topic " << topic;
+            AGOL_WARNING(transport) << "Received too late response for " << topic;
             return;
         }
 
         // Just hint that we have a valid reply
         reply = it->second;
     }else if(topic != PUBLISH_TOPIC) {
-        AGO_WARNING() << "MQTT: Ignoring message on unknown topic " << topic;
+        AGOL_WARNING(transport) << "Ignoring message on unknown topic " << topic;
         return;
     }
 
@@ -394,21 +387,21 @@ void agotransport::MqttImpl::on_message(const struct mosquitto_message *message)
     char *payload = (char*) message->payload;
     if ( !reader->parse(payload, payload + message->payloadlen,
                 &msg, &errors) ) {
-        AGO_WARNING() << "MQTT: Failed to parse JSON: " << errors;
+        AGOL_WARNING(transport) << "Failed to parse JSON: " << errors;
         return;
     }
 
-    AGO_TRACE() << "MQTT: received message on " << topic << ": " << msg;
+    AGOL_TRACE(transport) << "Received message on " << topic << ": " << msg;
 
     if(reply) {
         boost::lock_guard<boost::mutex> lock(mutex);
         // re-check
         if(pending_replies.find(topic) == pending_replies.end()) {
-            AGO_INFO() << "MQTT: reply handler disappeared while parsing, dropping";
+            AGOL_INFO(transport) << "Reply handler disappeared while parsing, dropping";
             return;
         }
 
-        //AGO_TRACE() << "MQTT: delivering to reply handler";
+        //AGOL_TRACE(transport) << "delivering to reply handler";
         reply->msg.swap(msg);
         reply->condition.notify_one();
         return;
@@ -430,12 +423,12 @@ void agotransport::MqttImpl::sendMessage(const std::string& topic, const Json::V
 
     std::string payload = Json::writeString(builder, message);
 
-    AGO_TRACE() << "MQTT: Sending to " << topic << ": " << payload;
+    AGOL_TRACE(transport) << "Sending message to " << topic << ": " << payload;
     publish(NULL, topic.c_str(), strlen(payload.c_str()), payload.c_str(), 1, false);
 }
 
 void agotransport::MqttImpl::sendReply(const Json::Value& content, std::string replyTopic) {
-    AGO_TRACE() << "MQTT: sending reply to " << replyTopic << ": " << content;
+    AGOL_TRACE(transport) << "Sending reply to " << replyTopic << ": " << content;
     sendMessage(replyTopic, content);
 }
 

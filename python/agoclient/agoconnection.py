@@ -29,7 +29,7 @@ class AgoConnection:
         """The constructor."""
         self.instance = instance
         self.uuidmap_file = get_config_path('uuidmap/' + self.instance + '.json')
-        self.log = logging.getLogger('AgoConnection')
+        self.log = logging.getLogger('connection')
 
         messaging = str(get_config_option("system", "messaging", "qpid"))
         broker = str(get_config_option("system", "broker", "localhost"))

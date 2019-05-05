@@ -14,6 +14,9 @@
 
 namespace agotransport = agocontrol::transport;
 
+//static AGO_LOGGER(qpid); // no logging from qpid C++ library
+static AGO_LOGGER(transport);
+
 /**
  * Factory function for creating AgoQpidTransport via dlsym.
  */
@@ -45,12 +48,12 @@ agotransport::AgoQpidTransport::AgoQpidTransport(const std::string &uri, const s
 
 agotransport::AgoQpidTransport::~AgoQpidTransport() {
     if(impl->receiver.isValid()) {
-        AGO_DEBUG() << "Closing notification receiver";
+        AGOL_DEBUG(transport) << "Closing notification receiver";
         impl->receiver.close();
     }
 
     if(impl->session.isValid() && impl->connection.isValid()) {
-        AGO_DEBUG() << "Closing pending broker connection";
+        AGOL_DEBUG(transport) << "Closing pending broker connection";
         // Not yet connected, break out of connection attempt
         // TODO: This does not actually abort on old qpid
         impl->connection.close();
@@ -58,22 +61,22 @@ agotransport::AgoQpidTransport::~AgoQpidTransport() {
 
     try {
         if(impl->connection.isOpen()) {
-            AGO_DEBUG() << "Closing broker connection";
+            AGOL_DEBUG(transport) << "Closing broker connection";
             impl->connection.close();
         }
     } catch(const std::exception& error) {
-        AGO_ERROR() << "Failed to close broker connection: " << error.what();
+        AGOL_ERROR(transport) << "Failed to close broker connection: " << error.what();
     }
 }
 
 bool agotransport::AgoQpidTransport::start() {
     try {
-        AGO_DEBUG() << "Opening QPid broker connection";
+        AGOL_DEBUG(transport) << "Opening QPid broker connection";
         impl->connection.open();
         impl->session = impl->connection.createSession();
         impl->sender = impl->session.createSender("agocontrol; {create: always, node: {type: topic}}");
     } catch(const std::exception& error) {
-        AGO_FATAL() << "Failed to connect to broker: " << error.what();
+        AGOL_FATAL(transport) << "Failed to connect to broker: " << error.what();
         impl->connection.close();
         return false;
     }
@@ -81,7 +84,7 @@ bool agotransport::AgoQpidTransport::start() {
     try {
         impl->receiver = impl->session.createReceiver("agocontrol; {create: always, node: {type: topic}}");
     } catch(const std::exception& error) {
-        AGO_FATAL() << "Failed to create broker receiver: " << error.what();
+        AGOL_FATAL(transport) << "Failed to create broker receiver: " << error.what();
         return false;
     }
 
@@ -102,11 +105,11 @@ bool agotransport::AgoQpidTransport::sendMessage(Json::Value& message)
         if (!subject.empty())
             qpmessage.setSubject(subject);
 
-        AGO_TRACE() << "Sending message [src=" << qpmessage.getReplyTo() <<
+        AGOL_TRACE(transport) << "Sending message [src=" << qpmessage.getReplyTo() <<
                     ", sub="<< qpmessage.getSubject()<<"]: " << msgMap;
         impl->sender.send(qpmessage);
     } catch(const std::exception& error) {
-        AGO_ERROR() << "Exception in sendMessage: " << error.what();
+        AGOL_ERROR(transport) << "Exception in sendMessage: " << error.what();
         return false;
     }
 
@@ -136,7 +139,7 @@ agocontrol::AgoResponse agotransport::AgoQpidTransport::sendRequest(Json::Value&
         responseReceiver = recvsession.createReceiver(responseQueue);
         qpmessage.setReplyTo(responseQueue);
 
-        AGO_TRACE() << "Sending request [sub=" << subject << ", replyTo=" << responseQueue <<"]" << msgMap;
+        AGOL_TRACE(transport) << "Sending message [sub=" << subject << ", reply-to=" << responseQueue <<"]:" << msgMap;
         impl->sender.send(qpmessage);
 
         qpid::messaging::Message message = responseReceiver.fetch(qpid::messaging::Duration(timeout.count()));
@@ -154,9 +157,9 @@ agocontrol::AgoResponse agotransport::AgoQpidTransport::sendRequest(Json::Value&
             }
 
             r.init(response);
-            AGO_TRACE() << "Remote response received: " << r.response;
+            AGOL_TRACE(transport) << "Received response: " << r.response;
         }catch(const std::invalid_argument& ex) {
-            AGO_ERROR() << "Failed to initate response, wrong response format? Error: "
+            AGOL_ERROR(transport) << "Failed to initiate response, wrong response format? Error: "
                         << ex.what()
                         << ". Message: " << r.response;
 
@@ -165,11 +168,11 @@ agocontrol::AgoResponse agotransport::AgoQpidTransport::sendRequest(Json::Value&
         recvsession.acknowledge();
 
     } catch (const qpid::messaging::NoMessageAvailable&) {
-        AGO_WARNING() << "No reply for message sent to subject " << subject;
+        AGOL_WARNING(transport) << "Timeout waiting for reply (subject: " << subject << ")";
 
         r.init(responseError(RESPONSE_ERR_NO_REPLY, "Timeout"));
     } catch(const std::exception& ex) {
-        AGO_ERROR() << "Exception in sendRequest: " << ex.what();
+        AGOL_ERROR(transport) << "Exception in sendRequest: " << ex.what();
 
         r.init(responseError(RESPONSE_ERR_INTERNAL, ex.what()));
     }
@@ -194,7 +197,7 @@ agotransport::AgoTransportMessage agotransport::AgoQpidTransport::fetchMessage(s
         qpid::messaging::decode(message, contentMap);
         variantMapToJson(contentMap, ret.message["content"]);
 
-        AGO_TRACE() << "Incoming message [src=" << message.getReplyTo() <<
+        AGOL_TRACE(transport) << "Incoming message [src=" << message.getReplyTo() <<
                     ", sub="<< message.getSubject()<<"]: " << ret.message;
 
         const qpid::messaging::Address replyaddress = message.getReplyTo();
@@ -210,10 +213,10 @@ agotransport::AgoTransportMessage agotransport::AgoQpidTransport::fetchMessage(s
         if(shutdownSignaled)
             return ret;
 
-        AGO_ERROR() << "Exception in message loop: " << error.what();
+        AGOL_ERROR(transport) << "Exception in message loop: " << error.what();
 
         if (impl->session.hasError()) {
-            AGO_ERROR() << "Session has error, recreating";
+            AGOL_ERROR(transport) << "Session has error, recreating";
             impl->session.close();
             impl->session = impl->connection.createSession();
             impl->receiver = impl->session.createReceiver("agocontrol; {create: always, node: {type: topic}}");
@@ -230,7 +233,7 @@ void agotransport::QpidImpl::sendReply(const Json::Value& content, const qpid::m
 {
     qpid::messaging::Message response;
     qpid::types::Variant::Map responseMap = jsonToVariantMap(content);
-    AGO_TRACE() << "[qpid] sending reply " << content;
+    AGOL_TRACE(transport) << "Sending reply " << content;
 
     qpid::messaging::Session replysession = connection.createSession();
     try {
@@ -239,7 +242,7 @@ void agotransport::QpidImpl::sendReply(const Json::Value& content, const qpid::m
         //response.setSubject(instance);
         replysender.send(response);
     } catch(const std::exception& error) {
-        AGO_ERROR() << "[qpid] failed to send reply: " << error.what();;
+        AGOL_ERROR(transport) << "failed to send reply: " << error.what();;
     }
     replysession.close();
 }

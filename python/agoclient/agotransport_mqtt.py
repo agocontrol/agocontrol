@@ -14,9 +14,10 @@ from agoclient import agoproto
 TOPIC_BASE = 'com.agocontrol'
 PUBLISH_TOPIC = TOPIC_BASE + '/legacy'
 
+
 class AgoMqttTransport(agoclient.agotransport.AgoTransport):
     def __init__(self, client_id, broker, username, password):
-        self.log = logging.getLogger('AgoMqttTransport')
+        self.log = logging.getLogger('transport')
         self.client_id = client_id
         self.broker = broker
         self.username = username
@@ -44,7 +45,7 @@ class AgoMqttTransport(agoclient.agotransport.AgoTransport):
         self.mqtt.on_connect = self._on_connect
         self.mqtt.on_subscribe = self._on_subscribe
         self.mqtt.on_message = self._on_message
-        self.mqtt.on_log = self._on_log
+        self.mqtt.enable_logger(logging.getLogger('mqtt'))  # Ues custom logger for lowlevel mqtt
 
         host = self.broker
         port = 1883
@@ -73,12 +74,7 @@ class AgoMqttTransport(agoclient.agotransport.AgoTransport):
             except KeyboardInterrupt:
                 break
 
-    def _on_log(self, client, userdata, level, message):
-        if level == mqtt.MQTT_LOG_DEBUG:
-            # mqtt DEBUG is very verbose..
-            self.log.trace(message)
-        else:
-            self.log.log(mqtt.LOGGING_LEVEL[level], message)
+        return False
 
     def _on_connect(self, client, userdata, flags, rc):
         self.pending_subscribes = 2

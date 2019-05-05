@@ -15,7 +15,7 @@ from agoclient import agoproto
 
 class AgoQpidTransport(agoclient.agotransport.AgoTransport):
     def __init__(self, broker, username, password):
-        self.log = logging.getLogger('AgoQpidTransport')
+        self.log = logging.getLogger('transport')
         self.broker = broker
         self.username = username
         self.password = password
@@ -23,10 +23,6 @@ class AgoQpidTransport(agoclient.agotransport.AgoTransport):
         self.session = None
         self.receiver = None
         self.sender = None
-
-        # Forcibly cap QPID logging to INFO
-        root = logging.getLogger()
-        logging.getLogger('qpid').setLevel(max(root.level, logging.INFO))
 
     def start(self):
         self.connection = qpid.messaging.Connection(self.broker, username=self.username, password=self.password, reconnect=True)
