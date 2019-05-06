@@ -64,6 +64,7 @@ const char *mg_event_name(int ev){
     }
 }
 
+AGO_LOGGER(httpd);
 
 /* On each mg_connection we have user_data which we use
  * to find the AgoHttp instance and any connection specific data.
@@ -84,16 +85,16 @@ public:
 
     MgUserData(AgoHttp *_http)
             : http(_http) {
-        AGO_TRACE() << "userData created "<< this;
+        //AGOL_TRACE(httpd) << "userData created "<< this;
     }
 
     ~MgUserData() {
-        AGO_TRACE() << "userData destroying "<< this << "with cd " << requestData.get();
+        //AGOL_TRACE(httpd) << "userData destroying "<< this << "with cd " << requestData.get();
     }
 
     MgUserData* specificFor(struct mg_connection *conn, boost::shared_ptr<HttpReqRep> requestData) {
         if(this->requestData != NULL) {
-            AGO_TRACE() << "userData re-use specific "<< this;
+            //AGOL_TRACE(httpd) << "userData re-use specific "<< this;
             // Already inited / connection-specific
             this->requestData = requestData;
             return this;
@@ -103,7 +104,7 @@ public:
         mcw->requestData = requestData;
         conn->user_data = mcw;
 
-        AGO_TRACE() << "userData creating specific "<< mcw << " for " << requestData;
+        //AGOL_TRACE(httpd) << "userData creating specific "<< mcw << " for " << requestData;
         return mcw;
     }
 
@@ -129,11 +130,11 @@ static void handleKeepaliveFlagAfterRequestFinish(struct mg_connection *conn) {
 
 
 HttpReqRep::HttpReqRep() {
-    AGO_TRACE() << "Connection data inited: " << this;
+    //AGOL_TRACE(httpd) << "Connection data inited: " << this;
 }
 
 HttpReqRep::~HttpReqRep() {
-    AGO_TRACE() << "Connection data destroyed: " << this;
+    //AGOL_TRACE(httpd) << "Connection data destroyed: " << this;
 }
 
 void HttpReqRep::writeResponse(struct mg_connection *conn) {
@@ -159,7 +160,7 @@ void HttpReqJsonRep::writeResponseData(struct mg_connection *conn) {
     const std::string& data(response.str());
 
     int status = getResponseCode();
-    AGO_TRACE() << "Writing " << this << " " << status << " response: " << data; //(data.length() > 10000 ? data.substr(0, 1000) : data);
+    AGOL_TRACE(httpd) << "Writing " << this << " " << status << " response: " << data; //(data.length() > 10000 ? data.substr(0, 1000) : data);
     mg_send_head(conn, status, data.size(), "Content-Type: application/json");
     mg_send(conn, data.c_str(), data.size());
 }
@@ -174,12 +175,12 @@ boost::shared_ptr<HttpReqRep> AgoHttp::handleRequest(mg_connection *conn, struct
             /*fragment*/NULL);
     const std::string reqPath(path_str.p, path_str.len);
 
-    AGO_TRACE() << "Incoming HTTP request on " << reqPath;
+    AGOL_TRACE(httpd) << "Incoming HTTP request on " << reqPath;
     std::map<std::string, agohttp_url_handler_fn>::const_iterator it = urlHandlers.find(reqPath);
     if(it != urlHandlers.end()) {
-        AGO_TRACE() << "Matched handler on " << it->first << ", calling";
+        AGOL_TRACE(httpd) << "Matched handler on " << it->first << ", calling";
         reqRep = it->second(conn, req, reqPath);
-        AGO_TRACE() << "Handler for " << it->first << " returned";
+        AGOL_TRACE(httpd) << "Handler for " << it->first << " returned";
         return reqRep;
     }
 
@@ -187,14 +188,14 @@ boost::shared_ptr<HttpReqRep> AgoHttp::handleRequest(mg_connection *conn, struct
     for(it = urlPrefixHandlers.begin(); it != urlPrefixHandlers.end(); it++) {
         if(reqPath.size() >= it->first.size() &&
                 reqPath.compare(0, it->first.size(), it->first) == 0) {
-            AGO_TRACE() << "Matched prefix handler on " << it->first << ", calling";
+            AGOL_TRACE(httpd) << "Matched prefix handler on " << it->first << ", calling";
             reqRep = it->second(conn, req, reqPath);
-            AGO_TRACE() << "Handler for " << it->first << " returned";
+            AGOL_TRACE(httpd) << "Handler for " << it->first << " returned";
             return reqRep;
         }
     }
 
-    AGO_TRACE() << "No URL match for " << std::string(req->uri.p, req->uri.len) << ", sending to mg_serve_http";
+    AGOL_TRACE(httpd) << "No URL match for " << std::string(req->uri.p, req->uri.len) << ", sending to mg_serve_http";
     if(httpServeOpts.document_root) {
         // No registered handler, use regular file serve
         mg_serve_http(conn, req, httpServeOpts);
@@ -215,7 +216,7 @@ void AgoHttp::mongooseEventHandler(struct mg_connection *conn, int event, void *
     {
         char remote_addr[50];
         mg_conn_addr_to_str(conn, &remote_addr[0], sizeof(remote_addr), MG_SOCK_STRINGIFY_IP | MG_SOCK_STRINGIFY_PORT | MG_SOCK_STRINGIFY_REMOTE);
-        AGO_TRACE() << mg_event_name(event) << "[" << conn->sock << "]: " << remote_addr << " (userData=" << connWrapper << " ->requestData " << connWrapper->requestData.get() << ")";
+        AGOL_TRACE(httpd) << mg_event_name(event) << "[" << conn->sock << "]: " << remote_addr << " (userData=" << connWrapper << " ->requestData " << connWrapper->requestData.get() << ")";
     }
 
     switch(event) {
@@ -235,7 +236,7 @@ void AgoHttp::mongooseEventHandler(struct mg_connection *conn, int event, void *
             }
 
             if(!keepalive) {
-                AGO_TRACE() << "Disabling keepalive";
+                AGOL_TRACE(httpd) << "Disabling keepalive";
                 conn->flags |= AGO_MG_F_NO_KEEPALIVE;
             }
 
@@ -264,7 +265,7 @@ void AgoHttp::mongooseEventHandler(struct mg_connection *conn, int event, void *
                 if(reqRep->isResponseReady()) {
                     // Response is ready to be written in full
                     reqRep->writeResponse(conn);
-                    AGO_TRACE() << "handler wrote response, dropping shortlived reqRep " << reqRep.get();
+                    AGOL_TRACE(httpd) << "handler wrote response, dropping shortlived reqRep " << reqRep.get();
                     return;
                 }
             }
@@ -274,7 +275,7 @@ void AgoHttp::mongooseEventHandler(struct mg_connection *conn, int event, void *
             // XXXX: why do we keep it??
             // One or more requests requires background processing.
             // Replace the connection wrapper with our own
-            AGO_TRACE() << "handler did not write response, keeping reqRep " << reqRep.get();
+            AGOL_TRACE(httpd) << "handler did not write response, keeping reqRep " << reqRep.get();
             connWrapper = connWrapper->specificFor(conn, reqRep);
             break;
         }
@@ -285,11 +286,11 @@ void AgoHttp::mongooseEventHandler(struct mg_connection *conn, int event, void *
                 bool writeResponse;
                 boost::unique_lock<boost::mutex> lock(reqRep->mutex);
                 if(event == MG_EV_TIMER) {
-                    AGO_TRACE() << "timer trigged on reqRep " << reqRep;
+                    AGOL_TRACE(httpd) << "timer trigged on reqRep " << reqRep;
                     reqRep->onTimeout();
                     writeResponse = true;
                 } else {
-                    AGO_TRACE() << "polling reqRep " << reqRep;
+                    AGOL_TRACE(httpd) << "polling reqRep " << reqRep;
                     writeResponse = reqRep->isResponseReady();
                 }
 
@@ -303,7 +304,7 @@ void AgoHttp::mongooseEventHandler(struct mg_connection *conn, int event, void *
 
                     // This async request is now done, but connectionWrapper may be reused in
                     // subsequent request (on same connection)
-                    AGO_TRACE() << "connection " << reqRep << " is done, resetting";
+                    AGOL_TRACE(httpd) << "connection " << reqRep << " is done, resetting";
 
                     connWrapper->requestData.reset();
 
@@ -312,7 +313,7 @@ void AgoHttp::mongooseEventHandler(struct mg_connection *conn, int event, void *
             }
 
             if(state != Running && !(conn->flags & AGO_MG_F_ACTIVE)) {
-                AGO_TRACE() << "Connection idle during shutdown, closing";
+                AGOL_TRACE(httpd) << "Connection idle during shutdown, closing";
                 conn->flags |= MG_F_CLOSE_IMMEDIATELY;
             }
             break;
@@ -321,9 +322,9 @@ void AgoHttp::mongooseEventHandler(struct mg_connection *conn, int event, void *
             if(conn->send_mbuf.len == 0)
             {
                 // Send done
-                AGO_TRACE() << "Send done";
+                AGOL_TRACE(httpd) << "Send done";
                 if(state != Running) {
-                    AGO_TRACE() << "Connection idle during shutdown, closing it";
+                    AGOL_TRACE(httpd) << "Connection idle during shutdown, closing it";
                     conn->flags |= MG_F_CLOSE_IMMEDIATELY;
                 }
                 else
@@ -359,7 +360,7 @@ void AgoHttp::wakeup() {
  */
 void AgoHttp::mongoosePollLoop()
 {
-    AGO_TRACE() << "Webserver thread started";
+    AGOL_TRACE(httpd) << "Webserver thread started";
     while(true)
     {
         mg_mgr_poll(&mongooseMgr, MONGOOSE_POLLING_INTERVAL);
@@ -372,14 +373,14 @@ void AgoHttp::mongoosePollLoop()
             }
         }
     }
-    AGO_TRACE() << "Webserver thread terminated";
+    AGOL_TRACE(httpd) << "Webserver thread terminated";
 }
 
 static void mg_shutdown_broadcast(struct mg_connection *nc, int ev, void *ev_data) {
     if(nc->flags & MG_F_LISTENING) {
         char remote_addr[50];
         mg_conn_addr_to_str(nc, &remote_addr[0], sizeof(remote_addr), MG_SOCK_STRINGIFY_IP | MG_SOCK_STRINGIFY_PORT | MG_SOCK_STRINGIFY_REMOTE);
-        AGO_TRACE() << "MG SHUTDOWN BROADCAST[" << nc->sock << "]: " << remote_addr << " Shutting down listener socket";
+        AGOL_TRACE(httpd) << "MG SHUTDOWN BROADCAST[" << nc->sock << "]: " << remote_addr << " Shutting down listener socket";
         nc->flags |= MG_F_CLOSE_IMMEDIATELY;
     }
     // A regular poll will be completed right after this
@@ -436,11 +437,11 @@ void AgoHttp::setAuthFile(const boost::filesystem::path& path) {
     if(authFile==NULL)
     {
         // unable to parse auth file
-        AGO_ERROR() << "Auth support: error parsing \"" << path.string() << "\" file. Authentication deactivated";
+        AGOL_ERROR(httpd) << "Auth support: error parsing \"" << path.string() << "\" file. Authentication deactivated";
     }
     else
     {
-        AGO_INFO() << "Enabling authentication";
+        AGOL_INFO(httpd) << "Enabling authentication";
     }
 }
 
@@ -505,13 +506,13 @@ void AgoHttp::start() {
             bindopts.ssl_ca_cert = opts.sslCaCertFile.c_str();
 #endif
 
-        AGO_INFO() << "Binding HTTP on " << opts.address;
+        AGOL_INFO(httpd) << "Binding HTTP on " << opts.address;
         struct mg_connection *lc = mg_bind_opt(&mongooseMgr, opts.address.c_str(),
                 mongooseEventHandlerWrapper,
                 bindopts);
 
         if(!lc) {
-            AGO_ERROR() << "Failed to bind to port " << opts.address << ": " << err;
+            AGOL_ERROR(httpd) << "Failed to bind to port " << opts.address << ": " << err;
             throw std::runtime_error("Bad HTTP configuration");
         }
 
@@ -531,7 +532,7 @@ void AgoHttp::shutdown() {
         return;
 
     // Close all listeners
-    AGO_DEBUG() << "Closing all listener sockets";
+    AGOL_DEBUG(httpd) << "Closing all listener sockets";
     if(state == Running) {
         mg_broadcast(&mongooseMgr, mg_shutdown_broadcast, (void*)"", 0);
     }
@@ -542,10 +543,10 @@ void AgoHttp::close() {
     if(state ==  Stopped)
         return;
 
-    AGO_TRACE() << "Waiting for webserver threads";
+    AGOL_TRACE(httpd) << "Waiting for webserver threads";
     mongooseThread.join();
 
-    AGO_TRACE() << "Cleaning up web server";
+    AGOL_TRACE(httpd) << "Cleaning up web server";
     mg_mgr_free(&mongooseMgr);
 
     if(authFile) {
