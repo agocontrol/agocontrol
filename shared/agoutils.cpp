@@ -8,7 +8,7 @@
 #include <uuid/uuid.h>
 
 std::string agocontrol::utils::generateUuid() {
-    std::unique_ptr<char> name(new char[38]);
+    std::unique_ptr<char[]> name(new char[38]);
     uuid_t tmpuuid;
     uuid_generate(tmpuuid);
     uuid_unparse(tmpuuid, name.get());
