@@ -118,5 +118,26 @@ const std::vector<std::string>& log_container::getLevels() {
     return log_levels;
 }
 
+/**
+ * Get the default initial log level, by looking at the AGO_DEFAULT_LEVEL env var.
+ * If set, and valid, this is used instead of the default INFO level.
+ *
+ * This can be used to debug config loading or logging setup which happens before
+ * any custom logging level have been set.
+ *
+ * @return
+ */
+severity_level log_container::getDefaultLevel() {
+    const char* env_level = getenv("AGO_DEFAULT_LEVEL");
+    if(env_level) {
+        try {
+            return getLevel(env_level);
+        }catch(const std::runtime_error& e) {
+            std::cerr << "Ignoring invalid value in env AGO_DEFAULT_LEVEL" << std::endl;
+        }
+    }
+    return ::agocontrol::log::info;
+}
+
 }/* namespace log */
 }/* namespace agocontrol */

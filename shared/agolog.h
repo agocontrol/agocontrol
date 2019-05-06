@@ -37,7 +37,6 @@ namespace agocontrol {
     }
 }
 
-#define AGO_DEFAULT_LEVEL ::agocontrol::log::info
 
 #ifdef HAVE_BOOST_LOG
 # include <agolog_boost.h>
@@ -91,6 +90,9 @@ public:
 
     /* Returns a vector with all levels, indexed identical to severity_level */
     static const std::vector<std::string> & getLevels();
+
+protected:
+    static severity_level getDefaultLevel();
 };
 
 } /* namespace log */

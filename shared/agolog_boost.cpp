@@ -80,7 +80,7 @@ void log_container::initDefault() {
 
     logging::add_common_attributes();
     setOutputConsole();
-    setCurrentLevel(AGO_DEFAULT_LEVEL, std::map<std::string, severity_level>());
+    setCurrentLevel(getDefaultLevel(), std::map<std::string, severity_level>());
 
     // Setup exception handler
     logging::core::get()->set_exception_handler(logging::make_exception_handler<

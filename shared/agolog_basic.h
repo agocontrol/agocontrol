@@ -121,7 +121,7 @@ class simple_logger {
 
     public:
     simple_logger()
-        : current_level(AGO_DEFAULT_LEVEL)
+        : current_level(getDefaultLevel())
           , sink( boost::shared_ptr<log_sink>(new console_sink()) )
     {}
 
