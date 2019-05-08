@@ -110,7 +110,7 @@ public:
 class simple_logger {
     friend class record_pump;
 
-    private:
+private:
     severity_level current_level;
     boost::shared_ptr<log_sink> sink;
 
@@ -119,11 +119,8 @@ class simple_logger {
         sink->output_record(rec);
     }
 
-    public:
-    simple_logger()
-        : current_level(getDefaultLevel())
-          , sink( boost::shared_ptr<log_sink>(new console_sink()) )
-    {}
+public:
+    simple_logger();
 
     simple_logger(severity_level severity)
         : current_level(severity) {}

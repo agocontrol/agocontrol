@@ -75,15 +75,18 @@ void log_container::initDefault() {
     if(inited)
         return;
     inited = true;
-
-    get().setLevel(AGO_DEFAULT_LEVEL);
-    // Default inited with console sink
+    // Nothing to init here.. the simple_logger instance constructor sets default level & creates
+    // console sink
 }
 
 void log_container::setCurrentLevel(severity_level lvl, const std::map<std::string, severity_level>& ignored) {
     get().setLevel(lvl);
 }
 
+simple_logger::simple_logger()
+    : current_level(log_container::getDefaultLevel())
+    , sink( boost::shared_ptr<log_sink>(new console_sink()) )
+{}
 
 }/* namespace log */
 }/* namespace agocontrol */

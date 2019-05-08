@@ -92,6 +92,10 @@ public:
     static const std::vector<std::string> & getLevels();
 
 protected:
+#ifndef HAVE_BOOST_LOG
+    friend class simple_logger;
+#endif
+
     static severity_level getDefaultLevel();
 };
 
