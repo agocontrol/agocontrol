@@ -51,7 +51,7 @@ else()
     set (DATADIR /var/opt/agocontrol CACHE STRING "Directory for variable data")
     set (LOCALSTATEDIR /var/opt/agocontrol CACHE STRING "Directory for state info")
     if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
-        set (CMAKE_EXE_LINKER_FLAGS "-Wl,-z,now")
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,now")
     endif()
 endif()
 
@@ -89,6 +89,51 @@ set_property( DIRECTORY
     # http://lists.boost.org/Archives/boost/2016/07/230350.php
     -Wno-error=unknown-pragmas
     )
+
+# Add optional building with/without ASAN
+# https://github.com/google/sanitizers/wiki/AddressSanitizer
+string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
+
+# In DEBUG builds we enable it by default, except on ARM
+IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+    option(WITH_ASAN_DEBUG "Build with Address Sanitizer in debug mode" OFF)
+else()
+    option(WITH_ASAN_DEBUG "Build with Address Sanitizer in debug mode" ON)
+endif()
+# With RELEASE build default to off.
+option(WITH_ASAN_RELEASE "Build with Address Sanitizer in release mode" OFF)
+
+if(uppercase_CMAKE_BUILD_TYPE MATCHES DEBUG)
+    set(WITH_ASAN ${WITH_ASAN_DEBUG})
+else()
+    set(WITH_ASAN ${WITH_ASAN_RELEASE})
+endif()
+
+if(WITH_ASAN)
+    message(STATUS "Building with AddressSanitizer enabled")
+
+    #https://github.com/google/sanitizers/wiki/AddressSanitizerFlags
+    set_property(DIRECTORY APPEND PROPERTY COMPILE_OPTIONS -fsanitize=address -fno-omit-frame-pointer)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+
+    if(OS_LINUX)
+        # On linux, enable leak sanitizer too
+        set_property(DIRECTORY APPEND PROPERTY COMPILE_OPTIONS -fsanitize=leak )
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=leak")
+    endif()
+
+    if(OS_DARWIN)
+        # MacOS needs to link shared library with these flags too.
+        SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address")
+    endif()
+
+    # gcc (Or just Linux?) needs to link with -lasan
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        set(ASAN_LIBRARIES asan)
+    endif()
+else()
+    message(STATUS "Building with AddressSanitizer disabled")
+endif()
 
 # add the binary tree to the search path for include files
 # so that we will find version.h and other configured files

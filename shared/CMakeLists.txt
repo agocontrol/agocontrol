@@ -35,6 +35,7 @@ set (AGOCORE_LIBRARIES
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${CMAKE_THREAD_LIBS_INIT} # for pthread
+    ${ASAN_LIBRARIES}
 )
 
 if(Boost_LOG_FOUND)
