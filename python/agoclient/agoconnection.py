@@ -1,25 +1,15 @@
 import errno
 import logging
 import json
+import sys
 import time
 import uuid
 
 from agoclient import agoproto
+from agoclient.agotransport import AgoTransportConfigError
 from agoclient.config import get_config_option, get_config_path
 
 __all__ = ["AgoConnection"]
-
-try:
-    from agoclient.agotransport_qpid import AgoQpidTransport
-    HAS_QPID = True
-except ImportError:
-    HAS_QPID = False
-
-try:
-    from agoclient.agotransport_mqtt import AgoMqttTransport
-    HAS_MQTT = True
-except ImportError:
-    HAS_MQTT = False
 
 
 class AgoConnection:
@@ -30,18 +20,28 @@ class AgoConnection:
         self.instance = instance
         self.uuidmap_file = get_config_path('uuidmap/' + self.instance + '.json')
         self.log = logging.getLogger('connection')
+        self.transport = None
 
         messaging = str(get_config_option("system", "messaging", "qpid"))
         broker = str(get_config_option("system", "broker", "localhost"))
         username = str(get_config_option("system", "username", "agocontrol"))
         password = str(get_config_option("system", "password", "letmein"))
 
-        self.log.debug("Connecting to broker %s", broker)
         if messaging == 'qpid':
-            if not HAS_QPID: raise RuntimeError('Qpid support is not available')
+            try:
+                from agoclient.agotransport_qpid import AgoQpidTransport
+            except ImportError:
+                self.log.exception("Cannot use qpid messaging, failed to load transport")
+                raise AgoTransportConfigError()
+
             self.transport = AgoQpidTransport(broker, username, password)
         elif messaging == 'mqtt':
-            if not HAS_MQTT: raise RuntimeError('MQTT support is not available')
+            try:
+                from agoclient.agotransport_mqtt import AgoMqttTransport
+            except ImportError:
+                self.log.exception("Cannot use mqtt messaging, failed to load transport")
+                raise AgoTransportConfigError()
+
             self.transport = AgoMqttTransport(instance, broker, username, password)
         else:
             raise RuntimeError('Invalid messaging type ' + messaging)

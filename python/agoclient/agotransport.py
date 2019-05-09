@@ -1,6 +1,10 @@
 from abc import abstractmethod
 
 
+class AgoTransportConfigError(RuntimeError):
+    pass
+
+
 class AgoTransport:
     @abstractmethod
     def start(self):

@@ -4,6 +4,7 @@ import agoclient._logging
 
 import argparse
 
+from agoclient.agotransport import AgoTransportConfigError
 from . import config
 import logging
 import os.path
@@ -143,9 +144,13 @@ class AgoApp:
         App specific setup should be done in setup_app method.
         """
         self.setup_logging()
-        self.setup_connection()
+        if not self.setup_connection():
+            return False
+
         self.setup_signals()
         self.setup_app()
+
+        return True
 
     def cleanup(self):
         """Cleanup after shutdown.
@@ -237,9 +242,12 @@ class AgoApp:
 
     def setup_connection(self):
         """Create an AgoConnection instance, assigned to self.connection"""
-        self.connection = AgoConnection(self.app_short_name)
-        if not self.connection.start():
-            raise StartupError()
+        try:
+            self.connection = AgoConnection(self.app_short_name)
+        except AgoTransportConfigError as e:
+            return False
+
+        return self.connection.start()
 
     def cleanup_connection(self):
         """Shutdown and clean up our AgoConnection instance"""
@@ -327,7 +335,8 @@ class AgoApp:
 
         try:
             try:
-                self.setup()
+                if not self.setup():
+                    return 1
             except StartupError:
                 return 1
 
