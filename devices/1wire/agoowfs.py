@@ -1,91 +1,118 @@
 #! /usr/bin/env python
 
-import sys
-import syslog
-import ow
-import time
 import threading
+import time
+import logging
+import ow
 
 import agoclient
+from agoclient import agoproto
 
-CLIENT = agoclient.AgoConnection("owfs")
-
-DEVICE = agoclient.get_config_option("owfs", "device", "/dev/usbowfs")
-
-
-# route stderr to syslog
-class LogErr:
-    def write(self, data):
-        syslog.syslog(syslog.LOG_ERR, data)
-
-syslog.openlog(sys.argv[0], syslog.LOG_PID, syslog.LOG_DAEMON)
-# sys.stderr = LogErr()
-
+ROOT = "" 
 SENSORS = {}
 
-syslog.syslog(syslog.LOG_NOTICE, "agoowfs.py startup")
-try:
-    ow.init(str(DEVICE))
-except ow.exNoController:
-    syslog.syslog(syslog.LOG_ERROR, "can't open one wire device, aborting")
-    time.sleep(5)
-    exit(-1)
+class AgoOwfs(agoclient.AgoApp):
+    def message_handler(self, internalid, content):
+	for sensor in ROOT.sensors():
+	    if (sensor._path == internalid):
+		if "command" in content:
+		    if content["command"] == "on":
+			print("switching on: " + internalid)
+			self.connection.emit_event(internalid, "event.device.statechanged", 255, "")
+		    elif content["command"] == "off":
+			print("switching off: " + internalid)
+			self.connection.emit_event(internalid, "event.device.statechanged", 0, "")
+		    else:
+			return agoproto.response_unknown_command()
 
-syslog.syslog(syslog.LOG_NOTICE, "reading devices")
-ROOT = ow.Sensor('/')
-
-
-for _sensor in ROOT.sensors():
-    if _sensor._type == 'DS18S20' or _sensor._type == 'DS18B20':
-        CLIENT.add_device(_sensor._path, "temperaturesensor")
-    if _sensor._type == 'DS2438':
-        try:
-            if ow.owfs_get('%s/MultiSensor/type' % _sensor._path) == 'MS-TL':
-                CLIENT.add_device(_sensor._path, "temperaturesensor")
-                CLIENT.add_device(_sensor._path + "-brightness", "brightnesssensor")
-            if ow.owfs_get('%s/MultiSensor/type' % _sensor._path) == 'MS-TH':
-                CLIENT.add_device(_sensor._path, "temperaturesensor")
-                CLIENT.add_device(_sensor._path + "-humidity", "humiditysensor")
-            if ow.owfs_get('%s/MultiSensor/type' % _sensor._path) == 'MS-T':
-                CLIENT.add_device(_sensor._path, "temperaturesensor")
-        except ow.exUnknownSensor, exception:
-            print exception
-    if _sensor._type == 'DS2406':
-        _sensor.PIO_B = '0'
-        _sensor.latch_B = '0'
-        _sensor.set_alarm = '111'
-        CLIENT.add_device(_sensor._path, "switch")
-        CLIENT.add_device(_sensor._path, "binarysensor")
+		    return agoproto.response_success()
+		else:
+		    return agoproto.response_bad_parameters()
 
 
-def message_handler(internalid, content):
-    for sensor in ROOT.sensors():
-        if (sensor._path == internalid):
-            if "command" in content:
-                if content["command"] == "on":
-                    print "switching on: ", internalid
-                    sensor.PIO_A = '1'
-                    CLIENT.emit_event(internalid,
-                        "event.device.state", "255", "")
-                if content["command"] == "off":
-                    print "switching off: ", internalid
-                    sensor.PIO_A = '0'
-                    CLIENT.emit_event(internalid,
-                        "event.device.state", "0", "")
+    def app_cmd_line_options(self, parser):
+        """App-specific command line options"""
+        parser.add_argument('-i', '--interval', type=float,
+                default = 5,
+                help="How many seconds (int/float) to wait between sent messages")
 
 
-CLIENT.add_handler(message_handler)
+    def setup_app(self):
+        self.connection.add_handler(self.message_handler)
+	DEVICE = self.get_config_option("device", "/dev/usbowfs")
+	
+	SENSORS = {}
+
+	try:
+	    ow.init(str(DEVICE))
+	except ow.exNoController:
+	    self.log.info("can't open one wire device, aborting")
+	    time.sleep(5)
+	    exit(-1)
+
+	self.log.info("reading devices")
+	ROOT = ow.Sensor('/')
+
+	for _sensor in ROOT.sensors():
+	    if _sensor._type == 'DS18S20' or _sensor._type == 'DS18B20':
+		self.connection.add_device(_sensor._path, "temperaturesensor")
+	    if _sensor._type == 'DS2438':
+		try:
+		    if ow.owfs_get('%s/MultiSensor/type' % _sensor._path) == 'MS-TL':
+			self.connection.add_device(_sensor._path, "temperaturesensor")
+			self.connection.add_device(_sensor._path + "-brightness", "brightnesssensor")
+		    if ow.owfs_get('%s/MultiSensor/type' % _sensor._path) == 'MS-TH':
+			self.connection.add_device(_sensor._path, "temperaturesensor")
+			self.connection.add_device(_sensor._path + "-humidity", "humiditysensor")
+		    if ow.owfs_get('%s/MultiSensor/type' % _sensor._path) == 'MS-T':
+			self.connection.add_device(_sensor._path, "temperaturesensor")
+		except ow.exUnknownSensor, exception:
+		    print exception
+	    if _sensor._type == 'DS2406':
+		_sensor.PIO_B = '0'
+		_sensor.latch_B = '0'
+		_sensor.set_alarm = '111'
+		self.connection.add_device(_sensor._path, "switch")
+		self.connection.add_device(_sensor._path, "binarysensor")
 
 
-class read_bus(threading.Thread):
-    def __init__(self,):
+        self.log.info("Starting owfs thread")
+        self.background = TestEvent(self, self.args.interval)
+        self.background.connection = self.connection
+        self.background.setDaemon(True)
+        self.background.start()
+
+        inventory = self.connection.get_inventory()
+        self.log.info("Inventory has %d entries", len(inventory))
+
+        ctrl = self.connection.get_agocontroller()
+        self.log.info("Agocontroller is at %s", ctrl)
+
+    def cleanup_app(self):
+        # Unfortunately, there is no good way to wakeup the python sleep().
+        # In this particular case, we can just let it die. Since it's a daemon thread,
+        # it will.
+
+        #self.background.join()
+        pass
+
+
+class TestEvent(threading.Thread):
+    def __init__(self, app, interval):
         threading.Thread.__init__(self)
+        self.app = app
+        self.interval = interval
 
     def run(self):
-        # wait till devices should be announced
-        time.sleep(5)
-        while (True):
+        level = 0
+        counter = 0
+        log = logging.getLogger('OwfsThread')
+        while not self.app.is_exit_signaled():
+
+
+        #while (True):
             try:
+                ROOT = ow.Sensor('/')
                 for sensor in ROOT.sensors():
                     if (sensor._type == 'DS18S20' or sensor._type == 'DS18B20'
                         or sensor._type == 'DS2438'):
@@ -94,12 +121,11 @@ class read_bus(threading.Thread):
                             if 'temp' in SENSORS[sensor._path]:
                                 if (abs(SENSORS[sensor._path]['temp'] -
                                         temp) > 0.5):
-                                    CLIENT.emit_event(sensor._path,
-                                        "event.environment.temperaturechanged",
-                                        temp, "degC")
+                                    log.debug("Sending enviromnet changes on sensor % (%.2f dgr C)", sensor._path, temp)
+                                    self.app.connection.emit_event(sensor._path, "event.environment.temperaturechanged", temp, "degC")
                                     SENSORS[sensor._path]['temp'] = temp
                         else:
-                            CLIENT.emit_event(sensor._path,
+                            self.app.connection.emit_event(sensor._path,
                                 "event.environment.temperaturechanged",
                                 temp, "degC")
                             SENSORS[sensor._path] = {}
@@ -116,12 +142,12 @@ class read_bus(threading.Thread):
                                 if 'light' in SENSORS[sensor._path]:
                                     if (abs(SENSORS[sensor._path]['light'] -
                                         lightlevel) > 5):
-                                        CLIENT.emit_event(sensor._path + "-brightness",
+                                        self.app.connection.emit_event(sensor._path + "-brightness",
                                             "event.environment.brightnesschanged",
                                             lightlevel, "percent")
                                         SENSORS[sensor._path]['light'] = lightlevel
                                 else:
-                                    CLIENT.emit_event(sensor._path + "-brightness",
+                                    self.app.connection.emit_event(sensor._path + "-brightness",
                                         "event.environment.brightnesschanged",
                                         lightlevel, "percent")
                                     SENSORS[sensor._path]['light'] = lightlevel
@@ -130,12 +156,12 @@ class read_bus(threading.Thread):
                                 humidity = round(float(humraw))
                                 if 'hum' in SENSORS[sensor._path]:
                                     if abs(SENSORS[sensor._path]['hum'] - humidity) > 2:
-                                        CLIENT.emit_event(sensor._path + "-humidity",
+                                        self.app.connection.emit_event(sensor._path + "-humidity",
                                             "event.environment.humiditychanged",
                                             humidity, "percent")
                                         SENSORS[sensor._path]['hum'] = humidity
                                 else:
-                                    CLIENT.emit_event(sensor._path + "-humidity",
+                                    self.app.connection.emit_event(sensor._path + "-humidity",
                                         "event.environment.humiditychanged",
                                         humidity, "percent")
                                     SENSORS[sensor._path]['hum'] = humidity
@@ -145,19 +171,16 @@ class read_bus(threading.Thread):
                         if sensor.latch_B == '1':
                             sensor.latch_B = '0'
                             if sensor.sensed_B == '1':
-                                CLIENT.emit_event(sensor._path,
+                                self.app.connection.emit_event(sensor._path,
                                     "event.security.sensortriggered", 255, "")
                             else:
-                                CLIENT.emit_event(sensor._path,
+                                self.app.connection.emit_event(sensor._path,
                                     "event.security.sensortriggered", 0, "")
             except ow.exUnknownSensor:
                 pass
-            time.sleep(2)
 
-BACKGROUND = read_bus()
-BACKGROUND.setDaemon(True)
-syslog.syslog(syslog.LOG_NOTICE, "starting read_bus() thread")
-BACKGROUND.start()
+            log.trace("Next command in %f seconds...", self.interval)
+            time.sleep(self.interval)
 
-syslog.syslog(syslog.LOG_NOTICE, "passing control to agoclient")
-CLIENT.run()
+if __name__ == "__main__":
+    AgoOwfs().main()
