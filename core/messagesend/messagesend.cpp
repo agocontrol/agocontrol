@@ -39,11 +39,15 @@ int main(int argc, char **argv) {
     }
 
     std::cout << "Sending message: " << content << std::endl;
-    AgoResponse response = agoConnection.sendRequest(subject, content);
-    if(response.isOk()) {
-        std::cout << "Success: " << response.getResponse() << std::endl;
-    }else{
-        std::cout << "Error: " << response.getResponse() << std::endl;
+    if(subject.empty()) {
+        AgoResponse response = agoConnection.sendRequest(content);
+        if(response.isOk()) {
+            std::cout << "Success: " << response.getResponse() << std::endl;
+        }else{
+            std::cout << "Error: " << response.getResponse() << std::endl;
+        }
+    } else {
+        agoConnection.sendMessage(subject, content);
     }
 }
 

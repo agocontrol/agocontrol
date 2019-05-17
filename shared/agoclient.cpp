@@ -457,18 +457,12 @@ bool agocontrol::AgoConnection::sendMessage(const std::string& subject, const Js
 }
 
 agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const Json::Value& content) {
-    return sendRequest("", content, std::chrono::seconds(3));
+    return sendRequest(content, std::chrono::seconds(3));
 }
 
-agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string& subject, const Json::Value& content) {
-    return sendRequest("", content, std::chrono::seconds(3));
-}
-
-agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const std::string& subject, const Json::Value& content, std::chrono::milliseconds timeout) {
+agocontrol::AgoResponse agocontrol::AgoConnection::sendRequest(const Json::Value& content, std::chrono::milliseconds timeout) {
     Json::Value message;
     message["content"] = content;
-    if(!subject.empty())
-        message["subject"] = subject;
     return transport->sendRequest(message, timeout);
 }
 

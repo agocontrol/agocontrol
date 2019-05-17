@@ -86,8 +86,7 @@ namespace agocontrol {
         bool sendMessage(const Json::Value& content);
 
         AgoResponse sendRequest(const Json::Value& content);
-        AgoResponse sendRequest(const std::string& subject, const Json::Value& content);
-        AgoResponse sendRequest(const std::string& subject, const Json::Value& content, std::chrono::milliseconds timeout);
+        AgoResponse sendRequest(const Json::Value& content, std::chrono::milliseconds timeout);
 
         bool emitEvent(const std::string& internalId, const std::string& eventType, const std::string& level, const std::string& units);
         bool emitEvent(const std::string& internalId, const std::string& eventType, double level, const std::string& units);

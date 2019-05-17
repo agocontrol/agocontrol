@@ -125,21 +125,15 @@ agocontrol::AgoResponse agotransport::AgoQpidTransport::sendRequest(Json::Value&
     qpid::messaging::Session recvsession = impl->connection.createSession();
 
     qpid::types::Variant::Map msgMap = jsonToVariantMap(message["content"]);
-    std::string subject;
-    if(message.isMember("subject")) {
-        subject = message["subject"].asString();
-    }
 
     try {
         encode(msgMap, qpmessage);
-        if(!subject.empty())
-            qpmessage.setSubject(subject);
 
         qpid::messaging::Address responseQueue("#response-queue; {create:always, delete:always}");
         responseReceiver = recvsession.createReceiver(responseQueue);
         qpmessage.setReplyTo(responseQueue);
 
-        AGOL_TRACE(transport) << "Sending message [sub=" << subject << ", reply-to=" << responseQueue <<"]:" << msgMap;
+        AGOL_TRACE(transport) << "Sending message [reply-to=" << responseQueue <<"]:" << msgMap;
         impl->sender.send(qpmessage);
 
         qpid::messaging::Message message = responseReceiver.fetch(qpid::messaging::Duration(timeout.count()));
@@ -168,7 +162,7 @@ agocontrol::AgoResponse agotransport::AgoQpidTransport::sendRequest(Json::Value&
         recvsession.acknowledge();
 
     } catch (const qpid::messaging::NoMessageAvailable&) {
-        AGOL_WARNING(transport) << "Timeout waiting for reply (subject: " << subject << ")";
+        AGOL_WARNING(transport) << "Timeout waiting for reply";
 
         r.init(responseError(RESPONSE_ERR_NO_REPLY, "Timeout"));
     } catch(const std::exception& ex) {
