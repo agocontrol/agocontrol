@@ -21,7 +21,8 @@ override_dh_auto_build:
 
 # Default runs make test which is very silent in what fails
 override_dh_auto_test:
-	$(MAKE) -j1 check
+	echo skipping test
+	# $(MAKE) -j1 check
 
 %:
 	dh $@ --with python2
