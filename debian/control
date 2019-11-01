@@ -46,7 +46,7 @@ Description: agoclient support for MQTT backend transport
 Package: python-agoclient
 Section: libs
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-simplejson, python-augeas
+Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-simplejson, python-augeas, python-paho-mqtt
 # Depends: ${shlibs:Depends}, ${misc:Depends}, python, python-qpid-messaging (>= 0.17) | python-qpid, python-qpid-python (>= 0.17) | python-qpid, python-simplejson, python-augeas
 Description: python client routines and utility functions for ago control device interfaces
 
