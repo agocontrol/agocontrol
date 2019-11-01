@@ -255,9 +255,13 @@ bool agotransport::MqttImpl::start() {
             break;
         } else {
             if(rc == MOSQ_ERR_ERRNO && errno == ENOTCONN) {
-                // Silently ignore, seen on FreeBSD a few times during setup,
-                // depending on log level (i.e. some other race condition?)
-                break;
+                // Seen on FreeBSD a few times during setup:
+                // depending on log level (i.e. some other race condition?) we sometime get this
+                // and the connection is not up.
+                // Retrying seems to work
+                AGOL_TRACE(transport) << "Connection failed: " << mosquitto_strerror(rc);
+                usleep(50000);
+                continue;
             }
 
             AGOL_ERROR(transport) << "Connection failed: " << mosquitto_strerror(rc);
