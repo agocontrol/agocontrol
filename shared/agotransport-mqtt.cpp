@@ -200,8 +200,11 @@ agotransport::MqttImpl::MqttImpl(const std::string &id, const std::string &broke
         : mosquittopp(id.c_str())
         , connected(false)
         , shutdownSignaled(false)
+        , username(user_)
+        , password(password_)
         , connection_uuid(utils::generateUuid())
-        , topic_replies_base(std::string(TOPIC_BASE) + connection_uuid + "/replies/"), reply_seq(0) {
+        , topic_replies_base(std::string(TOPIC_BASE) + connection_uuid + "/replies/")
+        , reply_seq(0) {
     if (!mqtt_inited) {
         mosqpp::lib_init();
         mqtt_inited = true;
