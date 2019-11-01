@@ -200,8 +200,11 @@ agotransport::MqttImpl::MqttImpl(const std::string &id, const std::string &broke
         : mosquittopp(id.c_str())
         , connected(false)
         , shutdownSignaled(false)
+        , username(user_)
+        , password(password_)
         , connection_uuid(utils::generateUuid())
-        , topic_replies_base(std::string(TOPIC_BASE) + connection_uuid + "/replies/"), reply_seq(0) {
+        , topic_replies_base(std::string(TOPIC_BASE) + connection_uuid + "/replies/")
+        , reply_seq(0) {
     if (!mqtt_inited) {
         mosqpp::lib_init();
         mqtt_inited = true;
@@ -252,9 +255,13 @@ bool agotransport::MqttImpl::start() {
             break;
         } else {
             if(rc == MOSQ_ERR_ERRNO && errno == ENOTCONN) {
-                // Silently ignore, seen on FreeBSD a few times during setup,
-                // depending on log level (i.e. some other race condition?)
-                break;
+                // Seen on FreeBSD a few times during setup:
+                // depending on log level (i.e. some other race condition?) we sometime get this
+                // and the connection is not up.
+                // Retrying seems to work
+                AGOL_TRACE(transport) << "Connection failed: " << mosquitto_strerror(rc);
+                usleep(50000);
+                continue;
             }
 
             AGOL_ERROR(transport) << "Connection failed: " << mosquitto_strerror(rc);
