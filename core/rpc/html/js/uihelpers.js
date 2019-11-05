@@ -71,7 +71,7 @@ Agocontrol.prototype.makeFieldDeviceRoomEditable = function(el, device, extraOpt
             var rooms = self.rooms();
             for( var i=0; i < rooms.length; i++ )
             {
-                list[rooms[i].uuid] = rooms[i].name;
+                list[rooms[i].uuid] = rooms[i].name();
             }
             return list;
         },
@@ -95,7 +95,8 @@ Agocontrol.prototype.makeFieldDeviceRoomEditable = function(el, device, extraOpt
                         notif.success("Device room updated");
                         //update local inventory; there is no roomchanged event right now.
                         if (value === "") {
-                            device.room = device.roomUID = "";
+                            device.room = "";
+                            device.roomUID = null;
                             self.inventory.devices[device.uuid].room = "";
                             self.inventory.devices[device.uuid].roomUID = "";
                         }
@@ -105,8 +106,8 @@ Agocontrol.prototype.makeFieldDeviceRoomEditable = function(el, device, extraOpt
 
                             var room = self.findRoom(value);
                             if (room) {
-                                device.room = room.name;
-                                self.inventory.devices[device.uuid].room = room.name;
+                                device.room = room.name();
+                                self.inventory.devices[device.uuid].room = room.name();
                             }
                         }
                     })
@@ -123,7 +124,7 @@ Agocontrol.prototype.makeFieldDeviceRoomEditable = function(el, device, extraOpt
             else
             {
                 var room = self.findRoom(value);
-                return room.name;
+                return room.name();
             }
         },
         options);

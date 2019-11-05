@@ -16,7 +16,7 @@ function DeviceConfig(agocontrol)
         for ( var i = 0; i < self.agocontrol.devices().length; i++)
         {
             var dev = self.agocontrol.devices()[i];
-            if (dev.room)
+            if (dev.roomUID)
             {
                 if( !tagMap["room_" + dev.room] )
                 {

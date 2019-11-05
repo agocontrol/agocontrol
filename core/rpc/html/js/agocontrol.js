@@ -580,6 +580,7 @@ Agocontrol.prototype = {
         {
             var room = inv.rooms[uuid];
             room.uuid = uuid;
+            room.name = ko.observable(room.name);
             room.action = ''; //dummy for datatables
             self.rooms.push(room);
         }
@@ -615,7 +616,7 @@ Agocontrol.prototype = {
             dev.roomUID = dev.room;
             var room = this.findRoom(dev.room);
             if (room) {
-                dev.room = room.name;
+                dev.room = room.name();
                 return;
             }
         }
@@ -958,7 +959,7 @@ Agocontrol.prototype = {
         {
             var uuid = result.uuid;
             if( self.inventory && self.inventory.rooms && self.inventory.rooms[uuid]!==undefined ) {
-                self.inventory.rooms[uuid].name = result.name;
+                self.inventory.rooms[uuid].name(result.name);
 
                 // refresh devices with this room
                 for (var devUuid in self.inventory.devices) {
