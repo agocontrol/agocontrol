@@ -162,7 +162,7 @@ def getName(id):
 
     tdlib.tdReleaseString(vp)
 
-    return s
+    return s.decode()
 
 
 def methods(id, methodsSupported=None, readable=False):
@@ -174,7 +174,7 @@ def methods(id, methodsSupported=None, readable=False):
         l = []
         for m in methodsReadable:
             if methods & m:
-                l.append(methodsReadable[m])
+                l.append(methodsReadable[m].decode())
         return ','.join(l)
 
     return methods
@@ -189,27 +189,27 @@ def turnOff(intDeviceId):
 
 
 def bell(intDeviceId):
-    return tdlib.tdBell(intDeviceId)
+    return tdlib.tdBell(intDeviceId).decode()
 
 
 def dim(intDeviceId, level):
-    return tdlib.tdDim(intDeviceId, level)
+    return tdlib.tdDim(intDeviceId, level).decode()
 
 
 def up(intDeviceId):
-    return tdlib.tdUp(intDeviceId)
+    return tdlib.tdUp(intDeviceId).decode()
 
 
 def down(intDeviceId):
-    return tdlib.tdDown(intDeviceId)
+    return tdlib.tdDown(intDeviceId).decode()
 
 
 def stop(intDeviceId):
-    return tdlib.tdStop(intDeviceId)
+    return tdlib.tdStop(intDeviceId).decode()
 
 
 def learn(intDeviceId):
-    return tdlib.tdLearn(intDeviceId)
+    return tdlib.tdLearn(intDeviceId).decode()
 
 
 def lastSentCommand(intDeviceId, methodsSupported=None, readable=False):
@@ -219,7 +219,7 @@ def lastSentCommand(intDeviceId, methodsSupported=None, readable=False):
     if readable:
         return methodsReadable.get(tdlib.tdLastSentCommand(intDeviceId, methodsSupported), 'UNKNOWN')
 
-    return tdlib.tdLastSentCommand(intDeviceId, methodsSupported)
+    return tdlib.tdLastSentCommand(intDeviceId, methodsSupported).decode()
 
 
 def lastSentValue(intDeviceId):
@@ -229,7 +229,7 @@ def lastSentValue(intDeviceId):
     ret = func(intDeviceId)
 
     # Release string here?
-    return ret
+    return ret.decode()
 
 
 def getErrorString(intErrorNo):
@@ -242,15 +242,15 @@ def getErrorString(intErrorNo):
 
     tdlib.tdReleaseString(vp)
 
-    return s
+    return s.decode()
 
 
 def add_device():
-    return tdlib.tdAddDevice()
+    return tdlib.tdAddDevice().decode()
 
 
 def remove_device(intDeviceId):
-    return tdlib.tdRemoveDevice(intDeviceId)
+    return tdlib.tdRemoveDevice(intDeviceId).decode()
 
 
 def setName(intDeviceId, chNewName):
@@ -259,7 +259,7 @@ def setName(intDeviceId, chNewName):
     if not isinstance(intDeviceId, int):
         raise ValueError('intDeviceId needs to be an integer')
 
-    return tdlib.tdSetName(intDeviceId, chNewName)
+    return tdlib.tdSetName(intDeviceId, chNewName).decode()
 
 
 def getProtocol(intDeviceId):
@@ -275,7 +275,7 @@ def getProtocol(intDeviceId):
 
     tdlib.tdReleaseString(vp)
 
-    return s
+    return s.decode()
 
 
 def getModel(intDeviceId):
@@ -291,7 +291,7 @@ def getModel(intDeviceId):
 
     tdlib.tdReleaseString(vp)
 
-    return s
+    return s.decode()
 
 
 def getDeviceParameter(intDeviceId, strName, defaultValue):
@@ -311,7 +311,7 @@ def getDeviceParameter(intDeviceId, strName, defaultValue):
 
     tdlib.tdReleaseString(vp)
 
-    return s
+    return s.decode()
 
 
 def init(defaultMethods=0):
@@ -496,15 +496,15 @@ def unregisterCallback(callbackId):
 
 
 def setProtocol(intDeviceId, strProtocol):
-    return tdlib.tdSetProtocol(intDeviceId, strProtocol)
+    return tdlib.tdSetProtocol(intDeviceId, strProtocol).decode()
 
 
 def setModel(intDeviceId, strModel):
-    return tdlib.tdSetModel(intDeviceId, strModel)
+    return tdlib.tdSetModel(intDeviceId, strModel).decode()
 
 
 def setDeviceParameter(intDeviceId, strName, strValue):
-    return tdlib.tdSetDeviceParameter(intDeviceId, strName, strValue)
+    return tdlib.tdSetDeviceParameter(intDeviceId, strName, strValue).decode()
 
 
 # Completly untested calls
@@ -537,9 +537,9 @@ def listSensors():
     while tdlib.tdSensor(protocol, protocollength, model, modellength, byref(idvalue), byref(dataTypes)) == 0:
         s = {}
         # print "Sensor: ", protocol.value, model.value, "id:", idvalue.value
-        s["protocol"] = protocol.value
-        s["model"] = model.value
-        s["id"] = "S" + str(idvalue.value)
+        s["protocol"] = protocol.value.decode()
+        s["model"] = model.valueW.decode()
+        s["id"] = "S" + idvalue.value.decode()
         s["new"] = True
         value = create_string_buffer(valuelength)
         timestampvalue = c_int()
