@@ -24,13 +24,13 @@ endif()
 set (AGOCLIENT_LIBRARIES
     agocore
     dl
-    ${AUGEAS_LIBRARIES}
+    ${AUGEAS_LDFLAGS}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
 )
 
 set (AGOCORE_LIBRARIES
-    uuid
+    ${UUID_LDFLAGS}
     ${Boost_LOG_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
