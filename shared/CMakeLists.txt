@@ -54,7 +54,9 @@ set_property(DIRECTORY
 set_property(DIRECTORY
     APPEND PROPERTY
     COMPILE_OPTIONS
-    -Werror)
+    -Werror
+    # mosquittopp is deprectade....
+    -Wno-deprecated-declarations)
 
 include_directories("${AUGEAS_INCLUDE_DIRS}")
 
