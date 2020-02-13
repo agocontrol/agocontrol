@@ -132,9 +132,10 @@ void log_container::setOutputConsole() {
             )
             );
 
-    // If our output stream fails, make sure we throw exception rather than
-    // just stop logging
-    std::clog.exceptions ( std::ostream::failbit | std::ostream::badbit );
+    // If our output stream fails with recoverable error, make sure we throw exception
+    // rather than just stop logging. If it's closed however (badbit) we might as well
+    // ignore it since we cannot log it.
+    std::clog.exceptions ( std::ostream::failbit );
 
     // Enable auto-flushing after each log record written
     backend->auto_flush(true);
