@@ -9,7 +9,7 @@ set(TEST_SOURCE_FILES
 
 set (TEST_LIBRARIES
     agoclient
-    ${CPPUNIT_LIBRARIES}
+    ${CppUnit_LIBRARIES}
 )
 
 add_executable (testrunner ${TEST_SOURCE_FILES})
