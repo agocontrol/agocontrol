@@ -6,10 +6,10 @@ set (DATALOGGER_LIBRARIES
     sqlite3
     ${Boost_PROGRAM_DATE_TIME_LIBRARY}
     ${LIBRRD_LIBRARIES}
-    ${CPPDB_LIBRARIES}
+    ${CppDb_LIBRARIES}
 )
 
-include_directories(${CPPDB_INCLUDE_DIRS})
+include_directories(${CppDb_INCLUDE_DIRS})
 
 # add the executable
 add_executable (agodatalogger ${AGODATALOGGER_SOURCE_FILES})

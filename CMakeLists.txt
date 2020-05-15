@@ -183,21 +183,21 @@ pkg_search_module(LUA lua5.3 lua-5.3 lua5.2 lua-5.2 lua5.1 lua-5.1 lua)
 log_pkg_found(lua "${LUA_FOUND}" "${LUA_VERSION}" WARNING ", parts of core will not be built")
 
 find_package(CppDb)
-log_pkg_found(cppdb "${CPPDB_FOUND}" "" WARNING ", parts of core will not be built")
+log_pkg_found(cppdb "${CppDb_FOUND}" "" WARNING ", parts of core will not be built")
 
 pkg_search_module(LIBRRD librrd)
 log_pkg_found(librrd "${LIBRRD_FOUND}" "${LIBRRD_VERSION}" WARNING ", parts of core will not be built")
 
 find_package(Qpid)
-log_pkg_found(qpid "${QPID_FOUND}" "${QPID_VERSION}" STATUS ", QPID communication support will not be built")
-set(WITH_QPID ${QPID_FOUND})
+log_pkg_found(qpid "${Qpid_FOUND}" "${Qpid_VERSION}" STATUS ", legacy Qpid communication support will not be built")
+set(WITH_QPID ${Qpid_FOUND})
 
 find_package(Mosquittopp)
-log_pkg_found(mosquittopp "${MOSQUITTOPP_FOUND}" "${MOSQUITTOPP_VERSION}" WARNING ", MQTT communication support will not be built")
-set(WITH_MQTT ${MOSQUITTOPP_FOUND})
+log_pkg_found(Mosquittopp "${Mosquittopp_FOUND}" "${Mosquittopp_VERSION}" WARNING ", MQTT communication support will not be built")
+set(WITH_MQTT ${Mosquittopp_FOUND})
 
-if(NOT ${MOSQUITTOPP_FOUND} AND NOT ${QPID_FOUND})
-    message(FATAL_ERROR "Neither mosquittopp nor qpid found. One or both is required")
+if(NOT ${Mosquittopp_FOUND} AND NOT ${Qpid_FOUND})
+    message(FATAL_ERROR "Neither Mosquittopp nor qpid found. One or both is required, mosquittopp is recommended")
 endif()
 
 if(OS_LINUX)

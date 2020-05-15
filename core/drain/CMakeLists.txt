@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.0)
 
 set (DRAIN_LIBRARIES
     agoclient
-    ${QPID_LIBRARIES}
+    ${Qpid_LIBRARIES}
 )
 
 # add the executable

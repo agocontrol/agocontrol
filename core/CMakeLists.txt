@@ -54,7 +54,7 @@ if (BUILD_CORE_event)
 endif()
 
 OPTION(BUILD_CORE_datalogger "Build agodatalogger" ON)
-if (BUILD_CORE_datalogger AND LIBRRD_FOUND AND CPPDB_FOUND)
+if (BUILD_CORE_datalogger AND LIBRRD_FOUND AND CppDb_FOUND)
   add_subdirectory (datalogger)
 endif()
 

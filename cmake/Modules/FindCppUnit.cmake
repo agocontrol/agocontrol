@@ -3,26 +3,26 @@
 # Find the CppUnit includes and library
 #
 # This module defines
-# CPPUNIT_INCLUDE_DIRS, where to find tiff.h, etc.
-# CPPUNIT_LIBRARIES, the libraries to link against to use CppUnit.
-# CPPUNIT_FOUND, If false, do not try to use CppUnit.
+# CppUnit_INCLUDE_DIRS, where to find tiff.h, etc.
+# CppUnit_LIBRARIES, the libraries to link against to use CppUnit.
+# CppUnit_FOUND, If false, do not try to use CppUnit.
 
-FIND_PATH(CPPUNIT_INCLUDE_DIRS cppunit/TestCase.h
+FIND_PATH(CppUnit_INCLUDE_DIRS cppunit/TestCase.h
     /usr/local/include
     /usr/include
 )
 
-FIND_LIBRARY(CPPUNIT_LIBRARIES cppunit
-   ${CPPUNIT_INCLUDE_DIRS}/../lib
+FIND_LIBRARY(CppUnit_LIBRARIES cppunit
+   ${CppUnit_INCLUDE_DIRS}/../lib
    /usr/local/lib
    /usr/lib)
 
-if(CPPUNIT_INCLUDE_DIRS)
-    IF(CPPUNIT_LIBRARIES)
-        SET(CPPUNIT_FOUND "YES")
-        SET(CPPUNIT_LIBRARIES ${CPPUNIT_LIBRARIES} ${CMAKE_DL_LIBS})
+if(CppUnit_INCLUDE_DIRS)
+    IF(CppUnit_LIBRARIES)
+        SET(CppUnit_FOUND "YES")
+        SET(CppUnit_LIBRARIES ${CppUnit_LIBRARIES} ${CMAKE_DL_LIBS})
     endif()
 endif()
 
 INCLUDE(FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(CPPUNIT DEFAULT_MSG CPPUNIT_LIBRARIES CPPUNIT_INCLUDE_DIRS)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(CppUnit DEFAULT_MSG CppUnit_LIBRARIES CppUnit_INCLUDE_DIRS)
