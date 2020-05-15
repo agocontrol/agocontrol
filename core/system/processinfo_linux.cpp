@@ -1,3 +1,5 @@
+#include <boost/log/support/date_time.hpp>
+
 #include <proc/readproc.h>
 #include "agosystem.h"
 

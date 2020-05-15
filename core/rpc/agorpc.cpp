@@ -192,7 +192,6 @@ static bool jsonrpcErrorResponse(Json::Value& responseRoot, int code, const std:
 void AgoRpc::jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mutex> &lock, const Json::Value& params, Json::Value& responseRoot) {
     // prepare message
     const Json::Value& content = params["content"];
-    const Json::Value& subject = params["subject"];
 
     const Json::Value& replytimeout = params["replytimeout"];
     std::chrono::milliseconds timeout(3000);
@@ -207,7 +206,7 @@ void AgoRpc::jsonrpc_message(JsonRpcReqRep* reqRep, boost::unique_lock<boost::mu
     {
         // ReqRep must not be locked when blocking in another thread
         boost::reverse_lock<boost::unique_lock<boost::mutex>> unlock(lock);
-        response = agoConnection->sendRequest(subject.asString(), content, timeout);
+        response = agoConnection->sendRequest(content, timeout);
     }
 
     AGO_TRACE() << "RPC Response: " << response.getResponse();

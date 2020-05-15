@@ -1,24 +1,35 @@
 from __future__ import print_function
 
-import sys
+import agoclient._logging
+
+import argparse
+
+from agoclient.agotransport import AgoTransportConfigError
+from . import config
 import logging
 import os.path
-from logging.handlers import SysLogHandler
-import argparse
 import signal
+import sys
+from agoclient.agoconnection import AgoConnection
+from logging.handlers import SysLogHandler
 
-import _logging
-import _directories
-import config
-from agoconnection import AgoConnection
+try:
+    import faulthandler
+except:
+    faulthandler = None
 
 __all__ = ["AgoApp"]
+
+agoclient._logging.init()
+
 
 class StartupError(Exception):
     pass
 
+
 class ConfigurationError(Exception):
     pass
+
 
 class AgoApp:
     """This is a base class for all Python AgoControl applications
@@ -32,6 +43,7 @@ class AgoApp:
             TheApp().main()
 
     """
+
     def __init__(self):
         self.app_name = self.__class__.__name__
         if self.app_name.find("Ago") == 0:
@@ -41,7 +53,7 @@ class AgoApp:
 
         self.log = None
         self.exit_signaled = False
-        self.connection = None # type: AgoConnection
+        self.connection = None  # type: AgoConnection
 
     def parse_command_line(self, argv):
         """Parse the provided command line.
@@ -60,28 +72,28 @@ class AgoApp:
         LOG_LEVELS = ['TRACE', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'FATAL']
 
         parser.add_argument('-h', '--help', action='store_true',
-                help='show this help message and exit')
+                            help='show this help message and exit')
 
         parser.add_argument('--log-level', dest="log_level",
-                help='Log level', choices = LOG_LEVELS)
+                            help='Log level', choices=LOG_LEVELS)
         parser.add_argument('--log-method', dest="log_method",
-                help='Where to log', choices = ['console', 'syslog'])
+                            help='Where to log', choices=['console', 'syslog'])
 
-        facilities = SysLogHandler.facility_names.keys()
+        facilities = list(SysLogHandler.facility_names.keys())
         facilities.sort()
         parser.add_argument('--log-syslog-facility', dest="syslog_facility",
-                help='Which syslog facility to log to.',
-                choices = facilities)
+                            help='Which syslog facility to log to.',
+                            choices=facilities)
 
         parser.add_argument('-d', '--debug', action='store_true',
-                help='Shortcut to set console logging with level DEBUG')
+                            help='Shortcut to set console logging with level DEBUG')
         parser.add_argument('-t', '--trace', action='store_true',
-                help='Shortcut to set console logging with level TRACE')
+                            help='Shortcut to set console logging with level TRACE')
 
         parser.add_argument('--config-dir', dest="config_dir",
-                help='Directory with configuration files')
+                            help='Directory with configuration files')
         parser.add_argument('--state-dir', dest="state_dir",
-                help='Directory with local state files')
+                            help='Directory with local state files')
 
         self.app_cmd_line_options(parser)
 
@@ -107,7 +119,8 @@ class AgoApp:
             print("  Active state dir  : %s" % config.LOCALSTATEDIR)
             print()
             print("System configuration file      : %s" % config.get_config_path('conf.d/system.conf'))
-            print("App-specific configuration file: %s" % config.get_config_path('conf.d/%s.conf' % self.app_short_name))
+            print(
+                "App-specific configuration file: %s" % config.get_config_path('conf.d/%s.conf' % self.app_short_name))
             print()
 
             return False
@@ -131,9 +144,13 @@ class AgoApp:
         App specific setup should be done in setup_app method.
         """
         self.setup_logging()
-        self.setup_connection()
+        if not self.setup_connection():
+            return False
+
         self.setup_signals()
         self.setup_app()
+
+        return True
 
     def cleanup(self):
         """Cleanup after shutdown.
@@ -157,14 +174,27 @@ class AgoApp:
             lvl_name = self.args.log_level
         else:
             lvl_name = self.get_config_option("log_level", "INFO",
-                    section=[None, "system"])
+                                              section=[None, "system"])
 
-            if lvl_name.upper() not in logging._levelNames:
-                raise ConfigurationError("Invalid log_level %s" % lvl_name)
+            lvl_name = lvl_name.upper()
 
-        # ..and set it
-        lvl = logging._levelNames[lvl_name.upper()]
-        root.setLevel(lvl)
+        lvl = logging.getLevelName(lvl_name)
+        try:
+            root.setLevel(lvl)
+        except ValueError as e:
+            raise ConfigurationError("Invalid log_level %s: %s" % (lvl_name, str(e)))
+
+        # Read logging-specific levels from configuration file. The same functionality is present in
+        # c++ version with Boost Log channels.
+        for logger_name, level in self.get_config_section('loggers', (self.app_short_name, 'system')).items():
+            # Our global level controls "maximum output level" rather than "root" level
+            # to mimic the way C++ agoapp does. Thus, cap each of the loggers to that level.
+            lvl = logging.getLevelName(level)
+            level = max(root.level, lvl)
+            try:
+                logging.getLogger(logger_name).setLevel(level)
+            except ValueError as e:
+                raise ConfigurationError("Invalid log level for logger %s: %s" % (logger_name, str(e)))
 
         # Find log method..
         if self.args.trace or self.args.debug:
@@ -173,7 +203,7 @@ class AgoApp:
             log_method = self.args.log_method
         else:
             log_method = self.get_config_option("log_method", "console",
-                    section=[None, "system"])
+                                                section=[None, "system"])
 
             if log_method not in ['console', 'syslog']:
                 raise ConfigurationError("Invalid log_method %s" % log_method)
@@ -187,7 +217,7 @@ class AgoApp:
                 syslog_fac = self.args.syslog_facility
             else:
                 syslog_fac = self.get_config_option("syslog_facility",
-                        "local0", section = [None,"system"])
+                                                    "local0", section=[None, "system"])
 
                 if syslog_fac not in SysLogHandler.facility_names:
                     raise ConfigurationError("Invalid syslog_facility %s" % syslog_fac)
@@ -207,14 +237,17 @@ class AgoApp:
 
         self.log_handler.setFormatter(self.log_formatter)
 
-        # Forcibly limit QPID logging to INFO
-        logging.getLogger('qpid').setLevel(max(root.level, logging.INFO))
         root.addHandler(self.log_handler)
-        self.log = logging.getLogger(self.app_name)
+        self.log = logging.getLogger("app")
 
     def setup_connection(self):
         """Create an AgoConnection instance, assigned to self.connection"""
-        self.connection = AgoConnection(self.app_short_name)
+        try:
+            self.connection = AgoConnection(self.app_short_name)
+        except AgoTransportConfigError as e:
+            return False
+
+        return self.connection.start()
 
     def cleanup_connection(self):
         """Shutdown and clean up our AgoConnection instance"""
@@ -246,7 +279,7 @@ class AgoApp:
 
     def _do_shutdown(self):
         if self.connection:
-            self.connection.begin_shutdown()
+            self.connection.prepare_shutdown()
 
     def setup_app(self):
         """This should be overriden by the application to setup app specifics"""
@@ -292,33 +325,39 @@ class AgoApp:
             OS Exit code
 
         """
+
+        if faulthandler:
+            faulthandler.enable()
+            faulthandler.register(signal.SIGINFO)
+
         if not self.parse_command_line(argv):
             return 1
 
         try:
             try:
-                self.setup()
+                if not self.setup():
+                    return 1
             except StartupError:
                 return 1
 
-            except ConfigurationError,e:
+            except ConfigurationError as e:
                 if self.log:
                     self.log.error("Failed to start %s due to configuration error: %s",
-                                   self.app_name, e.message)
+                                   self.app_name, e)
                 else:
                     # Print to stderr, in case logging setup failed
-                    print("Failed to start %s due to configuration error: %s" % (self.app_name, e.message),
+                    print("Failed to start %s due to configuration error: %s" % (self.app_name, e),
                           file=sys.stderr)
                 return 1
 
             self.log.info("Starting %s", self.app_name)
             ret = self.app_main()
             self.log.debug("Shutting down %s", self.app_name)
-            return 0
+            return ret
         except:
             if self.log:
                 self.log.critical("Unhandled exception, crashing",
-                    exc_info=True)
+                                  exc_info=True)
             else:
                 print("Unhandled exception, crashing", file=sys.stderr)
                 raise
@@ -335,8 +374,6 @@ class AgoApp:
                 else:
                     print("Unhandled exception, crashing", file=sys.stderr)
 
-
-
     def app_main(self):
         """Main entry point for application.
 
@@ -349,7 +386,6 @@ class AgoApp:
 
         self.connection.run()
         return 0
-
 
     def get_config_option(self, option, default_value=None, section=None, app=None):
         """Read a config option from the configuration subsystem.
@@ -408,6 +444,28 @@ class AgoApp:
 
         return config.get_config_option(section, option, default_value, app)
 
+    def get_config_section(self, section=None, app=None):
+        """Read all options in the given section(s) from the configuration subsystem.
+
+        Same as get_config_option, but will return a dict with all defined values under the given
+        section(s). If more than one section/app is defined, all will be looked at, in the order
+        specified. If an option is set in multiple sections/app, the last one seen will be used.
+
+        Returns a dict with key/values.
+        """
+        if section is None:
+            section = self.app_short_name
+
+        if app is None:
+            if type(section) == str:
+                app = [self.app_short_name, section]
+            else:
+                app = [self.app_short_name] + section
+
+        config._iterable_replace_none(section, self.app_short_name)
+        config._iterable_replace_none(app, self.app_short_name)
+
+        return config.get_config_section(section, app)
 
     def set_config_option(self, option, value, section=None, app=None):
         """Write a config option to the configuration subsystem.
@@ -446,39 +504,39 @@ class AgoApp:
         @empty: check if value is empty (only for string)
         @return res,param: res=True if success/False if something failed. param=parameter or converted parameter
         """
-        #check presence
+        # check presence
         if param not in content:
             self.log.trace('Parameter "%s" not in %s' % (param, content))
             return False, param
 
-        #check type
+        # check type
         value = content[param]
-        if type!=None:
+        if type is not None:
             try:
-                if type=='string':
+                if type == 'string':
                     new_value = str(value)
-                    #check if str is empty
-                    self.log.debug('new_value=%s isinstance=%s len=%d' % (new_value, str(isinstance(new_value, str)), len(new_value)))
-                    if empty and isinstance(new_value, str) and len(new_value)==0:
-                        self.log.debug('Parameter "%s" is empty' % (param))
+                    # check if str is empty
+                    self.log.debug('new_value=%s isinstance=%s len=%d' % (
+                        new_value, str(isinstance(new_value, str)), len(new_value)))
+                    if empty and isinstance(new_value, str) and len(new_value) == 0:
+                        self.log.debug('Parameter "%s" is empty' % param)
                         return False, value
                     else:
                         return True, new_value
-                elif type=='int':
+                elif type == 'int':
                     return True, int(value)
-                elif type=='float':
+                elif type == 'float':
                     return True, float(value)
-                elif type=='bool':
+                elif type == 'bool':
                     return True, bool(value)
             except:
-                #conversion exception
+                # conversion exception
                 self.log.trace('Conversion exception for "%s" [%s] to %s' % (value, type(value), type))
                 return False, value
         else:
-            #check if str is empty
-            if empty and isinstance(value, str) and len(value)==0:
-                self.log.trace('Parameter "%s" is empty' % (param))
+            # check if str is empty
+            if empty and isinstance(value, str) and len(value) == 0:
+                self.log.trace('Parameter "%s" is empty' % param)
                 return False, value
 
         return True, param
-

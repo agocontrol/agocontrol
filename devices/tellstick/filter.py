@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from __future__ import print_function
 
 # Filter class, used to store a series of samples and determine if
 # a new sample is noise or real sample before adding it to the series
@@ -60,8 +61,8 @@ class sampleseries():
     def load(self):
         self.samples = [3.3, 3.4, 3.5, 3.6, 3.5, 3.6, 3.5, 3.6, 3.5, 3.4, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 3.9,
                         4.0]
-        print self.samples
-        print ("len of samples=" + str(self.samples.__len__()))
+        print(self.samples)
+        print("len of samples=" + str(self.samples.__len__()))
 
         self.times = [datetime.fromtimestamp(mktime(time.strptime("16 Feb 07 00:56", "%y %b %d %H:%M"))),
                       datetime.fromtimestamp(mktime(time.strptime("16 Feb 07 01:00", "%y %b %d %H:%M"))),
@@ -84,11 +85,11 @@ class sampleseries():
                       datetime.fromtimestamp(mktime(time.strptime("16 Feb 07 04:04", "%y %b %d %H:%M"))),
                       datetime.fromtimestamp(mktime(time.strptime("16 Feb 07 04:08", "%y %b %d %H:%M")))]
         self.createT(self.samples, self.times)
-        print self.samples2
-        print self.samples2.__len__()
+        print(self.samples2)
+        print(self.samples2.__len__())
 
         # print self.times
-        print ("len of times=" + str(self.times.__len__()))
+        print("len of times=" + str(self.times.__len__()))
 
     def createT(self, samples, times):
         for x in range(0, times.__len__()):
@@ -101,12 +102,12 @@ class sampleseries():
         self.samples.append(sample)
         self.times.append(tm if tm is not None else now)
 
-        print ("Now=" + str(now) + " sample=" + str(sample))
+        print(("Now=" + str(now) + " sample=" + str(sample)))
 
     def removeold(self):
-        print ("len of samples=" + str(self.samples.__len__()))
+        print("len of samples=" + str(self.samples.__len__()))
         if self.samples.__len__() >= self.maxitems:
-            print "maxitems reached"
+            print("maxitems reached")
             # find oldest, remove it
 
     def avg(self):
@@ -129,11 +130,11 @@ if __name__ == "__main__":
     # 1/31/2016 4:10 AM	22.4
     ret = a.test(22.4, datetime.fromtimestamp(mktime(time.strptime("16 Feb 07 04:10", "%y %b %d %H:%M"))))
 
-    print "ret="
-    print ret
+    print("ret=")
+    print(ret)
 
     x = a.times[1] - a.times[0]
-    print x
+    print(x)
 
     a.insert(1.0, datetime.fromtimestamp(mktime(time.strptime("16 Feb 07 04:10", "%y %b %d %H:%M"))))
     # a.insert(1.1)
@@ -141,7 +142,7 @@ if __name__ == "__main__":
     # a.insert(1.1)
     # a.insert(-1.1)
 
-    print "avg=" + str(a.avg())
+    print("avg=" + str(a.avg()))
     # print a.times
     # print ("len of times=" + str(a.times.__len__()))
 

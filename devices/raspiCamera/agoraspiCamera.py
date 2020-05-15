@@ -8,6 +8,7 @@
 #
 
 import agoclient
+from agoclient import agoproto
 import urllib2
 import base64
 import picamera
@@ -33,7 +34,7 @@ def messageHandler(internalid, content):
                 camera.capture(stream, format='jpeg')
                 frame = stream.getvalue()
 
-    return client.response_success({'image':buffer(base64.b64encode(frame))})
+    return agoproto.response_success({'image':buffer(base64.b64encode(frame))})
 
 client.add_handler(messageHandler)
 

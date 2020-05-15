@@ -57,8 +57,6 @@ namespace agocontrol {
         std::list<std::string> name_list;
     protected:
         bool extra;
-        bool isExtra() const { return extra; }
-        ConfigNameList& addAll(const ConfigNameList& names) ;
 
     public:
         ConfigNameList() : extra(false) {}
@@ -67,8 +65,10 @@ namespace agocontrol {
         ConfigNameList(const ConfigNameList &names) ;
         ConfigNameList(const ConfigNameList &names1, const ConfigNameList &names2) ;
         ConfigNameList& add(const std::string &name) ;
+        ConfigNameList& addAll(const ConfigNameList& names) ;
         int empty() const { return name_list.empty(); }
         int size() const { return name_list.size(); }
+        bool isExtra() const { return extra; }
         const std::list<std::string>& names() const { return name_list; }
 
         friend std::ostream& operator<< (std::ostream& os, const ConfigNameList &list) ;
@@ -81,7 +81,19 @@ namespace agocontrol {
     public:
         ExtraConfigNameList(const std::string& name)
             : ConfigNameList(name)
-        {extra = true;}
+        {
+            extra = true;
+        }
+
+        static ExtraConfigNameList toExtra(const ConfigNameList& existing) {
+            ExtraConfigNameList n;
+            n.addAll(existing);
+            return n;
+        }
+    private:
+        ExtraConfigNameList() {
+            extra = true;
+        }
     };
 
     /* Use this for default values */
@@ -103,7 +115,7 @@ namespace agocontrol {
      *  section -- A ConfigNameList section to look for the option in.
      *      Note that a regular string can be passed, it will create an implicit ConfigNameList.
      *
-     *  option -- The name of the option to retreive
+     *  option -- The name of the option to retrieve
      *
      *  defaultValue -- If the option can not be found in any of the specified
      *      sections, fall back to this value.
@@ -123,6 +135,19 @@ namespace agocontrol {
     std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const char* defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
     std::string getConfigSectionOption(const ConfigNameList& section, const std::string& option, const std::string& defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
     boost::filesystem::path getConfigSectionOption(const ConfigNameList& section, const std::string& option, const boost::filesystem::path& defaultValue, const ConfigNameList& app = BLANK_CONFIG_NAME_LIST);
+
+    /**
+     * Read one or more configuration sections, and return all options as a map.
+     *
+     * Section and app arguments behaves same way as for getConfigSectionOption.
+     * If the key is found in multiple locations, the first match is used (same way as getConfigSectionOption would
+     * return that specific option).
+     *
+     * @param section
+     * @param app
+     * @return
+     */
+    std::map<std::string, std::string> getConfigSection(const ConfigNameList& section, const ConfigNameList &app);
     Json::Value getConfigTree();
 
     /**

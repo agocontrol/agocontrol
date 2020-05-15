@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import sys, getopt, httplib, urllib, json, os
 import logging, syslog
 import oauth.oauth as oauth
@@ -7,22 +9,22 @@ def info (text):
     logging.info (text)
     syslog.syslog(syslog.LOG_INFO, text)
     if debug:
-        print "INF " + text + "\n"
+        print("INF " + text + "\n")
 def debug (text):
     logging.debug (text)
     syslog.syslog(syslog.LOG_DEBUG, text)
     if debug:
-        print "DBG " + text + "\n"
+        print("DBG " + text + "\n")
 def error (text):
     logging.error(text)
     syslog.syslog(syslog.LOG_ERR, text)
     if debug:
-        print "ERR " + text + "\n"
+        print("ERR " + text + "\n")
 def warning(text):
     logging.warning (text)
     syslog.syslog(syslog.LOG_WARNING, text)
     if debug:
-        print "WRN " + text + "\n"
+        print("WRN " + text + "\n")
 
 class LogErr:
         def write(self, data):
@@ -55,13 +57,13 @@ def requestToken():
 	consumer = oauth.OAuthConsumer(PUBLIC_KEY, PRIVATE_KEY)
 	request = oauth.OAuthRequest.from_consumer_and_token(consumer, http_url='http://api.telldus.com/oauth/requestToken')
 	request.sign_request(oauth.OAuthSignatureMethod_HMAC_SHA1(), consumer, None)
-	conn = httplib.HTTPConnection('api.telldus.com:80')
+	conn = http.client.HTTPConnection('api.telldus.com:80')
 	conn.request(request.http_method, '/oauth/requestToken', headers=request.to_header())
 
 	resp = conn.getresponse().read()
 	token = oauth.OAuthToken.from_string(resp)
-	print 'Open the following url in your webbrowser:\nhttp://api.telldus.com/oauth/authorize?oauth_token=%s\n' % token.key
-	print 'After logging in and accepting to use this application run:\n%s --authenticate' % (sys.argv[0])
+	print('Open the following url in your webbrowser:\nhttp://api.telldus.com/oauth/authorize?oauth_token=%s\n' % token.key)
+	print('After logging in and accepting to use this application run:\n%s --authenticate' % (sys.argv[0]))
 	config['telldus']['requestToken'] = str(token.key)
 	config['telldus']['requestTokenSecret'] = str(token.secret)
 	saveConfig()
@@ -77,14 +79,14 @@ def getAccessToken():
 
 	resp = conn.getresponse()
 	if resp.status != 200:
-		print 'Error retreiving access token, the server replied:\n%s' % resp.read()
+		print('Error retreiving access token, the server replied:\n%s' % resp.read())
 		return
 	token = oauth.OAuthToken.from_string(resp.read())
 	config['telldus']['requestToken'] = None
 	config['telldus']['requestTokenSecret'] = None
 	config['telldus']['token'] = str(token.key)
 	config['telldus']['tokenSecret'] = str(token.secret)
-	print 'Authentication successful, you can now use your Tellstick Net with aGo control'
+	print('Authentication successful, you can now use your Tellstick Net with aGo control')
 	saveConfig()
 
 def authenticate():

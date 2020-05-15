@@ -52,7 +52,8 @@ namespace agocontrol {
         const std::string appName;
         std::string appShortName;
 
-        bool exit_signaled;
+        boost::mutex appMutex;
+        int exitSignaled;
 
         // IO thread is for proper async work which does not block
         // This is always used, at a minimum it handles IO signals.
@@ -89,7 +90,7 @@ namespace agocontrol {
 
         void signalExit();
 
-        AgoConnection *agoConnection;
+        std::unique_ptr<AgoConnection> agoConnection;
 
         /* Obtain a reference to the ioService for async operations.
          *
@@ -116,9 +117,9 @@ namespace agocontrol {
          *
          * Please keep setupXX() functions in the order called!
          */
-        virtual void setup();
+        bool setup();
         void setupLogging();
-        virtual void setupAgoConnection();
+        virtual bool setupAgoConnection(boost::unique_lock<boost::mutex> &lock);
         void setupSignals();
         /* App specific init can be done in this */
         virtual void setupApp() { };
@@ -134,7 +135,7 @@ namespace agocontrol {
 
         void cleanupThreadPool();
 
-        bool isExitSignaled() { return exit_signaled; }
+        bool isExitSignaled() { return exitSignaled > 0; }
 
         /* Shortcut to register the commandHandler with agoConnection.
          * Should be called from setupApp */
@@ -153,12 +154,10 @@ namespace agocontrol {
         virtual void eventHandler(const std::string& subject , const Json::Value& content) {}
 
         /**
-         * This is called from a separate thread when the app is
-         * to shutdown, triggered via SIGINT and SIGQUIT.
-         *
-         * The base impl calls agoConnection->close().
+         * This is called by the application on shutdown, triggered via SIGINT and SIGQUIT.
+         * At this point, no further incoming messages will be processed.
          */
-        virtual void doShutdown();
+        virtual void doShutdown() {};
 
         /**
          * Read a config option from the configuration subsystem.
@@ -216,6 +215,31 @@ namespace agocontrol {
             ConfigNameList app_(app, section_);
             return getConfigSectionOption(section_, option, defaultValue, app_);
         }
+
+        /**
+         * Read all options in the given section from the configuration subsystem.
+         *
+         * Returns a map of all found values in the given section/app.
+         * If an explicit section/app is set, we only look in those.
+         * If extra section is used, we look in apps own section first, then on the given extra section.
+         * If extra app is used, we look in the apps own file first, then in the given extra file.
+         *
+         * Note that we do not automaticall set app = section in this method!
+         */
+        std::map<std::string, std::string> getConfigSection(const ConfigNameList &section=BLANK_CONFIG_NAME_LIST, const ConfigNameList &app = BLANK_CONFIG_NAME_LIST) {
+            ConfigNameList section_(section, appConfigSection);
+            ConfigNameList app_;
+            if(!app.empty() && !app.isExtra()) {
+                app_.addAll(app);
+            }else if(!app.empty()) {
+                app_.add(appConfigSection);
+                app_.addAll(app);
+            }else
+                app_.add(appConfigSection);
+
+            return agocontrol::getConfigSection(section_, app_);
+        }
+
 
         /**
          * Write a config option to the configuration subsystem.

@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import print_function
+
 import os
 import sys
 
@@ -142,6 +144,6 @@ except Exception as e:
     pass
 
 #send output
-print "Content-type: application/json\n"
-print json.dumps(result)
+print("Content-type: application/json\n")
+print(json.dumps(result))
 

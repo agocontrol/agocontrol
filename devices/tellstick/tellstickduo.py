@@ -140,7 +140,7 @@ class tellstickduo(tellstickbase):
         sensors = td.listSensors()
 
         if len(sensors) != 0:
-            for id, value in sensors.iteritems():
+            for id, value in sensors.items():
                 self.log.trace("listSensors: devId: %s ", str(id))
 
                 if id not in self.ignoreDevices:

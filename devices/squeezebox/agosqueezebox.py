@@ -5,6 +5,7 @@
  
 import sys
 import agoclient
+from agoclient import agoproto
 import pylmsserver
 import pylmsplaylist
 import pylmslibrary
@@ -199,7 +200,7 @@ def messageHandler(internalid, content):
     #check parameters
     if not content.has_key("command"):
         logging.error('No command specified in content')
-        return client.response_unknown_command(message='No command specified')
+        return agoproto.response_unknown_command(message='No command specified')
 
     if internalid==host:
 
@@ -208,27 +209,27 @@ def messageHandler(internalid, content):
             logging.info("Command ALLON: %s" % internalid)
             for player in getPlayers():
                 player.on()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"]=="alloff":
             logging.info("Command ALLOFF: %s" % internalid)
             for player in getPlayers():
                 player.off()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"]=="displaymessage":
             if content.has_key('line1') and content.has_key('line2') and content.has_key('duration'):
                 logging.info("Command DISPLAYMESSAGE: %s" % internalid)
                 for player in getPlayers():
                     player.display(content['line1'], content['line2'], content['duration'])
-                return client.response_success()
+                return agoproto.response_success()
             else:
                 logging.error('Missing parameters to command DISPLAYMESSAGE')
-                return client.response_missing_parameters(data={'command': 'displaymessage', 'params': ['line1', 'line2', 'duration']})
+                return agoproto.response_missing_parameters(data={'command': 'displaymessage', 'params': ['line1', 'line2', 'duration']})
 
         #unhandled command
         logging.warn('Unhandled server command')
-        return client.response_unknown_command(message='Unhandled server command', data=content["command"])
+        return agoproto.response_unknown_command(message='Unhandled server command', data=content["command"])
 
     else:
 
@@ -238,69 +239,69 @@ def messageHandler(internalid, content):
         logging.info('Found player: %s' % player)
         if not player:
             logging.error('Player %s not found!' % internalid)
-            return client.response_failed('Player "%s" not found!' % internalid)
+            return agoproto.response_failed('Player "%s" not found!' % internalid)
     
         if content["command"] == "on":
             logging.info("Command ON: %s" % internalid)
             player.on()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"] == "off":
             logging.info("Command OFF: %s" % internalid)
             player.off()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"] == "play":
             logging.info("Command PLAY: %s" % internalid)
             player.play()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"] == "pause":
             logging.info("Command PAUSE: %s" % internalid)
             player.pause()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"] == "stop":
             logging.info("Command STOP: %s" % internalid)
             player.stop()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"] == "next":
             logging.info("Command NEXT: %s" % internalid)
             player.next()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"] == "previous":
             logging.info("Command PREVIOUS: %s" % internalid)
             player.prev()
-            return client.response_success()
+            return agoproto.response_success()
 
         elif content["command"] == "setvolume":
             logging.info("Command SETVOLUME: %s" % internalid)
             if content.has_key('volume'):
                 player.set_volume(content['volume'])
-                return client.response_success()
+                return agoproto.response_success()
             else:
                 logging.error('Missing parameter "volume" to command SETVOLUME')
-                return client.response_missing_parameters(data={'command': 'setvolume', 'params': ['volume']})
+                return agoproto.response_missing_parameters(data={'command': 'setvolume', 'params': ['volume']})
 
         elif content["command"] == "displaymessage":
             if content.has_key('line1') and content.has_key('line2') and content.has_key('duration'):
                 logging.info("Command DISPLAYMESSAGE: %s" % internalid)
                 player.display(content['line1'], content['line2'], content['duration'])
-                return client.response_success()
+                return agoproto.response_success()
             else:
                 logging.error('Missing parameters to command DISPLAYMESSAGE')
-                return client.response_missing_parameters(data={'command': 'displaymessage', 'params': ['line1', 'line2', 'duration']})
+                return agoproto.response_missing_parameters(data={'command': 'displaymessage', 'params': ['line1', 'line2', 'duration']})
                 
         elif content["command"] == "mediainfos":
             infos = get_media_infos(internalid, None)
             logging.info(infos)
-            return client.response_success(infos)
+            return agoproto.response_success(infos)
 
         #unhandled device command
         logging.warn('Unhandled device command')
-        return client.response_unknown_command(message='Unhandled device command', data=content["command"])
+        return agoproto.response_unknown_command(message='Unhandled device command', data=content["command"])
 
 
 #init

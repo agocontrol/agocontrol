@@ -33,12 +33,15 @@ namespace agocontrol {
     std::string uint64ToString(uint64_t i);
     unsigned int stringToUint(const std::string& v);
 
-    /// ago control client connection class.
-    class AgoConnectionImpl;
+    /// ago control transport implementation
+    namespace transport { class AgoTransport; };
 
     class AgoConnection {
+    private:
+        void initTransport(ConfigNameList&);
+
     protected:
-        std::unique_ptr<AgoConnectionImpl> impl;
+        std::unique_ptr<agocontrol::transport::AgoTransport> transport;
 
         Json::Value deviceMap; // this holds the internal device list
         Json::Value uuidMap; // this holds the permanent uuid to internal id mapping
@@ -57,7 +60,8 @@ namespace agocontrol {
     public:
         AgoConnection(const std::string& interfacename);
         ~AgoConnection();
-        void start();
+
+        bool start();
         void run();
         void shutdown();
         bool addDevice(const std::string& internalId, const std::string& deviceType, const std::string& initialName = {});
@@ -82,8 +86,7 @@ namespace agocontrol {
         bool sendMessage(const Json::Value& content);
 
         AgoResponse sendRequest(const Json::Value& content);
-        AgoResponse sendRequest(const std::string& subject, const Json::Value& content);
-        AgoResponse sendRequest(const std::string& subject, const Json::Value& content, std::chrono::milliseconds timeout);
+        AgoResponse sendRequest(const Json::Value& content, std::chrono::milliseconds timeout);
 
         bool emitEvent(const std::string& internalId, const std::string& eventType, const std::string& level, const std::string& units);
         bool emitEvent(const std::string& internalId, const std::string& eventType, double level, const std::string& units);

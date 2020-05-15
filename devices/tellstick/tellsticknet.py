@@ -15,6 +15,7 @@ __status__ = "Experimental"
 __version__ = AGO_TELLSTICK_VERSION
 ############################################
 
+from __future__ import print_function
 from tellstickbase import tellstickbase
 import sys, getopt, httplib, urllib, json, os, thread, time
 import oauth.oauth as oauth
@@ -89,7 +90,7 @@ class tellsticknet(tellstickbase):
             if ('error' in response):
                 name = ''
                 retString = response['error']
-                print ("retString=" + retString)
+                print("retString=" + retString)
             else:
                 name = response['name']
                 self.names[devId] = response['name']
@@ -126,7 +127,7 @@ class tellsticknet(tellstickbase):
         if ('error' in response):
             model = ''
             retString = response['error']
-            print ("retString=" + retString)
+            print("retString=" + retString)
         else:
             if response['type'] == 'device':
                 self.models[devId] = response['model']
@@ -282,7 +283,7 @@ class tellsticknet(tellstickbase):
     def sensorThread(self, sensorCallback, dummy):
 
         while (True):
-            for devId, dev in self.sensors.iteritems():
+            for devId, dev in self.sensors.items():
                 response = self.doRequest('sensor/info', {'id': dev["id"]})
                 lastupdate = datetime.datetime.fromtimestamp(int(response['lastUpdated']))
 
@@ -300,7 +301,7 @@ class tellsticknet(tellstickbase):
                     if data['name'] == 'humidity' and float(data['value']) != self.sensors[devId]["lastHumidity"]:
                         humidity = float(data['value'])
                         self.sensors[devId]["lastHumidity"] = humidity
-                        if humidity <> self.sensors[devId]["humidity"]:
+                        if humidity != self.sensors[devId]["humidity"]:
                             self.sensors[devId]["humidity"] = humidity
                             sensorCallback(protocol="", model="humidity", devId=devId, dataType=0, value=humidity,
                                            timestamp=lastupdate, callbackId=None)

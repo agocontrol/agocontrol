@@ -38,6 +38,8 @@ namespace attrs = boost::log::attributes;
 
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", severity_level);
+BOOST_LOG_ATTRIBUTE_KEYWORD(channel, "Channel", std::string)
+
 
 // The formatting logic for the severities
 template< typename CharT, typename TraitsT >
@@ -66,6 +68,10 @@ struct ago_log_exception_handler
     }
 };
 
+static AGO_LOGGER_IMPL default_inst(boost::log::keywords::channel = "app");
+AGO_LOGGER_IMPL & log_container::get() {
+    return default_inst;
+}
 
 void log_container::initDefault() {
     if(inited)
@@ -73,9 +79,8 @@ void log_container::initDefault() {
     inited = true;
 
     logging::add_common_attributes();
-
     setOutputConsole();
-    setCurrentLevel(AGO_DEFAULT_LEVEL);
+    setCurrentLevel(getDefaultLevel(), std::map<std::string, severity_level>());
 
     // Setup exception handler
     logging::core::get()->set_exception_handler(logging::make_exception_handler<
@@ -85,10 +90,27 @@ void log_container::initDefault() {
 
 }
 
-void log_container::setCurrentLevel(severity_level lvl) {
+/**
+ * Configure logging levels.
+ *
+ * minOutputLevel controls overall minimum level, i.e. if set to INFO nothing lower than INFO is logged.
+ * In addition, it's possible to configure minimum levels for different channels, via the channelLevels map.
+ * I.e. if "mqtt" channel is ocnfigured with INFO, but minOutputLevel is TRACE, then we still won't see anything
+ * lower than INFO from mqtt.
+ * If it's instead set to TRACE, and we have minOutputLevel to DEBUG, we will still only see DEBUG from that channel.
+ */
+void log_container::setCurrentLevel(severity_level minOutputLevel, const std::map<std::string, severity_level>& channelLevels) {
+    typedef expr::channel_severity_filter_actor< std::string, severity_level > severity_filter;
+    severity_filter min_severity = expr::channel_severity_filter(channel, severity);
+
+    for(auto i = channelLevels.cbegin(); i != channelLevels.cend(); i++) {
+        min_severity[i->first] = i->second;
+    }
+    min_severity.set_default(true);
+
     boost::log::core::get()->set_filter
         (
-         ::agocontrol::log::severity >= lvl
+            min_severity && ::agocontrol::log::severity >= minOutputLevel
         );
 }
 
@@ -126,8 +148,9 @@ void log_container::setOutputConsole() {
         (
          expr::stream
          << expr::format_date_time< boost::posix_time::ptime >("TimeStamp", "%Y-%m-%d %H:%M:%S.%f")
-         << " [" << expr::attr< attrs::current_thread_id::value_type > ("ThreadID") << "] "
-         <<" [" << std::setw(7) << severity << std::setw(0) << "] "
+         << " [" << expr::attr< attrs::current_thread_id::value_type > ("ThreadID") << "]"
+         << " [" << std::setw(6) << std::left <<  severity << std::setw(0)
+         << " : " << std::setw(5) << std::right << channel << std::setw(0) << "] "
          << expr::smessage
         );
 

@@ -14,11 +14,10 @@ function(CopyFilesFromSource TARGET SOURCE_FILES)
     if (NOT IN_SOURCE_BUILD)
         add_custom_target(${TARGET} ALL SOURCES ${SOURCE_FILES})
         foreach (infile ${SOURCE_FILES})
-            string(REPLACE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} outfile ${infile})
-            #message("-- staging for copy: ${CMAKE_CURRENT_SOURCE_DIR}/${infile} -> ${CMAKE_CURRENT_BINARY_DIR}/${outfile}")
+            #message("-- staging for copy: ${CMAKE_CURRENT_SOURCE_DIR}/${infile} -> ${CMAKE_CURRENT_BINARY_DIR}/${infile}")
             add_custom_command(
                     TARGET ${TARGET}
-                    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${infile} ${outfile}
+                    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${infile} ${infile}
                     VERBATIM
             )
         endforeach()

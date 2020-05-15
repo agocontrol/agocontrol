@@ -87,11 +87,12 @@ namespace agocontrol {
     class AgoResponse {
         friend class AgoConnection;
     protected:
-        Json::Value response;
         Json::Value root;
-        void init(const Json::Value& response);
         void validate();
     public:
+        // TODO: move init back to protected
+        Json::Value response;
+        void init(const Json::Value& response);
         AgoResponse(){};
         AgoResponse(AgoResponse&& rhs) noexcept;
         AgoResponse& operator=(AgoResponse&& rhs) noexcept;

@@ -37,7 +37,6 @@ namespace agocontrol {
     }
 }
 
-#define AGO_DEFAULT_LEVEL ::agocontrol::log::info
 
 #ifdef HAVE_BOOST_LOG
 # include <agolog_boost.h>
@@ -63,7 +62,7 @@ public:
     /**
      * Changes the severity setting of the logger
      */
-    static void setCurrentLevel(severity_level lvl);
+    static void setCurrentLevel(severity_level minOutputLevel, const std::map<std::string, severity_level>& channelLevels);
 
     /**
      * Changes to console output
@@ -80,8 +79,11 @@ public:
     /* Returns a vector of all supported syslog facitliy names */
     static const std::vector<std::string>& getSyslogFacilities() ;
 
-    /* Translate level string to internal level. Returns -1 on invalid value */
+    /* Translate level string to internal level. Raises exception on invalid value. */
     static severity_level getLevel(const std::string &level);
+
+    /* Translate a key->level map to internal levels. Raises exception on invalid value. */
+    static std::map<std::string, severity_level> getLevels(const std::map<std::string, std::string>& src);
 
     /* Translate internal level to string. Throws exception on invalid value */
     static const std::string & getLevel(severity_level lvl);
@@ -89,6 +91,12 @@ public:
     /* Returns a vector with all levels, indexed identical to severity_level */
     static const std::vector<std::string> & getLevels();
 
+protected:
+#ifndef HAVE_BOOST_LOG
+    friend class simple_logger;
+#endif
+
+    static severity_level getDefaultLevel();
 };
 
 } /* namespace log */

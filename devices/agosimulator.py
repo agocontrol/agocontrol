@@ -6,28 +6,29 @@ import time
 import logging
 
 import agoclient
+from agoclient import agoproto
 
 class AgoSimulator(agoclient.AgoApp):
     def message_handler(self, internalid, content):
         if "command" in content:
             if content["command"] == "on":
-                print "switching on: " + internalid
+                print("switching on: " + internalid)
                 self.connection.emit_event(internalid, "event.device.statechanged", 255, "")
             elif content["command"] == "off":
-                print "switching off: " + internalid
+                print("switching off: " + internalid)
                 self.connection.emit_event(internalid, "event.device.statechanged", 0, "")
             elif content["command"] == "push":
-                print "push button: " + internalid
+                print("push button: " + internalid)
             elif content['command'] == 'setlevel':
                 if 'level' in content:
-                    print "device level changed", content["level"]
+                    print("device level changed", content["level"])
                     self.connection.emit_event(internalid, "event.device.statechanged", content["level"], "")
             else:
-                return self.connection.response_unknown_command()
+                return agoproto.response_unknown_command()
 
-            return self.connection.response_success()
+            return agoproto.response_success()
         else:
-            return self.connection.response_bad_parameters()
+            return agoproto.response_bad_parameters()
 
 
     def app_cmd_line_options(self, parser):
@@ -85,11 +86,11 @@ class TestEvent(threading.Thread):
                 hum = random.randint(20, 75) + random.randint(0,90)/100.0
                 log.debug("Sending enviromnet changes on sensor 126 (%.2f dgr C, %.2f %% humidity)",
                         temp, hum)
-                self.connection.emit_event("126", "event.environment.temperaturechanged", temp, "degC");
-                self.connection.emit_event("126", "event.environment.humiditychanged", hum, "percent");
+                self.app.connection.emit_event("126", "event.environment.temperaturechanged", temp, "degC")
+                self.app.connection.emit_event("126", "event.environment.humiditychanged", hum, "percent")
 
             log.debug("Sending sensortriggered for internal-ID 125, level %d", level)
-            self.connection.emit_event("125", "event.security.sensortriggered", level, "")
+            self.app.connection.emit_event("125", "event.security.sensortriggered", level, "")
 
             if (level == 0):
                 level = 255

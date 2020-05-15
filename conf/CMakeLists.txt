@@ -16,6 +16,8 @@ foreach (infile ${INIT_FILES})
 
 endforeach (infile)
 
+CopyFilesFromSource(augeas_lens "agocontrol.aug")
+
 add_subdirectory (conf.d)
 add_subdirectory (schema.d)
 add_subdirectory (sysvinit)

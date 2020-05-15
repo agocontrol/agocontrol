@@ -11,6 +11,7 @@ import Queue
 import uuid
 #ago
 import agoclient
+from agoclient import agoproto
 #onvif
 from onvif import ONVIFCamera, ONVIFError, ONVIFService
 from suds import MethodNotFound
@@ -1514,7 +1515,7 @@ class AgoOnvif(agoclient.AgoApp):
             command = content['command']
         if not command:
             self.log.error('No command specified')
-            return self.connection.response_failed('No command specified')
+            return agoproto.response_failed('No command specified')
 
         if internalid=='onvifcontroller':
             #handle controller commands
@@ -1524,14 +1525,14 @@ class AgoOnvif(agoclient.AgoApp):
                     #check params
                     res,msg = self.__check_ip_port(content['ip'], content['port'])
                     if not res:
-                        return self.connection.response_failed(msg)
+                        return agoproto.response_failed(msg)
 
                     try:
                         content['port'] = int(content['port'])
                     except ValueError:
                         msg = 'Invalid "port" parameter. Must be integer'
                         self.log.error(msg)
-                        self.connection.response_bad_parameters(msg)
+                        return agoproto.response_bad_parameters(msg)
 
                     #create new camera
                     internalid = content['ip']
@@ -1553,19 +1554,19 @@ class AgoOnvif(agoclient.AgoApp):
                         else:
                             msg = 'Problem getting camera URI with token "%s"' % content['uri_token']
                             self.log.error(msg)
-                            return self.connection.response_failed('Camera not added: %s' % msg)
+                            return agoproto.response_failed('Camera not added: %s' % msg)
 
                         #create new camera device
                         self.connection.add_device(internalid, 'camera')
                         self.log.info('New camera "%s" added' % internalid)
 
-                        return self.connection.response_success(None, 'Camera added')
+                        return agoproto.response_success(None, 'Camera added')
                     else:
                         self.log.error('Camera not added: %s' % msg)
-                        return self.connection.response_failed('camera not added: %s' % msg)
+                        return agoproto.response_failed('camera not added: %s' % msg)
                 else:
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
 
             elif command=='deletecamera':
                 if self.__check_command_params(content, ['internalid']):
@@ -1576,13 +1577,13 @@ class AgoOnvif(agoclient.AgoApp):
                         #delete device from ago
                         self.connection.remove_device(content['internalid'])
 
-                        return self.connection.response_success(None, 'Camera deleted')
+                        return agoproto.response_success(None, 'Camera deleted')
                     else:
                         self.log.error('Camera with internalid "%s" was not found' % internalid)
-                        return self.connection.response_failed('Camera with internalid "%s" was not found' % internalid)
+                        return agoproto.response_failed('Camera with internalid "%s" was not found' % internalid)
                 else:
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
 
             elif command=='getprofiles':
                 #different behaviour according to specified parameters
@@ -1593,14 +1594,14 @@ class AgoOnvif(agoclient.AgoApp):
                     fromExisting = True
                 else:
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
 
                 if not fromExisting:
                     #create temp camera
                     #check params
                     res,msg = self.__check_ip_port(content['ip'], content['port'])
                     if not res:
-                        return self.connection.response_failed(msg)
+                        return agoproto.response_failed(msg)
 
                     content['port'] = int(content['port'])
                     self.log.info('Connecting to %s:%s@%s:%d' % (content['login'], content['password'], content['ip'], content['port']))
@@ -1608,13 +1609,13 @@ class AgoOnvif(agoclient.AgoApp):
                     if not camera:
                         msg = 'Unable to connect to camera. Check parameters'
                         self.log.warning(msg)
-                        return self.connection.response_failed(msg)
+                        return agoproto.response_failed(msg)
                 else:
                     #get camera instance from instance container
                     internalid = content['internalid']
                     if not self.cameras.has_key(internalid):
                         self.log.error('Camera with internalid "%s" was not found' % internalid)
-                        return self.connection.response_failed('Camera with internalid "%s" was not found' % internalid)
+                        return agoproto.response_failed('Camera with internalid "%s" was not found' % internalid)
                     camera = self.cameras[internalid]
 
                 ps = camera.get_profiles()
@@ -1641,33 +1642,33 @@ class AgoOnvif(agoclient.AgoApp):
                             bounds['height'] = p['VideoSourceConfiguration']['Bounds']['height']
                             profile['boundaries'] = bounds
                         profiles.append(profile)
-                    return self.connection.response_success(profiles)
+                    return agoproto.response_success(profiles)
                 else:
                     #no profiles (parsing error?)
                     self.log.error('No profile found')
-                    return self.connection.response_failed('No profile found')
+                    return agoproto.response_failed('No profile found')
 
             elif command=='dooperation':
                 if not self.__check_command_params(content, ['internalid', 'service', 'operation', 'params']):
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
                 internalid = content['internalid']
 
                 if not self.cameras.has_key(internalid):
                     self.log.error('Camera with internalid "%s" was not found' % internalid)
-                    return self.connection.response_failed('Camera with internalid "%s" was not found' % internalid)
+                    return agoproto.response_failed('Camera with internalid "%s" was not found' % internalid)
                 camera = self.cameras[internalid]
                 
                 #execute command
                 resp = camera.do_operation(content['service'], content['operation'], content['params'])
                 if resp==None:
                     self.log.error('Operation failed')
-                    return self.connection.response_failed('Operation failed')
+                    return agoproto.response_failed('Operation failed')
                 else:
-                    return self.connection.response_success(resp)
+                    return agoproto.response_success(resp)
 
             elif command=='getcameras':
-                return self.connection.response_success(self.config_map['cameras'])
+                return agoproto.response_success(self.config_map['cameras'])
 
             elif command=='getconfig':
                 #append cameras
@@ -1682,17 +1683,17 @@ class AgoOnvif(agoclient.AgoApp):
                 if recordings:
                     config['recordings'] = recordings
 
-                return self.connection.response_success(config)
+                return agoproto.response_success(config)
 
             elif command=='updatecredentials':
                 if not self.__check_command_params(content, ['internalid', 'login', 'password']):
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
                 internalid = content['internalid']
 
                 if not self.cameras.has_key(internalid):
                     self.log.error('Camera with internalid "%s" was not found' % internalid)
-                    return self.connection.response_failed('Camera with internalid "%s" was not found' % internalid)
+                    return agoproto.response_failed('Camera with internalid "%s" was not found' % internalid)
                 camera = self.cameras[internalid]
 
                 #update credentials on camera first
@@ -1700,7 +1701,7 @@ class AgoOnvif(agoclient.AgoApp):
                 if not resp:
                     msg = 'Unable to set credentials on camera'
                     self.log.error(msg)
-                    return self.connection.response_failed(msg)
+                    return agoproto.response_failed(msg)
 
                 #TODO update uri
 
@@ -1709,17 +1710,17 @@ class AgoOnvif(agoclient.AgoApp):
                 self.config_map['cameras'][internalid]['password'] = content['password']
                 self.save_config()
 
-                return self.connection.response_success(None, 'Credentials saved')
+                return agoproto.response_success(None, 'Credentials saved')
 
             elif command=='getdeviceinfos':
                 if not self.__check_command_params(content, ['internalid']):
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
                 internalid = content['internalid']
 
                 if not self.cameras.has_key(internalid):
                     self.log.error('Camera with internalid "%s" was not found' % internalid)
-                    return self.connection.response_failed('Camera with internalid "%s" was not found' % internalid)
+                    return agoproto.response_failed('Camera with internalid "%s" was not found' % internalid)
                 camera = self.cameras[internalid]
 
                 #get device infos
@@ -1727,7 +1728,7 @@ class AgoOnvif(agoclient.AgoApp):
                 if not resp:
                     msg = 'Unable to get device infos'
                     self.log.error(msg)
-                    return self.connection.response_failed(msg)
+                    return agoproto.response_failed(msg)
 
                 #prepare output
                 self.log.debug(resp)
@@ -1738,17 +1739,17 @@ class AgoOnvif(agoclient.AgoApp):
                 out['serialnumber'] = resp['SerialNumber']
                 out['hardwareid'] = resp['HardwareId']
                 
-                return self.connection.response_success(out)
+                return agoproto.response_success(out)
 
             elif command=='setcameraprofile':
                 if not self.__check_command_params(content, ['internalid']):
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
                 internalid = content['internalid']
 
                 if not self.cameras.has_key(internalid):
                     self.log.error('Camera with internalid "%s" was not found' % internalid)
-                    return self.connection.response_failed('Camera with internalid "%s" was not found' % internalid)
+                    return agoproto.response_failed('Camera with internalid "%s" was not found' % internalid)
                 camera = self.cameras[internalid]
 
                 #get uri from token
@@ -1763,19 +1764,19 @@ class AgoOnvif(agoclient.AgoApp):
                 else:
                     msg = 'Problem getting camera URI with token "%s"' % content['uri_token']
                     self.log.error(msg)
-                    return self.connection.response_failed('Camera not added: %s' % msg)
+                    return agoproto.response_failed('Camera not added: %s' % msg)
 
-                return self.connection.response_success(None, 'Configuration saved')
+                return agoproto.response_success(None, 'Configuration saved')
 
             elif command=='setmotion':
                 if not self.__check_command_params(content, ['internalid', 'enable', 'uri_desc', 'uri_token', 'sensitivity', 'deviation', 'onduration']):
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
                 internalid = content['internalid']
 
                 if not self.cameras.has_key(internalid):
                     self.log.error('Camera with internalid "%s" was not found' % internalid)
-                    return self.connection.response_failed('Camera with internalid "%s" was not found' % internalid)
+                    return agoproto.response_failed('Camera with internalid "%s" was not found' % internalid)
                 camera = self.cameras[internalid]
 
                 #check parameters
@@ -1789,28 +1790,28 @@ class AgoOnvif(agoclient.AgoApp):
                 except ValueError:
                     msg = 'Invalid "sensitivity" parameter. Must be integer'
                     self.log.error(msg)
-                    self.connection.response_bad_parameters(msg)
+                    return agoproto.response_bad_parameters(msg)
 
                 try:
                     content['deviation'] = int(content['deviation'])
                 except ValueError:
                     msg = 'Invalid "deviation" parameter. Must be integer'
                     self.log.error(msg)
-                    self.connection.response_bad_parameters(msg)
+                    return agoproto.response_bad_parameters(msg)
                     
                 try:
                     content['onduration'] = int(content['onduration'])
                 except ValueError:
                     msg = 'Invalid "on duration" parameter. Must be integer'
                     self.log.error(msg)
-                    self.connection.response_bad_parameters(msg)
+                    return agoproto.response_bad_parameters(msg)
 
                 #get uri from token
                 uri = camera.get_uri(content['uri_token'], self.config_map['cameras'][internalid]['login'], self.config_map['cameras'][internalid]['password'])
                 if not uri:
                     msg = 'Problem getting camera URI with token "%s"' % content['uri_token']
                     self.log.error(msg)
-                    return self.connection.response_failed('Config not saved: %s' % msg)
+                    return agoproto.response_failed('Config not saved: %s' % msg)
 
                 #configure motion
                 camera.set_motion(
@@ -1832,17 +1833,17 @@ class AgoOnvif(agoclient.AgoApp):
                 self.config_map['cameras'][internalid]['motion_on_duration'] = content['onduration']
                 self.save_config()
 
-                return self.connection.response_success(None, 'Configuration saved')
+                return agoproto.response_success(None, 'Configuration saved')
 
             elif command=='setrecording':
                 if not self.__check_command_params(content, ['internalid', 'type', 'uri_desc', 'uri_token', 'duration', 'contour']):
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
                 internalid = content['internalid']
 
                 if not self.cameras.has_key(internalid):
                     self.log.error('Camera with internalid "%s" was not found' % internalid)
-                    return self.connection.response_failed('Camera with internalid "%s" was not found' % internalid)
+                    return agoproto.response_failed('Camera with internalid "%s" was not found' % internalid)
                 camera = self.cameras[internalid]
 
                 #check parameters
@@ -1851,7 +1852,7 @@ class AgoOnvif(agoclient.AgoApp):
                 except ValueError:
                     msg = 'Invalid "duration" parameter. Must be integer'
                     self.log.error(msg)
-                    self.connection.response_bad_parameters(msg)
+                    return agoproto.response_bad_parameters(msg)
 
                 try:
                     content['contour'] = int(content['contour'])
@@ -1860,7 +1861,7 @@ class AgoOnvif(agoclient.AgoApp):
                 except Exception as e:
                     msg = 'Invalid "contour" parameter.'
                     self.log.error(e.msg)
-                    self.connection.response_bad_parameters(msg)
+                    return agoproto.response_bad_parameters(msg)
 
                 try:
                     content['type'] = int(content['type'])
@@ -1869,14 +1870,14 @@ class AgoOnvif(agoclient.AgoApp):
                 except Exception as e:
                     msg = 'Invalid "type" parameter.'
                     self.log.error(e.msg)
-                    self.connection.response_bad_parameters(msg)
+                    return agoproto.response_bad_parameters(msg)
 
                 #get uri from token
                 uri = camera.get_uri(content['uri_token'], self.config_map['cameras'][internalid]['login'], self.config_map['cameras'][internalid]['password'])
                 if not uri:
                     msg = 'Problem getting camera URI with token "%s"' % content['uri_token']
                     self.log.error(msg)
-                    return self.connection.response_failed('Config not saved: %s' % msg)
+                    return agoproto.response_failed('Config not saved: %s' % msg)
 
                 #configure motion
                 camera.set_recording(
@@ -1897,23 +1898,23 @@ class AgoOnvif(agoclient.AgoApp):
                 self.config_map['cameras'][internalid]['record_contour'] = content['contour']
                 self.save_config()
 
-                return self.connection.response_success(None, 'Configuration saved')
+                return agoproto.response_success(None, 'Configuration saved')
 
             elif command=='setrecordingsconfig':
                 if not self.__check_command_params(content, ['dir', 'delay']):
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
 
                 #check if dir exists
                 if not os.path.exists(content['dir']):
-                    return self.connection.response_failed('Specified directory "%s" doesn\'t exist. Please create it manually first.' % content['dir'])
+                    return agoproto.response_failed('Specified directory "%s" doesn\'t exist. Please create it manually first.' % content['dir'])
 
                 try:
                     content['delay'] = int(content['delay'])
                 except Exception as e:
                     msg = 'Invalid "delay" parameter.'
                     self.log.error(e.msg)
-                    self.connection.response_bad_parameters(msg)
+                    return agoproto.response_bad_parameters(msg)
 
                 #update all cameras
                 for internalid in self.cameras:
@@ -1924,23 +1925,23 @@ class AgoOnvif(agoclient.AgoApp):
                 self.config['record_delay'] = content['delay']
                 self.save_config()
 
-                return self.connection.response_success(None, 'Configuration saved')
+                return agoproto.response_success(None, 'Configuration saved')
 
             elif command=='getrecordings':
                 recordings = self.get_recordings()
                 if recordings!=None:
-                    return self.connection.response_success(recordings)
+                    return agoproto.response_success(recordings)
                 else:
-                    return self.connection.response_failed('Unable to get recording list')
+                    return agoproto.response_failed('Unable to get recording list')
 
             elif command=='downloadfile':
                 if not self.__check_command_params(content, ['filename']):
                     self.log.error('Parameters are missing')
-                    return self.connection.response_missing_parameters()
+                    return agoproto.response_missing_parameters()
 
                 #security check
                 if content['filename'].find('/') or content['filename'].find('..'):
-                    return self.connection.response_failed('File rejected: illegal characters specified!')
+                    return agoproto.response_failed('File rejected: illegal characters specified!')
 
                 #get recording filename
                 filename = os.path.join(self.config['record_dir'], content['filename'])
@@ -1950,16 +1951,16 @@ class AgoOnvif(agoclient.AgoApp):
                     #file exists, return full path
                     self.log.info('Send fullpath of file to download "%s"' % filename)
                     resp = {'filepath': filename}
-                    return self.connection.response_success(resp)
+                    return agoproto.response_success(resp)
                 else:
                     #not exists
                     self.log.error('Trying to download unknown file "%s"' % filename)
-                    return self.connection.response_failed('File doesn\'t exist')
+                    return agoproto.response_failed('File doesn\'t exist')
 
             else:
                 #request not handled
                 self.log.error('Unhandled request "%s"' % command)
-                return self.connection.response_unknown_command()
+                return agoproto.response_unknown_command()
 
         elif self.cameras.has_key(internalid):
             #handle device command
@@ -1974,23 +1975,23 @@ class AgoOnvif(agoclient.AgoApp):
                     if ret:
                         data = {}
                         data['image'] = buffer(base64.b64encode(buf)) #buffer: workaround to avoid qpid 65k limitation
-                        return self.connection.response_success(data)
+                        return agoproto.response_success(data)
                     else:
                         self.log.error('No buffer retrieved [%s]' % data)
-                        return self.connection.response_failed(data)
+                        return agoproto.response_failed(data)
                 else:
                     self.log.error('No buffer retrieved [%s]' % data)
-                    return self.connection.response_failed(data)
+                    return agoproto.response_failed(data)
 
             else:
                 #request not handled
                 self.log.error('Unhandled request "%s"' % command)
-                return self.connection.response_unknown_command()
+                return agoproto.response_unknown_command()
 
         else:
             #request not handled
             self.log.error('Unhandled request "%s"' % command)
-            return self.connection.response_unknown_command()
+            return agoproto.response_unknown_command()
 
 
 

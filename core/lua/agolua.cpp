@@ -318,10 +318,18 @@ int AgoLua::luaSendMessage(lua_State *L)
         lua_pop(L, 1);
     }
 
-    //execute sendMessage
-    AGO_DEBUG() << "Sending message: " << subject << " " << content;
-    AgoResponse response = agoConnection->sendRequest(subject, content);
-    pushTableFromJson(L, response.getResponse());
+    // execute "sendMessage". if subject is set, assume its a sendMessage, else it is a sendRequest which
+    // wants a response. The Blockly code does not create anything with subject, so this is purely for
+    // plain LUA scripts.
+    if(subject.empty()) {
+        AGO_DEBUG() << "Sending request: " << content;
+        AgoResponse response = agoConnection->sendRequest(content);
+        pushTableFromJson(L, response.getResponse());
+    }else{
+        AGO_DEBUG() << "Sending message on " << subject << ": " << content;
+        agoConnection->sendMessage(subject, content);
+        // TODO: Would caller expect a response?
+    }
 
     return 1;
 }
@@ -332,7 +340,6 @@ int AgoLua::luaSendMessage(lua_State *L)
 int AgoLua::luaSetVariable(lua_State *L)
 {
     Json::Value content;
-    std::string subject;
 
     //get input arguments
     std::string variable(lua_tostring(L,1));
@@ -343,7 +350,7 @@ int AgoLua::luaSetVariable(lua_State *L)
     content["uuid"]=agocontroller;
 
     AGO_DEBUG() << "Set variable: " << content;
-    AgoResponse resp = agoConnection->sendRequest(subject, content);
+    AgoResponse resp = agoConnection->sendRequest(content);
 
     //manage result
     if( resp.isOk() )

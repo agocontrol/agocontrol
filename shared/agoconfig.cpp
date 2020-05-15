@@ -257,7 +257,8 @@ const ConfigNameList BLANK_CONFIG_NAME_LIST = ConfigNameList();
 
 ConfigNameList::ConfigNameList(const char* name) {
     extra = false;
-    add(name);
+    if(name != nullptr)
+        add(name);
 }
 
 ConfigNameList::ConfigNameList(const std::string& name) {
@@ -358,6 +359,49 @@ std::string getConfigSectionOption(const ConfigNameList& section, const std::str
     // empty
     return std::string();
 }
+
+std::map<std::string, std::string> getConfigSection(const ConfigNameList& section, const ConfigNameList &app) {
+    std::map<std::string, std::string> result;
+    if (augeas==NULL){
+        if(!augeas_init()) {
+            return result;
+        }
+    }
+
+    // If app has no values, default to section
+    ConfigNameList app_(app, section);
+
+    AGO_TRACE() << "Augeas: get all " << app_ << " / " << section;
+    BOOST_FOREACH(const std::string & a, app_.names()) {
+        BOOST_FOREACH(const std::string & s, section.names()) {
+            char **paths = NULL;
+            std::string match_path = augeasPath(confPathFromApp(a), s, "*");
+
+            int ret = aug_match(augeas, match_path.c_str(), &paths);
+            for(int i=0; i < ret; i++) {
+                char *path = paths[i];
+                const char *value;
+                if(aug_get(augeas, path, &value) == 1 && value) {
+                    std::string key(path + match_path.size()-1);
+                    if(key[0] == '#')
+                        continue;
+
+                    // First found takes precedence, just as getConfigSectionOption behaves.
+                    if(result.find(key) != result.end())
+                        continue;
+
+                    AGO_TRACE() << "Augeas: found matching option in " << path << ", " << key << "=" << value;
+                    result[key] = value;
+                }
+                free(path);
+            }
+            free(paths);
+        }
+    }
+
+    return result;
+}
+
 
 bool setConfigSectionOption(const std::string& section, const std::string& option, float value, const std::string& app) {
     std::stringstream stringvalue;

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 
 #Returns all or specified directory structure
 #@params get: all|plugins|configs|helps|supported
@@ -30,7 +31,7 @@ def loadMetadatasInDir(d):
                         items[obj["dir"]] = obj
                 except Exception as error:
                     pass
-    for key in sorted(items.iterkeys()):
+    for key in sorted(items.keys()):
         out.append(items[key])
     return out
 
@@ -83,9 +84,9 @@ try:
 
 except Exception as e:
     #TODO add message to agolog
-    pass
+    result['error'] = str(e)
 
 #send output
-print "Content-type: application/json\n"
-print json.dumps(result)
+print("Content-type: application/json\n")
+print(json.dumps(result))
 

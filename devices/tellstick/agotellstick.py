@@ -1,7 +1,10 @@
 #!/usr/bin/python
 
+from __future__ import print_function
+
 import time
 import agoclient
+from agoclient import agoproto
 
 AGO_TELLSTICK_VERSION = '0.0.91'
 ############################################
@@ -32,16 +35,16 @@ class AgoTellstick(agoclient.AgoApp):
                     self.log.trace("rescode = %s", resCode)
                     # res = self.tellstick.getErrorString(resCode)
                     self.log.error("Failed to turn on device, res=%s", resCode)
-                    return self.connection.response_failed("Failed to turn on device (%s)" % resCode)
+                    return agoproto.response_failed("Failed to turn on device (%s)" % resCode)
                 else:
                     self.connection.emit_event(internalid, "event.device.statechanged", 255, "")
 
                 self.log.debug("Turning on device: %s res=%s", internalid, resCode)
-                return self.connection.response_success()
+                return agoproto.response_success()
 
             # Allon - TODO: will require changes in schema.yaml + somewhere else too
             if content["command"] == "allon":
-                return self.connection.response_unknown_command()
+                return agoproto.response_unknown_command()
 
             # Off
             if content["command"] == "off":
@@ -49,13 +52,13 @@ class AgoTellstick(agoclient.AgoApp):
                 if resCode != 'success':  # 0:
                     # res = self.tellstick.getErrorString(resCode)
                     self.log.error("Failed to turn off device, res=%s", resCode)
-                    return self.connection.response_failed("Failed to turn off device (%s)" % resCode)
+                    return agoproto.response_failed("Failed to turn off device (%s)" % resCode)
                 else:
                     # res = 'Success'
                     self.connection.emit_event(internalid, "event.device.statechanged", 0, "")
 
                 self.log.debug("Turning off device: %s res=%s", internalid, resCode)
-                return self.connection.response_success()
+                return agoproto.response_success()
 
             # Setlevel for dimmer
             if content["command"] == "setlevel":
@@ -63,17 +66,17 @@ class AgoTellstick(agoclient.AgoApp):
                     255 * int(content["level"])) / 100)  # Different scales: aGo use 0-100, Tellstick use 0-255
                 if resCode != 'success':  # 0:
                     self.log.error("Failed dimming device, res=%s", resCode)
-                    return self.connection.response_failed("Failed to dim device (%s)" % resCode)
+                    return agoproto.response_failed("Failed to dim device (%s)" % resCode)
                 else:
                     # res = 'Success'
                     self.connection.emit_event(internalid, "event.device.statechanged", content["level"], "")
 
                 self.log.debug("Dimming device=%s res=%s level=%s", internalid, resCode, str(content["level"]))
-                return self.connection.response_success()
+                return agoproto.response_success()
 
-            return self.connection.response_unknown_command()
+            return agoproto.response_unknown_command()
 
-        return self.connection.response_missing_parameters()
+        return agoproto.response_missing_parameters()
 
     # Event handlers for device and sensor events
     # This method is a call-back, triggered when there is a device event
@@ -194,7 +197,7 @@ class AgoTellstick(agoclient.AgoApp):
     def listNewSensors(self):
         sensors = self.tellstick.listSensors()
         self.log.debug("listSensors returned %d items", len(sensors))
-        for id, value in sensors.iteritems():
+        for id, value in sensors.items():
             self.log.trace("listNewSensors: devId: %s ", str(id))
             if not value["new"]:
                 continue
@@ -311,7 +314,7 @@ class AgoTellstick(agoclient.AgoApp):
                 from tellstickduo import tellstickduo
                 self.tellstick = tellstickduo(self)
                 self.log.debug("Stick: Defaulting to Tellstick Duo")
-        except OSError, e:
+        except OSError as e:
             self.log.error("Failed to load Tellstick stick version code: %s", e)
             raise agoclient.agoapp.StartupError()
 
@@ -383,7 +386,7 @@ class AgoTellstick(agoclient.AgoApp):
 
     def listNewDevices(self):
         switches = self.tellstick.listSwitches()
-        for devId, dev in switches.iteritems():
+        for devId, dev in switches.items():
             model = dev["model"]
             name = dev["name"]
 
