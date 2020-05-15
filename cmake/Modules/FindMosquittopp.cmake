@@ -22,6 +22,12 @@ find_library(Mosquitto_LIBRARY NAMES libmosquitto mosquitto)
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Mosquittopp DEFAULT_MSG Mosquittopp_LIBRARY Mosquittopp_INCLUDE_DIR)
 
+# Modern CMake suggests that variable name is named after FindXxx i.e. same case.
+# Older cmake (3.0) ignores case and always registers UPPERCASE_FOUND
+if(NOT DEFINED Mosquittopp_FOUND)
+    set(Mosquittopp_FOUND ${MOSQUITTOPP_FOUND})
+endif()
+
 if(Mosquittopp_FOUND)
     set(Mosquittopp_LIBRARIES ${Mosquittopp_LIBRARY} ${Mosquitto_LIBRARY})
 else(Mosquittopp_FOUND)

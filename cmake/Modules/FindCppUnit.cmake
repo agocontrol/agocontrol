@@ -26,3 +26,9 @@ endif()
 
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(CppUnit DEFAULT_MSG CppUnit_LIBRARIES CppUnit_INCLUDE_DIRS)
+
+# Modern CMake suggests that variable name is named after FindXxx i.e. same case.
+# Older cmake (3.0) ignores case and always registers UPPERCASE_FOUND
+if(NOT DEFINED CppUnit_FOUND)
+    set(CppUnit_FOUND ${CPPUNIT_FOUND})
+endif()
