@@ -19,8 +19,10 @@ FIND_LIBRARY(OpenZWave_LIBRARIES openzwave
    /usr/lib)
 
 
-if(DEFINED "OpenZWave_CUSTOM_INCLUDE" AND NOT OpenZWave_CUSTOM_INCLUDE STREQUAL OpenZWave_INCLUDE_BASE_DIR)
-   message(FATAL_ERROR "Custom OpenZWave path ${OpenZWave_CUSTOM_INCLUDE} was specified, but it was not found/used (found: ${OpenZWave_INCLUDE_BASE_DIR})")
+if(DEFINED "OpenZWave_CUSTOM_INCLUDE")
+   if(DEFINED "OpenZWave_CUSTOM_INCLUDE" AND NOT OpenZWave_CUSTOM_INCLUDE STREQUAL OpenZWave_INCLUDE_BASE_DIR)
+      message(FATAL_ERROR "Custom OpenZWave path ${OpenZWave_CUSTOM_INCLUDE} was specified, but it was not found/used (found: ${OpenZWave_INCLUDE_BASE_DIR})")
+   endif()
 endif()
 
 if(OpenZWave_INCLUDE_BASE_DIR)
