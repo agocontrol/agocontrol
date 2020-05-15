@@ -196,7 +196,7 @@ find_package(Mosquittopp)
 log_pkg_found(Mosquittopp "${Mosquittopp_FOUND}" "${Mosquittopp_VERSION}" WARNING ", MQTT communication support will not be built")
 set(WITH_MQTT ${Mosquittopp_FOUND})
 
-if(NOT ${Mosquittopp_FOUND} AND NOT ${Qpid_FOUND})
+if(NOT Mosquittopp_FOUND AND NOT Qpid_FOUND)
     message(FATAL_ERROR "Neither Mosquittopp nor qpid found. One or both is required, mosquittopp is recommended")
 endif()
 
@@ -243,7 +243,7 @@ if(Boost_VERSION VERSION_LESS 105600)
 endif()
 
 find_package(CppUnit)
-log_pkg_found(CppUnit "${CPPUNIT_FOUND}" "${CPPUNIT_VERSION}" STATUS ", not building unit-tests")
+log_pkg_found(CppUnit "${CppUnit_FOUND}" "${CppUnit_VERSION}" STATUS ", not building unit-tests")
 
 check_include_files("xlocale.h" HAVE_XLOCALE_H)
 
@@ -268,7 +268,7 @@ add_subdirectory (shared)
 add_subdirectory (python)
 
 option(BUILD_TESTS "Build the unittests" ON)
-if (BUILD_TESTS AND CPPUNIT_FOUND)
+if (BUILD_TESTS AND CppUnit_FOUND)
     # These are only for Shared right now, so add them right after.
     enable_testing()
     add_subdirectory (unittest)
