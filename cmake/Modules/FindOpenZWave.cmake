@@ -5,16 +5,23 @@
 # OpenZWave_LIBRARIES, the libraries to link against to use it
 # OpenZWave_FOUND, If false, do not try to use it
 
+# Allow override
 FIND_PATH(OpenZWave_INCLUDE_BASE_DIR openzwave/Manager.h
-    /usr/local/include
-    /usr/include
+    PATHS ${OpenZWave_CUSTOM_INCLUDE} NO_DEFAULT_PATH)
+FIND_PATH(OpenZWave_INCLUDE_BASE_DIR openzwave/Manager.h
+    PATHS /usr/local/include /usr/include
 )
 
+FIND_LIBRARY(OpenZWave_LIBRARIES openzwave PATHS ${OpenZWave_INCLUDE_BASE_DIR}/../lib NO_DEFAULT_PATH)
 FIND_LIBRARY(OpenZWave_LIBRARIES openzwave
-   ${OpenZWave_INCLUDE_BASE_DIR}/../lib
    /usr/local/lib
    /usr/local/lib64
    /usr/lib)
+
+
+if(DEFINED "OpenZWave_CUSTOM_INCLUDE" AND NOT OpenZWave_CUSTOM_INCLUDE STREQUAL OpenZWave_INCLUDE_BASE_DIR)
+   message(FATAL_ERROR "Custom OpenZWave path ${OpenZWave_CUSTOM_INCLUDE} was specified, but it was not found/used (found: ${OpenZWave_INCLUDE_BASE_DIR})")
+endif()
 
 if(OpenZWave_INCLUDE_BASE_DIR)
     IF(OpenZWave_LIBRARIES)
