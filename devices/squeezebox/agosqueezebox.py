@@ -1,400 +1,374 @@
-#! /usr/bin/python
+#! /usr/bin/env python
 
-# Squeezebox client
-# copyright (c) 2013 tang
- 
-import sys
-import agoclient
+import base64
+from agoclient import AgoApp
 from agoclient import agoproto
 import pylmsserver
 import pylmsplaylist
 import pylmslibrary
-import threading
-import time
-import base64
-import logging
-import urllib
-import re
 
-host = ''
-server = None
-playlist = None
-library = None
-client = None
-states = {}
+class AgoSqueezebox(AgoApp):
 
-STATE_OFF = 0
-STATE_ON = 255
-STATE_STREAM = 50
-STATE_PLAY = 100
-STATE_STOP = 150
-STATE_PAUSE = 200
+    STATE_OFF = 0
+    STATE_ON = 255
+    STATE_STREAM = 50
+    STATE_PLAY = 100
+    STATE_STOP = 150
+    STATE_PAUSE = 200
 
-MEDIASTATE_STREAM = 'streaming'
-MEDIASTATE_PLAY = 'play'
-MEDIASTATE_STOP = 'stopped'
-MEDIASTATE_PAUSE = 'paused'
+    def __init__(self):
+        AgoApp.__init__(self)
+        
+        self.host = self.get_config_option(app='squeezebox', option='host', default_value='127.0.0.1')
+        self.cli_port = int(self.get_config_option(app='squeezebox', option='cliport', default_value='9090'))
+        self.html_port = int(self.get_config_option(app='squeezebox', option='htmlport', default_value='9000'))
+        self.login = self.get_config_option(app='squeezebox', option='login', default_value='')
+        self.passwd = self.get_config_option(app='squeezebox', option='password', default_value='')
+        
+        self.players_states = {}
 
-#logging.basicConfig(filename='agosqueezebox.log', level=logging.INFO, format="%(asctime)s %(levelname)s : %(message)s")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s : %(message)s")
+    def setup_app(self):
+        # configure client
+        self.connection.add_handler(self.message_handler)
 
-#utils
-def getPlayer(player_id):
-    """Return player according to player_id"""
-    return playlist.get_server().get_player(player_id)
+        # connect to LMS
+        self.server = None
+        self.playlist = None
+        self.library = None
+        try:
+            self.connect_to_server()
+            self.connect_to_notifications()
+        except Exception:
+            self.log.exception('Failed to connect to server. Exit now')
+            raise
+            
+        # add devices
+        self.connection.add_device(self.host, 'squeezeboxserver')
+        try:
+            self.log.info('Discovering players:')
+            for player in self.server.get_players():
+                self.log.info("  Add player : %s[%s]" % (player.name, player.mac))
+                self.connection.add_device(player.mac, "squeezebox")
+        except Exception:
+            self.log.exception('Error discovering players. Exit now')
+            raise
+        self.get_players_states()
 
-def getPlayers():
-    """Return all players"""
-    return playlist.get_server().get_players()
+    def cleanup_app(self):
+        if self.playlist:
+            self.playlist.stop()
+      
+    def connect_to_server(self):
+        self.log.info('Connecting to server %s@%s:%d' % (self.login, self.host, self.cli_port))
+        self.server = pylmsserver.LMSServer(self.host, self.cli_port, self.login, self.passwd)
+        self.server.connect()
+        
+    def connect_to_notifications(self):
+        self.log.info('Connecting to notifications handlers')
+        self.library = pylmslibrary.LMSLibrary(self.host, self.cli_port, self.html_port, self.login, self.passwd)
+        self.playlist = pylmsplaylist.LMSPlaylist(self.library, self.host, self.cli_port, self.login, self.passwd)
+        
+        # play, pause, stop, on, off, add, del, move, reload
+        self.playlist.set_callbacks(
+            self.play_callback,
+            self.pause_callback,
+            self.stop_callback,
+            self.on_callback,
+            self.off_callback,
+            None,
+            None,
+            None,
+            None,
+        )
+        self.playlist.start()
+        
+    def get_players_states(self):
+        for player in self.server.get_players():
+            if player.get_model() == 'http':
+                #it's a stream. No control on it
+                self.log.info('  Player %s[%s] is streaming' % (player.name, player.mac))
+                self.players_states[player.mac] = self.STATE_STREAM
+                self.emit_stream(player.mac)
+            elif not player.get_is_on():
+                #player is off
+                self.log.info('  Player %s[%s] is off' % (player.name, player.mac))
+                self.players_states[player.mac] = self.STATE_STOP
+                self.emit_off(player.mac)
+            else:
+                #player is on
+                mode = player.get_mode()
+                if mode=='stop':
+                    self.log.info('  Player %s[%s] is stopped' % (player.name, player.mac))
+                    self.players_states[player.mac] = self.STATE_STOP
+                    self.emit_stop(player.mac)
+                elif mode=='play':
+                    self.log.info('  Player %s[%s] is playing' % (player.name, player.mac))
+                    self.players_states[player.mac] = self.STATE_PLAY
+                    self.emit_play(player.mac, None)
+                elif mode=='pause':
+                    self.log.info('  Player %s[%s] is paused' % (player.name, player.mac))
+                    self.players_states[player.mac] = self.STATE_PAUSE
+                    self.emit_pause(player.mac)
 
-def quit():
-    """Exit application"""
-    global playlist
-    global client
-    if playlist:
-        playlist.stop()
-        playlist = None
-    if client:
-        del client
-        client = None
-    sys.exit(0)
+            #emit media infos
+            self.emit_media_infos(player.mac, None)
 
-#squeezebox callbacks
-def play_callback(player_id, song_infos, playlist_index):
-    #if player is off or player is already playing, kick this callback
-    logging.debug('callback PLAY: %s' % player_id)
-    logging.debug('callback PLAY: song %s' % song_infos)
-    if states.has_key(player_id) and states[player_id]!=STATE_PLAY and states[player_id]!=STATE_OFF and states[player_id]!=STATE_STREAM:
-        states[player_id] = STATE_PLAY
-        emit_play(player_id, song_infos)
-    #always emit media infos, even for streaming
-    emit_media_infos(player_id, song_infos)
-
-def stop_callback(player_id):
-    #if player is off, kick this callback
-    logging.debug('callback STOP: %s' % player_id)
-    if states.has_key(player_id) and states[player_id]!=STATE_STOP and states[player_id]!=STATE_OFF and states[player_id]!=STATE_STREAM:
-        states[player_id] = STATE_STOP
-        emit_stop(player_id)
-
-def pause_callback(player_id):
-    #if player is off, kick this callback
-    logging.debug('callback PAUSE: %s' % player_id)
-    if states.has_key(player_id) and states[player_id]!=STATE_PAUSE and states[player_id]!=STATE_OFF and states[player_id]!=STATE_STREAM:
-        states[player_id] = STATE_PAUSE
-        emit_pause(player_id)
-
-def on_callback(player_id):
-    logging.debug('callback ON: %s' % player_id)
-    if states.has_key(player_id) and states[player_id]!=STATE_ON and states[player_id]!=STATE_STREAM:
-        states[player_id] = STATE_ON
-        emit_on(player_id)
-
-def off_callback(player_id):
-    logging.debug('callback OFF: %s' % player_id)
-    if states.has_key(player_id) and states[player_id]!=STATE_OFF and states[player_id]!=STATE_STREAM:
-        states[player_id] = STATE_OFF
-        emit_off(player_id)
-
-
-#emit function
-def emit_play(internalid, infos):
-    logging.debug('emit PLAY')
-    client.emit_event(internalid, "event.device.statechanged", str(STATE_PLAY), "")
-
-def emit_stop(internalid):
-    logging.debug('emit STOP')
-    client.emit_event(internalid, "event.device.statechanged", str(STATE_STOP), "")
-
-def emit_pause(internalid):
-    logging.debug('emit PAUSE')
-    client.emit_event(internalid, "event.device.statechanged", str(STATE_PAUSE), "")
-
-def emit_on(internalid):
-    logging.debug('emit ON')
-    client.emit_event(internalid, "event.device.statechanged", str(STATE_ON), "")
-
-def emit_off(internalid):
-    logging.debug('emit OFF')
-    client.emit_event(internalid, "event.device.statechanged", str(STATE_OFF), "")
-
-def emit_stream(internalid):
-    logging.debug('emit STREAM')
-    client.emit_event(internalid, "event.device.statechanged", str(STATE_STREAM), "")
-
-def get_media_infos(internalid, infos):
-    logging.info('get_media_infos')
-    if not internalid:
-        logging.error("Unable to emit mediainfos of not specified device")
-        return False
-
-    if not infos:
-        #get player infos
-        infos = playlist.get_current_song(internalid)
-
-        if not infos:
-            logging.error("Unable to find infos of internalid '%s'" % internalid)
-            return False
-    logging.debug('emit_media_infos : %s' % infos)
-
-    #prepare data
-    title = 'Unknown'
-    album = 'Unknown'
-    artist = 'Unknown'
-    cover_data = None
-    if infos.has_key('remote') and infos['remote']=='1':
-        #get cover from online service
-        cover_data = library.get_remote_cover(infos['artwork_url'])
-        if infos.has_key('album') and infos.has_key('artist') and infos.has_key('title'):
-            title = infos['title']
-            album = infos['album']
-            artist = infos['artist']
-        elif infos.has_key('current_title'):
-            #split all infos from current_titile field
-            #format: The Greatest by Cat Power from The Greatest
-            p = re.compile(ur'(.*) by (.*) from (.*)')
-            matches = p.findall(infos['current_title'])
-            if len(matches)>0 and len(matches[0])==3:
-                (title, artist, album) = matches[0]
-    else:
-        #get cover from local source
-        filename = 'cover_%s.jpg' % ''.join(x for x in internalid if x.isalnum())
-        if infos.has_key('album_id') and infos.has_key('artwork_track_id'):
-            cover_data = library.get_cover(infos['album_id'], infos['artwork_track_id'], filename, (100,100))
-        if infos.has_key('title'):
-            title = infos['title']
-        if infos.has_key('album'):
-            album = infos['album']
-        if infos.has_key('artist'):
-            artist = infos['artist']
-    cover_b64 = None
-    if cover_data:
-        cover_b64 = buffer(base64.b64encode(cover_data))
-        logging.debug('cover_b64 %d' % len(cover_b64))
-
-    #and fill returned data
-    data = {'title':title, 'album':album, 'artist':artist, 'cover':cover_b64}
-
-    return data
-
-def emit_media_infos(internalid, infos):
-    logging.debug('emit MEDIAINFOS')
-    data = get_media_infos(internalid, infos)
-    client.emit_event_raw(internalid, "event.device.mediainfos", data)
-
-
-
-    
-
-#Set message handler
-#state values:
-# - 0 : OFF
-# - 255 : ON
-# - 25 : STREAM
-# - 50 : PLAYING
-# - 100 : STOPPED
-# - 150 : PAUSED
-def messageHandler(internalid, content):
-    logging.info('messageHandler: %s, %s' % (internalid,content))
-
-    #check parameters
-    if not content.has_key("command"):
-        logging.error('No command specified in content')
-        return agoproto.response_unknown_command(message='No command specified')
-
-    if internalid==host:
-
-        #server command
-        if content["command"]=="allon":
-            logging.info("Command ALLON: %s" % internalid)
-            for player in getPlayers():
+    def message_handler(self, internalid, content):
+        """
+        Message handler
+        
+        Note:
+            Received state values:
+                0 : OFF
+                255 : ON
+                25 : STREAM
+                50 : PLAYING
+                100 : STOPPED
+                150 : PAUSED
+        """
+        #check parameters
+        if 'command' not in content:
+            return agoproto.response_bad_parameters()
+            
+        if internalid == self.host:
+            return self.handle_server_commands(internalid, content)
+        else:
+            return self.handle_player_commands(internalid, content)
+            
+    def handle_server_commands(self, internalid, content):
+        """
+        Handle server commands
+        """
+        if content['command'] == 'allon':
+            self.log.info('Command ALLON: %s' % internalid)
+            for player in self.get_players():
                 player.on()
             return agoproto.response_success()
 
-        elif content["command"]=="alloff":
-            logging.info("Command ALLOFF: %s" % internalid)
-            for player in getPlayers():
+        elif content['command'] == 'alloff':
+            self.log.info('Command ALLOFF: %s' % internalid)
+            for player in self.get_players():
                 player.off()
             return agoproto.response_success()
 
-        elif content["command"]=="displaymessage":
-            if content.has_key('line1') and content.has_key('line2') and content.has_key('duration'):
-                logging.info("Command DISPLAYMESSAGE: %s" % internalid)
-                for player in getPlayers():
+        elif content['command'] == 'displaymessage':
+            if 'line1' in content and 'line2' in content and 'duration' in content:
+                self.log.info('Command DISPLAYMESSAGE: %s' % internalid)
+                for player in self.get_players():
                     player.display(content['line1'], content['line2'], content['duration'])
                 return agoproto.response_success()
             else:
-                logging.error('Missing parameters to command DISPLAYMESSAGE')
+                self.log.error('Missing parameters to command DISPLAYMESSAGE')
                 return agoproto.response_missing_parameters(data={'command': 'displaymessage', 'params': ['line1', 'line2', 'duration']})
 
         #unhandled command
-        logging.warn('Unhandled server command')
+        self.log.warning('Unhandled server command')
         return agoproto.response_unknown_command(message='Unhandled server command', data=content["command"])
-
-    else:
-
-        #player command
-        #get player
-        player = getPlayer(internalid)
-        logging.info('Found player: %s' % player)
+        
+    def handle_player_commands(self, internalid, content):
+        """
+        Handle player commands
+        """
+        # get player
+        player = self.get_player(internalid)
+        self.log.debug('Found player: %s' % player)
+        
         if not player:
-            logging.error('Player %s not found!' % internalid)
+            self.log.error('Player %s not found!' % internalid)
             return agoproto.response_failed('Player "%s" not found!' % internalid)
     
-        if content["command"] == "on":
-            logging.info("Command ON: %s" % internalid)
+        if content['command'] == 'on':
+            self.log.info('Command ON: %s' % internalid)
             player.on()
             return agoproto.response_success()
 
-        elif content["command"] == "off":
-            logging.info("Command OFF: %s" % internalid)
+        elif content['command'] == 'off':
+            self.log.info("Command OFF: %s" % internalid)
             player.off()
             return agoproto.response_success()
 
-        elif content["command"] == "play":
-            logging.info("Command PLAY: %s" % internalid)
+        elif content['command'] == 'play':
+            self.log.info('Command PLAY: %s' % internalid)
             player.play()
             return agoproto.response_success()
 
-        elif content["command"] == "pause":
-            logging.info("Command PAUSE: %s" % internalid)
+        elif content['command'] == 'pause':
+            self.log.info('Command PAUSE: %s' % internalid)
             player.pause()
             return agoproto.response_success()
 
-        elif content["command"] == "stop":
-            logging.info("Command STOP: %s" % internalid)
+        elif content['command'] == 'stop':
+            self.log.info('Command STOP: %s' % internalid)
             player.stop()
             return agoproto.response_success()
 
-        elif content["command"] == "next":
-            logging.info("Command NEXT: %s" % internalid)
+        elif content['command'] == 'next':
+            self.log.info('Command NEXT: %s' % internalid)
             player.next()
             return agoproto.response_success()
 
-        elif content["command"] == "previous":
-            logging.info("Command PREVIOUS: %s" % internalid)
+        elif content['command'] == 'previous':
+            self.log.info('Command PREVIOUS: %s' % internalid)
             player.prev()
             return agoproto.response_success()
 
-        elif content["command"] == "setvolume":
-            logging.info("Command SETVOLUME: %s" % internalid)
-            if content.has_key('volume'):
+        elif content['command'] == 'setvolume':
+            self.log.info('Command SETVOLUME: %s' % internalid)
+            if 'volume' in content:
                 player.set_volume(content['volume'])
                 return agoproto.response_success()
             else:
-                logging.error('Missing parameter "volume" to command SETVOLUME')
+                self.log.error('Missing parameter "volume" to command SETVOLUME')
                 return agoproto.response_missing_parameters(data={'command': 'setvolume', 'params': ['volume']})
 
-        elif content["command"] == "displaymessage":
-            if content.has_key('line1') and content.has_key('line2') and content.has_key('duration'):
-                logging.info("Command DISPLAYMESSAGE: %s" % internalid)
+        elif content['command'] == 'displaymessage':
+            if 'line1' in content and 'line2' in content and 'duration' in content:
+                self.log.info('Command DISPLAYMESSAGE: %s' % internalid)
                 player.display(content['line1'], content['line2'], content['duration'])
                 return agoproto.response_success()
             else:
-                logging.error('Missing parameters to command DISPLAYMESSAGE')
+                self.log.error('Missing parameters to command DISPLAYMESSAGE')
                 return agoproto.response_missing_parameters(data={'command': 'displaymessage', 'params': ['line1', 'line2', 'duration']})
                 
-        elif content["command"] == "mediainfos":
-            infos = get_media_infos(internalid, None)
-            logging.info(infos)
+        elif content['command'] == 'mediainfos':
+            infos = self.get_media_infos(internalid, None)
+            self.log.info(infos)
             return agoproto.response_success(infos)
 
-        #unhandled device command
-        logging.warn('Unhandled device command')
-        return agoproto.response_unknown_command(message='Unhandled device command', data=content["command"])
+        #unhandled player command
+        self.log.warning('Unhandled player command')
+        return agoproto.response_unknown_command(message='Unhandled player command', data=content["command"])
+ 
+    def get_players(self):
+        return self.playlist.get_server().get_players()
+        
+    def get_player(self, player_id):
+        return self.playlist.get_server().get_player(player_id)
+        
+    def get_media_infos(self, internalid, infos):
+        self.log.debug('get_media_infos for %s' % internalid)
+        if not internalid:
+            self.log.error("Unable to emit mediainfos of not specified device")
+            return False
 
+        if not infos:
+            #get player infos
+            infos = self.playlist.get_current_song(internalid)
 
-#init
-try:
-    #connect agoclient
-    client = agoclient.AgoConnection("squeezebox")
+            if not infos:
+                self.log.error('Unable to find infos of internalid %s' % internalid)
+                return False
+        self.log.debug('get_media_infos: %s' % infos)
 
-    #read configuration
-    host = agoclient.get_config_option("squeezebox", "host", "127.0.0.1")
-    cli_port = int(agoclient.get_config_option("squeezebox", "cliport", "9090"))
-    html_port = int(agoclient.get_config_option("squeezebox", "htmlport", "9000"))
-    login = agoclient.get_config_option("squeezebox", "login", "")
-    passwd = agoclient.get_config_option("squeezebox", "password", "")
-    logging.info("Config: %s@%s:%d" % (login, host, cli_port))
-    
-    #connect to squeezebox server
-    logging.info('Connecting to LMSServer...')
-    server = pylmsserver.LMSServer(host, cli_port, login, passwd)
-    server.connect()
-    
-    #connect to notifications server
-    logging.info('Connecting to notification server...')
-    library = pylmslibrary.LMSLibrary(host, cli_port, html_port, login, passwd)
-    playlist = pylmsplaylist.LMSPlaylist(library, host, cli_port, login, passwd)
-    #play, pause, stop, on, off, add, del, move, reload
-    playlist.set_callbacks(play_callback, pause_callback, stop_callback, on_callback, off_callback, None, None, None, None)
-    playlist.start()
-    
-except Exception as e:
-    #init failed
-    logging.exception('Init failed, exit now')
-    quit()
-
-#connect message handler
-client.add_handler(messageHandler)
-
-#add server
-client.add_device(host, 'squeezeboxserver')
-
-#add players
-try:
-    logging.info('Discovering players:')
-    for p in server.get_players():
-        logging.info("  Add player : %s[%s]" % (p.name, p.mac))
-        client.add_device(p.mac, "squeezebox")
-except Exception as e:
-    logging.exception('Failed to discover players. Exit now')
-    quit()
-
-#get players state and media infos
-logging.info('Get current players states:')
-try:
-    for p in server.get_players():
-        if p.get_model()=='http':
-            #it's a stream. No control on it
-            logging.info('  Player %s[%s] is streaming' % (p.name, p.mac))
-            states[p.mac] = STATE_STREAM
-            emit_stream(p.mac)
-        elif not p.get_is_on():
-            #player is off
-            logging.info('  Player %s[%s] is off' % (p.name, p.mac))
-            states[p.mac] = STATE_STOP
-            emit_off(p.mac)
+        #prepare data
+        title = 'Unknown'
+        album = 'Unknown'
+        artist = 'Unknown'
+        cover_data = None
+        if 'remote' in infos and infos['remote']=='1':
+            #get cover from online service
+            cover_data = self.library.get_remote_cover(infos['artwork_url'])
+            if 'album' in infos and 'artist' in infos and 'title' in infos:
+                title = infos['title']
+                album = infos['album']
+                artist = infos['artist']
+            elif 'current_title' in infos:
+                #split all infos from current_titile field
+                #format: The Greatest by Cat Power from The Greatest
+                p = re.compile(ur'(.*) by (.*) from (.*)')
+                matches = p.findall(infos['current_title'])
+                if len(matches)>0 and len(matches[0])==3:
+                    (title, artist, album) = matches[0]
         else:
-            #player is on
-            mode = p.get_mode()
-            if mode=='stop':
-                logging.info('  Player %s[%s] is stopped' % (p.name, p.mac))
-                states[p.mac] = STATE_STOP
-                emit_stop(p.mac)
-            elif mode=='play':
-                logging.info('  Player %s[%s] is playing' % (p.name, p.mac))
-                states[p.mac] = STATE_PLAY
-                emit_play(p.mac, None)
-            elif mode=='pause':
-                logging.info('  Player %s[%s] is paused' % (p.name, p.mac))
-                states[p.mac] = STATE_PAUSE
-                emit_pause(p.mac)
+            #get cover from local source
+            filename = 'cover_%s.jpg' % ''.join(x for x in internalid if x.isalnum())
+            if 'album_id' in infos and 'artwork_track_id' in infos:
+                cover_data = self.library.get_cover(infos['album_id'], infos['artwork_track_id'], filename, (100,100))
+            if 'title' in infos:
+                title = infos['title']
+            if 'album' in infos:
+                album = infos['album']
+            if 'artist' in infos:
+                artist = infos['artist']
+        cover_b64 = None
+        if cover_data:
+            cover_b64 = base64.b64encode(cover_data)
+            self.log.debug('cover_b64 %d' % len(cover_b64))
 
-        #emit media infos
-        emit_media_infos(p.mac, None)
+        #and fill returned data
+        return {
+            'title':title,
+            'album':album,
+            'artist':artist,
+            'cover':cover_b64
+        }
+
+    def emit_play(self, internalid, infos):
+        self.log.debug('emit PLAY for %s' % internalid)
+        self.connection.emit_event(internalid, 'event.device.statechanged', str(self.STATE_PLAY), "")
+
+    def emit_stop(self, internalid):
+        self.log.debug('emit STOP for %s' % internalid)
+        self.connection.emit_event(internalid, 'event.device.statechanged', str(self.STATE_STOP), "")
+
+    def emit_pause(self, internalid):
+        self.log.debug('emit PAUSE for %s' % internalid)
+        self.connection.emit_event(internalid, 'event.device.statechanged', str(self.STATE_PAUSE), "")
+
+    def emit_on(self, internalid):
+        self.log.debug('emit ON for %s' % internalid)
+        self.connection.emit_event(internalid, 'event.device.statechanged', str(self.STATE_ON), "")
+
+    def emit_off(self, internalid):
+        self.log.debug('emit OFF for %s' % internalid)
+        self.connection.emit_event(internalid, 'event.device.statechanged', str(self.STATE_OFF), "")
+
+    def emit_stream(self, internalid):
+        self.log.debug('emit STREAM for %s' % internalid)
+        self.connection.emit_event(internalid, 'event.device.statechanged', str(self.STATE_STREAM), "")
+        
+    def emit_media_infos(self, internalid, infos):
+        self.log.debug('emit MEDIAINFOS')
+        data = self.get_media_infos(internalid, infos)
+        self.connection.emit_event_raw(internalid, 'event.device.mediainfos', data)
+        
+    def play_callback(self, player_id, song_infos, playlist_index):
+        #if player is off or player is already playing, kick this callback
+        self.log.debug('callback PLAY: %s' % player_id)
+        self.log.debug('callback PLAY: song %s' % song_infos)
+        if player_id in self.players_states and self.players_states[player_id]!=self.STATE_PLAY and self.players_states[player_id]!=self.STATE_OFF and self.players_states[player_id]!=self.STATE_STREAM:
+            self.players_states[player_id] = self.STATE_PLAY
+            self.emit_play(player_id, song_infos)
+        #always emit media infos, even for streaming
+        self.emit_media_infos(player_id, song_infos)
+
+    def stop_callback(self, player_id):
+        #if player is off, kick this callback
+        self.log.debug('callback STOP: %s' % player_id)
+        if player_id in self.players_states and self.players_states[player_id]!=self.STATE_STOP and self.players_states[player_id]!=self.STATE_OFF and self.players_states[player_id]!=self.STATE_STREAM:
+            self.players_states[player_id] = self.STATE_STOP
+            self.emit_stop(player_id)
+
+    def pause_callback(self, player_id):
+        #if player is off, kick this callback
+        self.log.debug('callback PAUSE: %s' % player_id)
+        if player_id in self.players_states and self.players_states[player_id]!=self.STATE_PAUSE and self.players_states[player_id]!=self.STATE_OFF and self.players_states[player_id]!=self.STATE_STREAM:
+            self.players_states[player_id] = self.STATE_PAUSE
+            self.emit_pause(player_id)
+
+    def on_callback(self, player_id):
+        self.log.debug('callback ON: %s' % player_id)
+        if player_id in self.players_states and self.players_states[player_id]!=self.STATE_ON and self.players_states[player_id]!=self.STATE_STREAM:
+            self.players_states[player_id] = self.STATE_ON
+            self.emit_on(player_id)
+
+    def off_callback(self, player_id):
+        self.log.debug('callback OFF: %s' % player_id)
+        if player_id in self.players_states and self.players_states[player_id]!=self.STATE_OFF and self.players_states[player_id]!=self.STATE_STREAM:
+            self.players_states[player_id] = self.STATE_OFF
+            self.emit_off(player_id)
 
 
-except Exception as e:
-    logging.exception('Failed to get player status. Exit now')
-    quit()
-
-#run agoclient
-try:
-    logging.info('Running agosqueezebox...')
-    client.run()
-except:
-    logging.info('agosqueezebox stopped')
-    quit()
-
+if __name__ == "__main__":
+    AgoSqueezebox().main()
 
