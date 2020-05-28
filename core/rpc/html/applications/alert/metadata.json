@@ -5,5 +5,5 @@
     "description": "Configure alert gateways (sms, twitter, mail, push)",
     "template": "html/alert",
     "listable": true,
-    "depends": "agoalert.py"
+    "depends": "agoalert"
 }

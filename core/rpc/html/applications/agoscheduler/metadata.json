@@ -4,7 +4,7 @@
     "description": "Schedule scenarios in a calendar",
     "listable": true,
     "template": "html/agoscheduler",
-    "depends": "agoscheduler.py",
+    "depends": "agoscheduler",
     "resources": {
         "css": [
             "fullcalendar/fullcalendar.css"
