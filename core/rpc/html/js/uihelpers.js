@@ -200,7 +200,7 @@ Agocontrol.prototype.initSpecificKnockoutBindings = function()
 
     //bootstrap toggle switch bindings
     ko.bindingHandlers.toggleSwitch = {
-        init : function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
+        init : function(element, valueAccessor, allBindings, viewModel, bindingContext) {
             var options = valueAccessor();
             if( options.onSwitchChange && options.onSwitchChange instanceof Function )
             {
@@ -220,6 +220,9 @@ Agocontrol.prototype.initSpecificKnockoutBindings = function()
                     };
                 }
             }
+            if (options.state && options.state instanceof Function) {
+                options.state = allBindings.get('state') || false;
+            }
 
             //init widget with specified options
             //@see options http://www.bootstrap-switch.org/options.html
@@ -229,7 +232,7 @@ Agocontrol.prototype.initSpecificKnockoutBindings = function()
             ko.utils.domNodeDisposal.addDisposeCallback(element, function() {
                 $(element).bootstrapSwitch('destroy');
             });
-        }
+        },
     };
 
     //bootstrap slider bindings
