@@ -45,6 +45,7 @@ function ScenarioConfig(agocontrol)
         var map = {};
         var map_idx = 0;
         var commands = document.getElementById(containerID).childNodes;
+        var schema = self.agocontrol.schema();
         for ( var i = 0; i < commands.length; i++)
         {
             var command = commands[i];
@@ -58,6 +59,7 @@ function ScenarioConfig(agocontrol)
                 }
                 else if (child.tagName == "DIV")
                 {
+                    // handle command first to cast command parameters
                     for ( var k = 0; k < child.childNodes.length; k++)
                     {
                         var subChild = child.childNodes[k];
@@ -65,9 +67,30 @@ function ScenarioConfig(agocontrol)
                         {
                             tmp.command = subChild.options[subChild.selectedIndex].value;
                         }
-                        if (subChild.name && subChild.type && subChild.type == "text")
+                    }
+
+                    // get command schema
+                    var commandSchema = (tmp.command && schema.commands[tmp.command]) ? schema.commands[tmp.command] : null;
+
+                    // store and cast command parameters
+                    for ( var k = 0; k < child.childNodes.length; k++)
+                    {
+                        var subChild = child.childNodes[k];
+                        if (subChild.name && subChild.name !== "command" && subChild.type && subChild.type == "text")
                         {
-                            tmp[subChild.name] = subChild.value;
+                            var parameterType = commandSchema && commandSchema.parameters && commandSchema.parameters[subChild.name] ? commandSchema.parameters[subChild.name].type : null;
+                            if (parameterType === 'integer') {
+                                tmp[subChild.name] = parseInt(subChild.value) || 0;
+                            }
+                            if (parameterType === 'float') {
+                                tmp[subChild.name] = parseFloat(subChild.value) || 0.0;
+                            }
+                            if (parameterType === 'bool') {
+                                var regex = /^\s*(true|1|on)\s*$/i;
+                                tmp[subChild.name] = regex.test(subChild.value);
+                            } else {
+                                tmp[subChild.name] = subChild.value;
+                            }
                         }
                     }
                 }
@@ -295,7 +318,7 @@ function ScenarioConfig(agocontrol)
                         field.setAttribute("name", key);
                         field.setAttribute("class", "form-control input-sm");
                         field.setAttribute("style", "display:inline; width:150px;");
-                        field.setAttribute("placeholder", cmd.parameters[key].name);
+                        field.setAttribute("placeholder", cmd.parameters[key].name + ' (' + cmd.parameters[key].type + ')');
                         if (currentValues && currentValues[key])
                         {
                             field.setAttribute("value", currentValues[key]);
