@@ -238,7 +238,7 @@ class AgoApp:
         self.log_handler.setFormatter(self.log_formatter)
 
         root.addHandler(self.log_handler)
-        self.log = logging.getLogger("app")
+        self.log = logging.getLogger(self.app_name)
 
     def setup_connection(self):
         """Create an AgoConnection instance, assigned to self.connection"""

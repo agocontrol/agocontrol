@@ -19,3 +19,4 @@ version.h
 
 *.pyc
 *.swp
+debian/*.log

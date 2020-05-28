@@ -38,7 +38,7 @@ class AgoMqttTransport(agoclient.agotransport.AgoTransport):
         self.pending_replies = {}
 
     def start(self):
-        self.mqtt = mqtt.Client(self.broker, clean_session=True)
+        self.mqtt = mqtt.Client(client_id=self.connection_uuid, clean_session=True)
         if self.username and self.password:
             self.mqtt.username_pw_set(self.username, self.password)
 
@@ -218,3 +218,4 @@ class AgoMqttTransport(agoclient.agotransport.AgoTransport):
         """Internal used to send a reply."""
         self.log.trace("Sending reply to %s: %s", reply_to, content)
         self._send_message(reply_to, content)
+
