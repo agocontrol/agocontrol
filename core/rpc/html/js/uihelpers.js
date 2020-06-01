@@ -199,8 +199,59 @@ Agocontrol.prototype.initSpecificKnockoutBindings = function()
     };
 
     //bootstrap toggle switch bindings
+    //usage: data-bind="bootstrapSwitch: state, bootstrapSwitchOptions:{...}"
+    ko.bindingHandlers.bootstrapSwitch = {
+        init: function (element, valueAccessor, allBindingsAccessor) {
+            //initialize bootstrapSwitch
+            $(element).bootstrapSwitch();
+
+            // setting initial value
+            $(element).bootstrapSwitch('state', valueAccessor()());
+
+            //handle the field changing
+            $(element).on('switchChange.bootstrapSwitch', function (event, state) {
+                var observable = valueAccessor();
+                observable(state);
+            });
+
+            // Adding component options
+            var options = allBindingsAccessor().bootstrapSwitchOptions || {};
+            for (var property in options) {
+                if (property === 'readonly') {
+                    continue;
+                }
+                $(element).bootstrapSwitch(property, ko.utils.unwrapObservable(options[property]));
+            }
+            $(element).bootstrapSwitch('readonly', false);
+
+            //handle disposal (if KO removes by the template binding)
+            ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
+                $(element).bootstrapSwitch("destroy");
+            });
+        },
+        //update the control when the view model changes
+        update: function (element, valueAccessor, allBindingsAccessor) {
+            var value = ko.utils.unwrapObservable(valueAccessor());
+
+            // Adding component options
+            var options = allBindingsAccessor().bootstrapSwitchOptions || {};
+            var readonly = false;
+            for (var property in options) {
+                var propertyValue = ko.utils.unwrapObservable(options[property]);
+                if (property === 'readonly') {
+                    readonly = value;
+                    continue;
+                }
+                $(element).bootstrapSwitch(property, propertyValue);
+            }
+
+            $(element).bootstrapSwitch("state", value);
+            $(element).bootstrapSwitch("readonly", readonly);
+        }
+    };
     ko.bindingHandlers.toggleSwitch = {
         init : function(element, valueAccessor, allBindings, viewModel, bindingContext) {
+            console.warn('toggleSwitch custom bindings is deprecated. Please use bootstrapSwitch instead.');
             var options = valueAccessor();
             if( options.onSwitchChange && options.onSwitchChange instanceof Function )
             {
@@ -221,7 +272,8 @@ Agocontrol.prototype.initSpecificKnockoutBindings = function()
                 }
             }
             if (options.state && options.state instanceof Function) {
-                options.state = allBindings.get('state') || false;
+                var valueUnwrapped = ko.unwrap(valueAccessor());
+                options.state = ko.unwrap(valueUnwrapped.state);
             }
 
             //init widget with specified options
