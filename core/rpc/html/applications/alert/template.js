@@ -53,7 +53,7 @@ function AlertPlugin(devices, agocontrol)
         content.command = 'status';
         self.agocontrol.sendCommand(content)
             .then(function(res) {
-                self.mailStatus(res.data.mail.configured);
+                self.mailStatus(res.data.mail.configured === 0 ? false : true);
                 if (res.data.mail.configured)
                 {
                     self.mailSmtp(res.data.mail.smtp);
@@ -65,7 +65,7 @@ function AlertPlugin(devices, agocontrol)
                         self.mailTls(false);
                     self.mailSender(res.data.mail.sender);
                 }
-                self.smsStatus(res.data.sms.configured);
+                self.smsStatus(res.data.sms.configured === 0 ? false : true);
                 if (res.data.sms.configured)
                 {
                     self.selectedSmsProvider(res.data.sms.provider);
@@ -80,8 +80,8 @@ function AlertPlugin(devices, agocontrol)
                         self.freemobileApikey(res.data.sms.apikey);
                     }
                 }
-                self.twitterStatus(res.data.twitter.configured);
-                self.pushStatus(res.data.push.configured);
+                self.twitterStatus(res.data.twitter.configured === 0 ? false : true);
+                self.pushStatus(res.data.push.configured === 0 ? false : true);
                 if (res.data.push.configured)
                 {
                     self.selectedPushProvider(res.data.push.provider);

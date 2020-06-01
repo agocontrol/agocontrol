@@ -4,39 +4,39 @@
 # Agoalert
 # copyright (c) 2013 tang
 
-import sys
-import agoclient
-from agoclient import agoproto
 import threading
 import time
-from Queue import Queue
+try:
+    from queue import Queue
+except ImportError:
+    from Queue import Queue
 import os
 import uuid
-#twitter libs
-import tweepy
-#mail libs
 import smtplib
 import mimetypes
 from email import encoders
-from email.message import Message
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-#sms libs
-import urllib
-import urllib2
+try:
+    from urllib.request import urlopen
+except ImportError:
+    from urllib2 import urlopen
+try:
+    from urllib.parse import urlencode
+except:
+    from urllib import urlencode
 import ssl
-#pushover pushsafer
 import httplib
 import json
-#pushbullet
-from pushbullet import PushBullet
-#notifymyandroid
 from xml.dom import minidom
+from pushbullet import PushBullet
+import tweepy
+import agoclient
+from agoclient import agoproto
 
-DEVICEMAPFILE = os.path.join(agoclient.CONFDIR, 'maps/alert.json')
 
 #=================================
 #classes
@@ -53,14 +53,14 @@ class Alert(threading.Thread):
     GATEWAYS = {'sms':False, 'smtp':False, 'twitter':False, 'push':False}
     UUIDS = {'sms':None, 'smtp':None, 'twitter':None, 'push':None}
 
-    def __init__(self, log, connection, type):
+    def __init__(self, log, connection, alert_type):
         threading.Thread.__init__(self)
         self.__running = True
         self.__queue = Queue()
         self.name = ''
         self.log = log
         self.connection = connection
-        self.type = type
+        self.alert_type = alert_type
 
     def stop(self):
         #remove device from agocontrol
@@ -73,31 +73,33 @@ class Alert(threading.Thread):
         """
         Add agocontrol device
         """
-        if Alert.GATEWAYS.has_key(self.type) and not Alert.GATEWAYS[self.type]:
-            self.log.debug('Add device type "%s" with uuid "%s"' % (self.type, Alert.UUIDS[self.type]))
-            if self.type == Alert.TYPE_SMS:
-                self.connection.add_device(Alert.UUIDS[self.type], 'smsgateway')
-            elif self.type == Alert.TYPE_SMTP:
-                self.connection.add_device(Alert.UUIDS[self.type], 'smtpgateway')
-            elif self.type == Alert.TYPE_TWITTER:
-                self.connection.add_device(Alert.UUIDS[self.type], 'twittergateway')
-            elif self.type == Alert.TYPE_PUSH:
-                self.connection.add_device(Alert.UUIDS[self.type], 'pushgateway')
-            Alert.GATEWAYS[self.type] = True
+        if Alert.GATEWAYS[self.alert_type]:
+            self.log.debug('Gateway already exists as device. Do not re-add it again')
+        if self.alert_type in Alert.GATEWAYS:
+            self.log.debug('Add device type "%s" with uuid "%s"' % (self.alert_type, Alert.UUIDS[self.alert_type]))
+            if self.alert_type == Alert.TYPE_SMS:
+                self.connection.add_device(Alert.UUIDS[self.alert_type], 'smsgateway')
+            elif self.alert_type == Alert.TYPE_SMTP:
+                self.connection.add_device(Alert.UUIDS[self.alert_type], 'smtpgateway')
+            elif self.alert_type == Alert.TYPE_TWITTER:
+                self.connection.add_device(Alert.UUIDS[self.alert_type], 'twittergateway')
+            elif self.alert_type == Alert.TYPE_PUSH:
+                self.connection.add_device(Alert.UUIDS[self.alert_type], 'pushgateway')
+            Alert.GATEWAYS[self.alert_type] = True
         else:
-            self.log.warning('Try to add unknown device type %s' % self.type)
+            self.log.warning('Try to add unknown device type %s' % self.alert_type)
 
     def remove_device(self):
         """
         Remove agocontrol device
         """
-        if Alert.GATEWAYS.has_key(self.type) and Alert.GATEWAYS[self.type]:
+        if self.alert_type in Alert.GATEWAYS and Alert.GATEWAYS[self.alert_type]:
             try:
-                self.log.debug('Remove device type "%s" with uuid "%s"' % (self.type, Alert.UUIDS[self.type]))
-                self.connection.remove_device(Alert.UUIDS[self.type])
-            except:
+                self.log.debug('Remove device type "%s" with uuid "%s"' % (self.alert_type, Alert.UUIDS[self.alert_type]))
+                self.connection.remove_device(Alert.UUIDS[self.alert_type])
+            except Exception:
                 self.log.exception('Unable to remove device:')
-            Alert.GATEWAYS[self.type] = False
+            Alert.GATEWAYS[self.alert_type] = False
 
     def add_message(self, message):
         """
@@ -126,28 +128,28 @@ class Alert(threading.Thread):
         error = 0
         msg = ''
         try:
-            (r, m) = self._sendMessage(message)
-            if not r:
+            (result, message) = self._send_message(message)
+            if not result:
                 error = 1
-                msg = m
+                msg = message
         except Exception as e:
             self.log.exception('Error testing alert:')
             error = 1
             msg = str(e)
-            if len(msg)==0:
+            if len(msg) == 0:
                 if getattr(e, 'reason', None):
                     msg = str(e.reason)
                 else:
                     msg = '<No message>'
         return error, msg
 
-    def _sendMessage(self, message):
+    def _send_message(self, message):
         """
         Send message
         """
-        raise NotImplementedError('_sendMessage method must be implemented')
+        raise NotImplementedError('_send_message method must be implemented')
 
-    def check_command_param(self, content, param, type=None, empty=False):
+    def check_command_param(self, content, param, param_type=None, empty=False):
         """
         I'm lazy so it's a copy/paste of agoapp function
         """
@@ -157,31 +159,32 @@ class Alert(threading.Thread):
             return False, param
 
         #check type
-        if type!=None:
+        if param_type is not None:
             try:
-                if type == 'string':
+                if param_type == 'string':
                     new_param = str(param)
                     #check if str is empty
                     if empty and isinstance(new_param, str) and len(new_param) == 0:
                         self.log.trace('Parameter "%s" is empty' % (new_param))
                         return False, param
-                    else:
-                        return True, new_param
-                elif type == 'int':
+                    return True, new_param
+                if param_type == 'int':
                     return True, int(param)
-                elif type == 'float':
+                if param_type == 'float':
                     return True, float(param)
-                elif type == 'bool':
+                if param_type == 'bool':
                     return True, bool(param)
-            except:
+                return False, param
+
+            except Exception:
                 #conversion exception
-                self.log.trace('Conversion exception for "%s" [%s] to %s' % (param, type(param), type))
+                self.log.trace('Conversion exception for "%s" [%s] to %s' % (param, type(param), param_type))
                 return False, param
-        else:
-            #check if str is empty
-            if empty and isinstance(param, str) and len(param) == 0:
-                self.log.trace('Parameter "%s" is empty' % (param))
-                return False, param
+
+        #check if str is empty
+        if empty and isinstance(param, str) and len(param) == 0:
+            self.log.trace('Parameter "%s" is empty' % (param))
+            return False, param
 
         return True, param
 
@@ -195,8 +198,8 @@ class Alert(threading.Thread):
                 message = self.__queue.get()
                 self.log.debug('%s: Send message: %s' % (type(self).__name__, str(message)))
                 try:
-                    self._sendMessage(message)
-                except Exception as e:
+                    self._send_message(message)
+                except Exception:
                     self.log.exception('Unable to send message:')
             #pause
             time.sleep(0.25)
@@ -206,8 +209,8 @@ class Dummy(Alert):
     """
     Do nothing
     """
-    def __init__(self, log, connection, type):
-        Alert.__init__(self, log, connection, type)
+    def __init__(self, log, connection, alert_type):
+        Alert.__init__(self, log, connection, alert_type)
 
     def get_config(self):
         return {'configured':0}
@@ -215,7 +218,7 @@ class Dummy(Alert):
     def prepare_message(self, content):
         pass
 
-    def _sendMessage(self, message):
+    def _send_message(self, message):
         pass
 
 
@@ -223,15 +226,15 @@ class SMSFreeMobile(Alert):
     """
     Class to send text message (SMS) using 12voip.com provider
     """
-    def __init__(self, log, connection, type, user, apikey):
+    def __init__(self, log, connection, alert_type, user, apikey):
         """
         Contructor
         """
-        Alert.__init__(self, log, connection, type)
+        Alert.__init__(self, log, connection, alert_type)
         self.user = user
         self.apikey = apikey
         self.name = 'freemobile'
-        if user and len(user)>0 and apikey and len(apikey)>0:
+        if user and len(user) > 0 and apikey and len(apikey) > 0:
             self.__configured = True
             self.add_device()
         else:
@@ -249,7 +252,7 @@ class SMSFreeMobile(Alert):
         @param user: freemobile user
         @param apikey: freemobile apikey
         """
-        if not user or len(user)==0 or not apikey or len(apikey)==0:
+        if not user or len(user) == 0 or not apikey or len(apikey) == 0:
             self.log.error('SMSFreeMobile: invalid parameters')
             self.__configured = False
             self.remove_device()
@@ -271,49 +274,46 @@ class SMSFreeMobile(Alert):
                 msg = 'Unable to add SMS ("text" parameter is mandatory)'
                 self.log.error('SMSFreeMobile: %s' % msg)
                 return None, msg
-            if len(content['text'])>160:
+            if len(content['text']) > 160:
                 self.log.warning('SMSFreeMobile: SMS is too long, message will be truncated')
                 content['text'] = content['text'][:159]
             #queue sms
             return {'to':content['to'], 'text':content['text']}, ''
-        else:
-            msg = 'Unable to add SMS because not configured'
-            self.log.error('SMSFreeMobile: %s' % msg)
-            return None, msg
 
-    def _sendMessage(self, message):
+        msg = 'Unable to add SMS because not configured'
+        self.log.error('SMSFreeMobile: %s' % msg)
+        return None, msg
+
+    def _send_message(self, message):
         """
         Url format:
         https://smsapi.free-mobile.fr/sendmsg?user=<user>&pass=<apikey>&msg=<message>
         """
         params = {'user':self.user, 'pass':self.apikey, 'msg':message['text']}
         url = 'https://smsapi.free-mobile.fr/sendmsg?'
-        url += urllib.urlencode(params)
+        url += urlencode(params)
         gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)  # Only for gangstars
-        req = urllib2.urlopen(url, context=gcontext)
+        req = urlopen(url, context=gcontext)
         lines = req.readlines()
         status = req.getcode()
         req.close()
-        self.log.trace('url=%s status=%s' % (url, str(status)))
-        if status==200:
-            return True, 'SMS sent successfully'
-        else:
-            return False, status
+        self.log.trace('url=%s status=%s lines=%s' % (url, str(status), lines))
+        return (True, 'SMS sent successfully') if status == 200 else (False, status)
 
 
 class SMS12voip(Alert):
     """
     Class to send text message (SMS) using 12voip.com provider
     """
-    def __init__(self, log, connection, type, username, password):
+    def __init__(self, log, connection, alert_type, username, password):
         """
         Contructor
         """
-        Alert.__init__(self, log, connection, type)
+        Alert.__init__(self, log, connection, alert_type)
         self.username = username
         self.password = password
         self.name = '12voip'
-        if username and len(username)>0 and password and len(password)>0:
+        if username and len(username) > 0 and password and len(password) > 0:
             self.__configured = True
             self.add_device()
         else:
@@ -331,7 +331,7 @@ class SMS12voip(Alert):
         @param username: 12voip username
         @param password: 12voip password
         """
-        if not username or len(username)==0 or not password or len(password)==0:
+        if not username or len(username) == 0 or not password or len(password) == 0:
             self.log.error('SMS12voip: invalid parameters')
             self.remove_device()
             return False
@@ -360,55 +360,70 @@ class SMS12voip(Alert):
                 msg = 'Unable to add SMS because "to" number must be international number'
                 self.log.error('SMS12voip: %s' % msg)
                 return None, msg
-            if len(content['text'])>160:
+            if len(content['text']) > 160:
                 self.log.warning('SMS12voip: SMS is too long, message will be truncated')
                 content['text'] = content['text'][:159]
             #queue sms
             return {'to':content['to'], 'text':content['text']}, ''
-        else:
-            msg = 'Unable to add SMS because not configured'
-            self.log.error('SMS12voip: %s' % msg)
-            return None, msg
 
-    def _sendMessage(self, message):
+        msg = 'Unable to add SMS because not configured'
+        self.log.error('SMS12voip: %s' % msg)
+        return None, msg
+
+    def _send_message(self, message):
         """
         Url format:
         https://www.12voip.com/myaccount/sendsms.php?username=xxxxxxxxxx&password=xxxxxxxxxx&from=xxxxxxxxxx&to=xxxxxxxxxx&text=xxxxxxxxxx
         """
         params = {'username':self.username, 'password':self.password, 'from':self.username, 'to':message['to'], 'text':message['text']}
         url = 'https://www.12voip.com/myaccount/sendsms.php?'
-        url += urllib.urlencode(params)
+        url += urlencode(params)
         gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)  # Only for gangstars
-        req = urllib2.urlopen(url, context=gcontext)
+        req = urlopen(url, context=gcontext)
         lines = req.readlines()
         status = req.getcode()
         req.close()
-        self.log.trace('url=%s status=%s' % (url, str(status)))
-        if status == 200:
-            return True, 'SMS sent successfully'
-        else:
-            return False, status
+        self.log.trace('url=%s status=%s lines=%s' % (url, str(status), lines))
+        return (True, 'SMS sent successfully') if status == 200 else (False, status)
+
 
 class Twitter(Alert):
     """
     Class for tweet sending
     """
-    def __init__(self, log, connection, type, key, secret):
+    def __init__(self, log, connection, alert_type, key, secret):
         """
         Constructor
         """
-        Alert.__init__(self, log, connection, type)
-        self.consumerKey = '8SwEenXApf9NNpufRk171g'
-        self.consumerSecret = 'VoVGMLU63VThwRBiC1uwN3asR5fqblHBQyn8EZq2Q'
+        Alert.__init__(self, log, connection, alert_type)
+        self.consumer_key = '8SwEenXApf9NNpufRk171g'
+        self.consumer_secret = 'VoVGMLU63VThwRBiC1uwN3asR5fqblHBQyn8EZq2Q'
         self.name = 'twitter'
         self.__auth = None
         self.key = key
         self.secret = secret
-        if key and len(key)>0 and secret and len(secret)>0:
+        if key and len(key) > 0 and secret and len(secret) > 0:
             self.__configured = True
             self.add_device()
         else:
             self.__configured = False
+
+    def set_config(self, key, secret):
+        """
+        Set config
+        @param key: twitter key
+        @param secret: twitter secret
+        """
+        if not key or len(key) == 0 or not secret or len(secret) == 0:
+            self.log.error('Twitter: invalid parameters')
+            self.remove_device()
+            return False
+
+        self.consumer_key = key
+        self.consumer_secret = secret
+        self.__configured = True
+        self.add_device()
+        return True
 
     def get_config(self):
         configured = 0
@@ -425,10 +440,11 @@ class Twitter(Alert):
         if code and len(code) > 0:
             try:
                 if not self.__auth:
-                    self.__auth = tweepy.OAuthHandler(self.consumerKey, self.consumerSecret)
+                    self.__auth = tweepy.OAuthHandler(self.consumer_key, self.consumer_secret)
                     self.__auth.secure = True
                 #get token
                 token = self.__auth.get_access_token(code)
+                self.log.debug('Twitter token: %s' % token)
                 #save token internally
                 self.key = token.key
                 self.secret = token.secret
@@ -436,7 +452,7 @@ class Twitter(Alert):
                 self.add_device()
                 #return key and secret token
                 return True, self.key, self.secret, ''
-            except Exception as e:
+            except Exception:
                 self.log.exception('Twitter: get_key_secret exception:')
                 self.remove_device()
                 return False, None, None, 'Internal error'
@@ -452,13 +468,13 @@ class Twitter(Alert):
         """
         try:
             if not self.__auth:
-                self.__auth = tweepy.OAuthHandler(self.consumerKey, self.consumerSecret)
+                self.__auth = tweepy.OAuthHandler(self.consumer_key, self.consumer_secret)
                 self.__auth.secure = True
             url = self.__auth.get_authorization_url()
-            self.log.trace('twitter url=%s' % url)
+            self.log.debug('twitter url=%s' % url)
             return {'error': 0, 'url': url}
-        except Exception as e:
-            self.log.exception('Twitter: Unable to get Twitter authorization url [%s]' % str(e) )
+        except Exception:
+            self.log.exception('Twitter: Unable to get Twitter authorization url')
             return {'error': 1, 'url': ''}
 
     def prepare_message(self, content):
@@ -476,14 +492,14 @@ class Twitter(Alert):
                 content['tweet'] = content['tweet'][:139]
             #queue message
             return {'tweet':content['tweet']}, ''
-        else:
-            msg = 'Unable to add tweet because not configured'
-            self.log.error('Twitter: %s' % msg)
-            return None, msg
 
-    def _sendMessage(self, message):
+        msg = 'Unable to add tweet because not configured'
+        self.log.error('Twitter: %s' % msg)
+        return None, msg
+
+    def _send_message(self, message):
         #connect using OAuth auth (basic auth deprecated)
-        auth = tweepy.OAuthHandler(self.consumerKey, self.consumerSecret)
+        auth = tweepy.OAuthHandler(self.consumer_key, self.consumer_secret)
         auth.secure = True
         self.log.trace('key=%s secret=%s' % (self.key, self.secret))
         auth.set_access_token(self.key, self.secret)
@@ -491,27 +507,23 @@ class Twitter(Alert):
         res = api.update_status(message['tweet'])
         self.log.trace('Tweepy result: %s' % res)
         #check result
-        if res.text.find(message['tweet'])!=-1:
-            return True, 'Tweet successful'
-        else:
-            return False, 'Message not tweeted'
+        return (True, 'Tweet successful') if res.text.find(message['tweet']) != -1 else (False, 'Message not tweeted')
 
 class Mail(Alert):
     """
     Class for mail sending
     """
-    def __init__(self, log, connection, type, smtp, sender, login, password, tls):
+    def __init__(self, log, connection, alert_type, smtp, sender, login, password, tls):
         """
         Constructor
         """
-        Alert.__init__(self, log, connection, type)
-        global SMTP_GATEWAY_UUID
+        Alert.__init__(self, log, connection, alert_type)
         self.smtp = smtp
         self.sender = sender
         self.login = login
         self.password = password
         self.tls = False
-        if tls=='1':
+        if tls == '1':
             self.tls = True
         self.name = 'mail'
         if smtp and len(smtp) > 0 and sender and len(sender) > 0:
@@ -535,7 +547,6 @@ class Mail(Alert):
         @param smtp: smtp server address
         @param sender: mail sender
         """
-        global SMTP_GATEWAY_UUID
         if not smtp or len(smtp) == 0 or not sender or len(sender) == 0:
             self.log.error('Mail: all parameters are mandatory')
             self.remove_device()
@@ -578,23 +589,24 @@ class Mail(Alert):
                 content['attachment'] = ''
             #queue mail
             return {'subject': content['subject'], 'tos': content['tos'], 'content': content['body'], 'attachment': content['attachment']}, ''
-        else:
-            msg = 'Unable to add mail because not configured'
-            self.log.error('Mail: %s' % msg)
-            return None, msg
 
-    def _sendMessage(self, message):
+        msg = 'Unable to add mail because not configured'
+        self.log.error('Mail: %s' % msg)
+        return None, msg
+
+    def _send_message(self, message):
+        self.log.debug('SMTP server: %s' % self.smtp)
         mails = smtplib.SMTP(self.smtp)
         if self.tls:
             mails.starttls()
-        if len(self.login)>0:
+        if len(self.login) > 0:
             mails.login(self.login, self.password)
         mail = MIMEMultipart('alternative')
         mail['Subject'] = message['subject']
         mail['From'] = self.sender
         mail['To'] = message['tos'][0]
         text = """%s""" % (message['content'])
-        html  = "<html><head></head><body>%s</body>" % (message['content'])
+        html = "<html><head></head><body>%s</body>" % (message['content'])
         part1 = MIMEText(text, 'plain')
         part2 = MIMEText(html, 'html')
         mail.attach(part1)
@@ -602,7 +614,7 @@ class Mail(Alert):
 
         #append attachment
         #@see https://docs.python.org/2/library/email-examples.html
-        if message.has_key('attachment') and message['attachment'] and len(message['attachment']) > 0:
+        if 'attachment' in message and message['attachment'] and len(message['attachment']) > 0:
             #there is something to attach
             #file exists?
             if os.path.isfile(message['attachment']):
@@ -611,28 +623,25 @@ class Mail(Alert):
                     ctype = 'application/octet-stream'
                 maintype, subtype = ctype.split('/', 1)
                 if maintype == 'text':
-                    fp = open(message['attachment'])
-                    msg = MIMEText(fp.read(), _subtype=subtype)
-                    fp.close()
+                    with open(message['attachment']) as file_descriptor:
+                        msg = MIMEText(file_descriptor.read(), _subtype=subtype)
                 elif maintype == 'image':
-                    fp = open(message['attachment'], 'rb')
-                    msg = MIMEImage(fp.read(), _subtype=subtype)
-                    fp.close()
+                    with open(message['attachment'], 'rb') as file_descriptor:
+                        msg = MIMEImage(file_descriptor.read(), _subtype=subtype)
                 elif maintype == 'audio':
-                    fp = open(message['attachment'], 'rb')
-                    msg = MIMEAudio(fp.read(), _subtype=subtype)
-                    fp.close()
+                    with open(message['attachment'], 'rb') as file_descriptor:
+                        msg = MIMEAudio(file_descriptor.read(), _subtype=subtype)
                 else:
-                    fp = open(message['attachment'], 'rb')
-                    msg = MIMEBase(maintype, subtype)
-                    msg.set_payload(fp.read())
-                    fp.close()
+                    with open(message['attachment'], 'rb') as file_descriptor:
+                        msg = MIMEBase(maintype, subtype)
+                        msg.set_payload(file_descriptor.read())
                     #encode the payload using Base64
                     encoders.encode_base64(msg)
                 #set the filename parameter
                 msg.add_header('Content-Disposition', 'attachment', filename=os.path.basename(message['attachment']))
                 mail.attach(msg)
 
+        self.log.debug('Send email from "%s" to "%s" with content "%s"' % (self.sender, message['tos'], mail.as_string()))
         mails.sendmail(self.sender, message['tos'], mail.as_string())
         mails.quit()
         #if error occured, exception is throw, so return true is always true if mail succeed
@@ -642,17 +651,17 @@ class Pushover(Alert):
     """
     Class for push message sending for ios and android
     """
-    def __init__(self, log, connection, type, userid, token):
+    def __init__(self, log, connection, alert_type, userid, token):
         """
         Constructor
         @see https://pushover.net/
         """
-        Alert.__init__(self, log, connection, type)
+        Alert.__init__(self, log, connection, alert_type)
         self.name = 'pushover'
         self.token = token
         self.userid = userid
-        self.pushTitle = 'Agocontrol'
-        if userid and len(userid)>0:
+        self.push_title = 'Agocontrol'
+        if userid and len(userid) > 0:
             self.add_device()
             self.__configured = True
         else:
@@ -692,59 +701,68 @@ class Pushover(Alert):
                 msg = 'Unable to add push ("message" parameter is mandatory)'
                 self.log.error('Pushover: %s' % msg)
                 return None, msg
+
             if not self.check_command_param(content, 'priority')[0]:
                 content['priority'] = '0'
+
             #queue push message
             return {'message': content['message'], 'priority': content['priority']}, ''
-        else:
-            msg = 'Unable to add message because not configured'
-            self.log.error('Pushover: %s' % msg)
-            return None, msg
 
-    def _sendMessage(self, message):
+        msg = 'Unable to add message because not configured'
+        self.log.error('Pushover: %s' % msg)
+        return None, msg
+
+    def _send_message(self, message):
         conn = httplib.HTTPSConnection("api.pushover.net:443")
-        conn.request("POST", "/1/messages.json",
-        urllib.urlencode({
-            'token': self.token,
-            'user':self.userid,
-            'message':message['message'],
-            'priority':message['priority'],
-            'title':self.pushTitle,
-            'timestamp': int(time.time())
-        }), { "Content-type": "application/x-www-form-urlencoded" })
+        conn.request(
+            "POST",
+            "/1/messages.json",
+            urlencode({
+                'token': self.token,
+                'user':self.userid,
+                'message':message['message'],
+                'priority':message['priority'],
+                'title':self.push_title,
+                'timestamp': int(time.time())
+            }),
+            {"Content-type": "application/x-www-form-urlencoded"}
+        )
         resp = conn.getresponse()
         self.log.trace('Pushover response: %s' % resp)
         #check response
         if resp:
             try:
                 read = resp.read()
-                self.log.trace('Pushover response: %s' % read)
+                self.log.debug('Pushover response: %s' % read)
                 resp = json.loads(read)
                 #TODO handle receipt https://pushover.net/api#receipt
-                if resp['status']==0:
+                if resp['status'] == 0:
                     #error occured
                     self.log.error('Pushover: %s' % (str(resp['errors'])))
                     return False, str(resp['errors'])
-                else:
-                    self.log.info('Pushover: message received by user')
-                    return True, 'Message pushed successfully'
-            except:
+
+                self.log.info('Pushover: message received by user')
+                return True, 'Message pushed successfully'
+
+            except Exception:
                 self.log.exception('Pushover: Exception push message')
                 return False, 'Unhandled exception'
+
+        return False, 'No response'
 
 class Pushsafer(Alert):
     """
     Class for Pushsafer push notification sending for ios, android and windows 10
     """
-    def __init__(self, log, connection, type, key):
+    def __init__(self, log, connection, alert_type, key):
         """
         Constructor
         @see https://www.pushsafer.com/
         """
-        Alert.__init__(self, log, connection, type)
+        Alert.__init__(self, log, connection, alert_type)
         self.name = 'pushsafer'
         self.key = key
-        self.pushTitle = 'Agocontrol'
+        self.push_title = 'Agocontrol'
         if key and len(key) > 0:
             self.add_device()
             self.__configured = True
@@ -785,19 +803,24 @@ class Pushsafer(Alert):
                 return None, msg
             #queue push message
             return {'message':content['message']}, ''
-        else:
-            msg = 'Unable to add message because not configured'
-            self.log.error('Pushsafer: %s' % msg)
-            return None, msg
 
-    def _sendMessage(self, message):
+        msg = 'Unable to add message because not configured'
+        self.log.error('Pushsafer: %s' % msg)
+        return None, msg
+
+    def _send_message(self, message):
         conn = httplib.HTTPSConnection("pushsafer.com:443")
-        conn.request("POST", "/api",
-        urllib.urlencode({
-            'k': self.key,
-            'm':message['message'],
-            't':self.pushTitle
-        }), { "Content-type": "application/x-www-form-urlencoded" })
+        conn.request(
+            "POST", "/api",
+            urlencode({
+                'k': self.key,
+                'm': message['message'],
+                't': self.push_title
+            }),
+            {
+                "Content-type": "application/x-www-form-urlencoded"
+            }
+        )
         resp = conn.getresponse()
         self.log.trace('Pushsafer response: %s' % resp)
         #check response
@@ -807,27 +830,31 @@ class Pushsafer(Alert):
                 self.log.trace('Pushsafer response: %s' % read)
                 resp = json.loads(read)
                 #TODO handle receipt https://www.pushsafer.com/en/pushapi
-                if resp['status']==0:
+                if resp['status'] == 0:
                     #error occured
                     self.log.error('Pushsafer: %s' % (str(resp['errors'])))
                     return False, str(resp['errors'])
-                else:
-                    self.log.info('Pushsafer: message received by user')
-                    return True, 'Message pushed successfully'
-            except:
+
+                self.log.info('Pushsafer: message received by user')
+                return True, 'Message pushed successfully'
+
+            except Exception:
                 self.log.exception('Pushsafer: Exception push message')
                 return False, 'Pushsafer: Unhandled exception'
+
+        return False, 'no response'
+
 
 class Pushbullet(Alert):
     """
     Class for push message sending for ios and android
     @info https://www.pushbullet.com
     """
-    def __init__(self, log, connection, type, apikey, devices):
+    def __init__(self, log, connection, alert_type, apikey, devices):
         """
         Constructor
         """
-        Alert.__init__(self, log, connection, type)
+        Alert.__init__(self, log, connection, alert_type)
         self.name = 'pushbullet'
         self.pushbullet = None
         self.apikey = apikey
@@ -836,7 +863,7 @@ class Pushbullet(Alert):
         else:
             self.devices = json.loads(devices)
         self.pbdevices = {}
-        self.pushTitle = 'Agocontrol'
+        self.push_title = 'Agocontrol'
         if apikey and len(apikey) > 0 and devices and len(devices) > 0:
             self.__configured = True
             self.add_device()
@@ -850,7 +877,7 @@ class Pushbullet(Alert):
             configured = 1
         return {'configured': configured, 'apikey': self.apikey, 'devices': self.devices, 'provider': self.name}
 
-    def getPushbulletDevices(self, apikey=None):
+    def get_pushbullet_devices(self, apikey=None):
         """
         Request pushbullet to get its devices
         """
@@ -863,9 +890,13 @@ class Pushbullet(Alert):
 
         devices = []
         if self.pushbullet:
-            devs = self.pushbullet.getDevices()
-            self.log.trace('pushbullet devs=%s' % str(devs))
+            devs = self.pushbullet.get_devices()
+            self.log.debug('pushbullet devs=%s' % str(devs))
             for dev in devs:
+                if 'active' not in dev or not dev['active']:
+                    continue
+                if 'manufacturer' not in dev or 'model' not in dev:
+                    continue
                 name = '%s %s (%s)' % (dev['manufacturer'], dev['model'], dev['iden'])
                 self.pbdevices[name] = {'name':name, 'id':dev['iden']}
                 devices.append(name)
@@ -907,49 +938,46 @@ class Pushbullet(Alert):
                 msg = 'Unable to add push (at least one parameter ("message" or "file") is mandatory)'
                 self.log.error('Pushbullet: %s' % msg)
                 return None, msg
-            if not content.has_key('message'):
+            if 'message' not in content:
                 content['message'] = ''
-            if not content.has_key('file'):
+            if 'file' not in content:
                 content['file'] = ''
             #queue push message
             return {'message':content['message'], 'file':content['file']}, ''
-        else:
-            msg = 'Unable to add message because not configured'
-            self.log.error('Pushover: %s' % msg)
-            return None, msg
 
-    def _sendMessage(self, message):
+        msg = 'Unable to add message because not configured'
+        self.log.error('Pushover: %s' % msg)
+        return None, msg
+
+    def _send_message(self, message):
         #get devices from pushbullet if necessary
-        if len(self.pbdevices)==0:
+        if len(self.pbdevices) == 0:
             self.log.debug('Update pushbullet devices')
-            self.getPushbulletDevices()
+            self.get_pushbullet_devices()
 
         #push message
         count = 0
-        error = ''
         self.log.trace('Pushbullet devices: %s' % self.pbdevices)
         self.log.trace('Send bullet to devices: %s' % self.devices)
         for device in self.devices:
             #get device id
-            if self.pbdevices.has_key(device):
+            if device in self.pbdevices:
                 if len(message['file']) == 0:
                     #send a note
-                    resp = self.pushbullet.pushNote(self.pbdevices[device]['id'], self.pushTitle, message['message'])
+                    resp = self.pushbullet.push_note(self.pbdevices[device]['id'], self.push_title, message['message'])
                     self.log.trace('Pushbullet response: %s' % resp)
-                    if resp.has_key('error'):
+                    if 'error' in resp:
                         #error occured
-                        error = resp['error']['message']
                         self.log.error('Pushbullet: Unable to push note to device "%s" [%s]' % (self.pbdevices[device]['id'], resp['error']['message']))
                     else:
                         #no pb
                         count += 1
                 else:
                     #send a file
-                    resp = self.pushbullet.pushFile(self.pbdevices[device]['id'], message['file'])
+                    resp = self.pushbullet.push_file(self.pbdevices[device]['id'], message['file'])
                     self.log.trace('Pushbullet response (file): %s' % resp)
-                    if resp.has_key('error'):
+                    if 'error' in resp:
                         #error occured
-                        error = resp['error']['message']
                         self.log.error('Pushbullet: Unable to push file to device "%s" [%s]' % (self.pbdevices[device]['id'], resp['error']['message']))
                     else:
                         #no pb
@@ -957,21 +985,18 @@ class Pushbullet(Alert):
             else:
                 self.log.warning('Pushbullet: unable to push notification to device "%s" because not found' % (device))
 
-        if count==0:
-            return False, 'Nothing pushed'
-        else:
-            return True, 'Message pushed successfully'
+        return (False, 'Nothing pushed') if count == 0 else (True, 'Message pushed successfully')
 
 class Notifymyandroid(Alert):
     """
     Class push notifications using notifymyandroid
     """
-    def __init__(self, log, connection, type, apikeys):
+    def __init__(self, log, connection, alert_type, apikeys):
         """
         Constructor
         @see http://www.notifymyandroid.com
         """
-        Alert.__init__(self, log, connection, type)
+        Alert.__init__(self, log, connection, alert_type)
         self.name = 'notifymyandroid'
         if not apikeys or len(apikeys) == 0:
             self.apikeys = []
@@ -980,7 +1005,7 @@ class Notifymyandroid(Alert):
             self.apikeys = json.loads(apikeys)
             self.add_device()
             self.__configured = True
-        self.pushTitle = 'Agocontrol'
+        self.push_title = 'Agocontrol'
 
     def get_config(self):
         configured = 0
@@ -993,12 +1018,12 @@ class Notifymyandroid(Alert):
         Set config
         @param apikey: notifymyandroid apikey (available on https://www.notifymyandroid.com/account.jsp)
         """
-        if not apikeys or len(apikeys)==0:
+        if not apikeys or len(apikeys) == 0:
             self.remove_device()
             self.__configured = False
             return False
-        else:
-            self.__configured = True
+
+        self.__configured = True
         self.apikeys = apikeys
         self.add_device()
         return True
@@ -1019,23 +1044,28 @@ class Notifymyandroid(Alert):
                 content['priority'] = '0'
             #queue push message
             return {'message':content['message'], 'priority':content['priority']}, ''
-        else:
-            msg = 'Unable to add message because not configured'
-            self.log.error('Notifymyandroid: %s' % msg)
-            return None, msg
 
-    def _sendMessage(self, message):
+        msg = 'Unable to add message because not configured'
+        self.log.error('Notifymyandroid: %s' % msg)
+        return None, msg
+
+    def _send_message(self, message):
         for apikey in self.apikeys:
             conn = httplib.HTTPSConnection("www.notifymyandroid.com:443")
-            conn.request("POST", "/publicapi/notify",
-            urllib.urlencode({
-                'apikey': apikey,
-                'application': self.pushTitle,
-                'event': 'Agocontrol alert',
-                'description': message['message'],
-                'priority': message['priority'],
-                'content-type': 'text/html'
-            }), {"Content-type": "application/x-www-form-urlencoded"})
+            conn.request(
+                "POST", "/publicapi/notify",
+                urlencode({
+                    'apikey': apikey,
+                    'application': self.push_title,
+                    'event': 'Agocontrol alert',
+                    'description': message['message'],
+                    'priority': message['priority'],
+                    'content-type': 'text/html'
+                }),
+                {
+                    "Content-type": "application/x-www-form-urlencoded"
+                }
+            )
             resp = conn.getresponse()
             #check response
             if resp:
@@ -1044,26 +1074,28 @@ class Notifymyandroid(Alert):
                     dom = minidom.parseString(xml)
                     result = dom.firstChild.childNodes[0].tagName
                     code = dom.firstChild.childNodes[0].getAttribute('code')
-                    if result=='success':
+                    if result == 'success':
                         self.log.info('Notifymyandoid: message pushed successfully')
                         return True, 'Message pushed successfully'
-                    elif result=='error':
+                    if result == 'error':
                         self.log.error('Notifymyandroid: received error code "%s"' % code)
                         return False, 'error code %s' % code
-                except:
+                except Exception:
                     self.log.exception('Notifymyandroid: Exception push message')
                     return False, 'Notifymyandroid: Unhandled exception'
-
+        return True, 'No message no push'
 
 
 class AgoAlert(agoclient.AgoApp):
     """
     Agocontrol Alert
     """
-    def setup_app(self):
-        """
-        Configure application
-        """
+
+    DEVICEMAPFILE = os.path.join(agoclient.CONFDIR, 'maps/alert.json')
+
+    def __init__(self):
+        agoclient.AgoApp.__init__(self)
+
         #declare members
         self.config = {}
         self.__config_lock = threading.Lock()
@@ -1072,6 +1104,10 @@ class AgoAlert(agoclient.AgoApp):
         self.mail = None
         self.push = None
 
+    def setup_app(self):
+        """
+        Configure application
+        """
         #load config
         self.load_config()
 
@@ -1100,7 +1136,6 @@ class AgoAlert(agoclient.AgoApp):
         """
         Save config to map file
         """
-        global DEVICEMAPFILE
         self.__config_lock.acquire()
         error = False
         try:
@@ -1126,11 +1161,10 @@ class AgoAlert(agoclient.AgoApp):
             self.set_config_option('apikeys', self.config['notifymyandroid']['apikeys'], "notifymyandroid", "alert")
 
             #save uuids
-            f = open(DEVICEMAPFILE, "w")
-            f.write(json.dumps(Alert.UUIDS))
-            f.close()
+            with open(self.DEVICEMAPFILE, "w") as file_descriptor:
+                file_descriptor.write(json.dumps(Alert.UUIDS))
 
-        except:
+        except Exception:
             self.log.exception('Unable to save config infos')
             error = True
         self.__config_lock.release()
@@ -1141,7 +1175,6 @@ class AgoAlert(agoclient.AgoApp):
         """
         Load config from map file
         """
-        global DEVICEMAPFILE
         self.__config_lock.acquire()
         error = False
         try:
@@ -1177,23 +1210,21 @@ class AgoAlert(agoclient.AgoApp):
             self.config['notifymyandroid'] = {}
             self.config['notifymyandroid']['apikeys'] = self.get_config_option("apikeys", "", "notifymyandroid", "alert")
 
-            if os.path.exists(DEVICEMAPFILE):
-                f = open(DEVICEMAPFILE, "r")
-                j = f.readline()
-                f.close()
-                Alert.UUIDS = json.loads(j)
+            if os.path.exists(self.DEVICEMAPFILE):
+                with open(self.DEVICEMAPFILE, "r") as file_descriptor:
+                    line = file_descriptor.readline()
+                Alert.UUIDS = json.loads(line)
             else:
                 Alert.UUIDS['sms'] = str(uuid.uuid4())
                 Alert.UUIDS['smtp'] = str(uuid.uuid4())
                 Alert.UUIDS['twitter'] = str(uuid.uuid4())
                 Alert.UUIDS['push'] = str(uuid.uuid4())
                 self.log.info("UUIDS=%s"%Alert.UUIDS)
-                self.log.debug('Create default map file "%s"' % DEVICEMAPFILE)
-                f = open(DEVICEMAPFILE, "w")
-                f.write(json.dumps(Alert.UUIDS))
-                f.close()
+                self.log.debug('Create default map file "%s"' % self.DEVICEMAPFILE)
+                with open(self.DEVICEMAPFILE, "w") as file_descriptor:
+                    file_descriptor.write(json.dumps(Alert.UUIDS))
 
-        except:
+        except Exception:
             self.log.exception('Unable to load devices infos')
             error = True
         self.__config_lock.release()
@@ -1207,17 +1238,17 @@ class AgoAlert(agoclient.AgoApp):
 
         #get command
         command = None
-        if content.has_key('command'):
+        if 'command' in content:
             command = content['command']
         if not command:
             self.log.error('No command specified')
             return agoproto.response_failed('No command specified')
 
-        if command=='status':
+        if command == 'status':
             #return module status
             try:
                 return agoproto.response_success({'twitter':self.twitter.get_config(), 'mail':self.mail.get_config(), 'sms':self.sms.get_config(), 'push':self.push.get_config()})
-            except Exception as e:
+            except Exception:
                 self.log.exception('commandHandler: status exception:')
                 return agoproto.response_failed('Internal error')
 
@@ -1228,41 +1259,41 @@ class AgoAlert(agoclient.AgoApp):
                 self.log.error(msg)
                 return agoproto.response_missing_parameters(msg)
 
-            type = content['type']
-            if type=='twitter':
+            alert_type = content['type']
+            if alert_type == 'twitter':
                 #test twitter
                 (msg, error) = self.twitter.prepare_message({'tweet':'agocontrol test tweet @ %s' % time.strftime('%H:%M:%S')})
                 if msg:
                     (error, msg) = self.twitter.test(msg)
                     if not error:
                         return agoproto.response_success(None, 'Tweet successful')
-                    else:
-                        self.log.error('CommandHandler: failed to tweet [%s]' % msg)
-                        return agoproto.response_failed('Failed to tweet (%s)' % msg)
-                else:
-                    self.log.error('CommandHandler: failed to tweet [%s]' % msg)
-                    return agoproto.response_failed(error)
 
-            elif type == 'sms':
+                    self.log.error('CommandHandler: failed to tweet [%s]' % msg)
+                    return agoproto.response_failed('Failed to tweet (%s)' % msg)
+
+                self.log.error('CommandHandler: failed to tweet [%s]' % msg)
+                return agoproto.response_failed(error)
+
+            if alert_type == 'sms':
                 #test sms
-                if self.sms.name=='12voip':
-                    (msg, error) = self.sms.prepare_message({'to':sms.username, 'text':'agocontrol sms test'})
-                elif self.sms.name=='freemobile':
-                    (msg, error) = self.sms.prepare_message({'to':'', 'text':'agocontrol sms test'})
+                if self.sms.name == '12voip':
+                    (msg, error) = self.sms.prepare_message({'to': self.sms.username, 'text': 'agocontrol sms test'})
+                elif self.sms.name == 'freemobile':
+                    (msg, error) = self.sms.prepare_message({'to': '', 'text': 'agocontrol sms test'})
                 if msg:
                     (error, msg) = self.sms.test(msg)
                     if not error:
                         return agoproto.response_success(None, 'SMS sent successfully')
-                    else:
-                        self.log.error('CommandHandler: Failed to send SMS (%s)' % msg)
-                        return agoproto.response_failed('Failed to send SMS (%s)' % msg)
-                else:
-                    self.log.error('CommandHandler: failed to tweet [%s]' % error)
-                    return agoproto.response_failed(error)
 
-            elif type == 'mail':
+                    self.log.error('CommandHandler: Failed to send SMS (%s)' % msg)
+                    return agoproto.response_failed('Failed to send SMS (%s)' % msg)
+
+                self.log.error('CommandHandler: failed to tweet [%s]' % error)
+                return agoproto.response_failed(error)
+
+            if alert_type == 'mail':
                 #mail test
-                if not self.check_command_param(content, 'tos')[0] or len(content['tos'])==0:
+                if not self.check_command_param(content, 'tos')[0] or len(content['tos']) == 0:
                     msg = 'Missing "tos" parameter'
                     self.log.error(msg)
                     return agoproto.response_missing_parameters(msg)
@@ -1273,41 +1304,39 @@ class AgoAlert(agoclient.AgoApp):
                     (error, msg) = self.mail.test(msg)
                     if not error:
                         return agoproto.response_success(None, 'Email sent successfully')
-                    else:
-                        self.log.error('CommandHandler: Failed to send email (%s)' % msg)
-                        return agoproto.response_failed('Failed to send email (%s)' % msg)
-                else:
-                    self.log.error('CommandHandler: failed to send email [%s]' % error)
-                    return agoproto.response_failed(error)
+
+                    self.log.error('CommandHandler: Failed to send email (%s)' % msg)
+                    return agoproto.response_failed('Failed to send email (%s)' % msg)
+
+                self.log.error('CommandHandler: failed to send email [%s]' % error)
+                return agoproto.response_failed(error)
 
 
-            elif type=='push':
+            if alert_type == 'push':
                 #test push
-                if self.push.name=='pushbullet':
+                if self.push.name == 'pushbullet':
                     (msg, error) = self.push.prepare_message({'message':'This is an agocontrol test notification', 'file':''})
-                elif self.push.name=='pushover':
+                elif self.push.name == 'pushover':
                     (msg, error) = self.push.prepare_message({'message':'This is an agocontrol test notification', 'priority':'0'})
-                elif self.push.name=='pushsafer':
+                elif self.push.name == 'pushsafer':
                     (msg, error) = self.push.prepare_message({'message':'This is an agocontrol test notification'})
-                elif self.push.name=='notifymyandroid':
+                elif self.push.name == 'notifymyandroid':
                     (msg, error) = self.push.prepare_message({'message':'This is an agocontrol test notification', 'priority':'0'})
                 if msg:
                     (error, msg) = self.push.test(msg)
                     if not error:
                         return agoproto.response_success(None, 'Message pushed successfully')
-                    else:
-                        self.log.error('CommandHandler: Failed to push message (%s)' % msg)
-                        return agoproto.response_failed('Failed to push message (%s)' % msg)
-                else:
-                    self.log.error('CommandHandler: failed to push message [%s]' % error)
-                    return agoproto.response_failed(error)
 
-            else:
-                #TODO add here new alert test
-                pass
+                    self.log.error('CommandHandler: Failed to push message (%s)' % msg)
+                    return agoproto.response_failed('Failed to push message (%s)' % msg)
+
+                self.log.error('CommandHandler: failed to push message [%s]' % error)
+                return agoproto.response_failed(error)
+
+            #TODO add here new alert test
 
         #=========================================
-        elif command=='sendtweet':
+        elif command == 'sendtweet':
             #send tweet
             if not self.check_command_param(content, 'tweet')[0]:
                 msg = 'Missing "tweet" parameter'
@@ -1318,11 +1347,11 @@ class AgoAlert(agoclient.AgoApp):
             if msg:
                 self.twitter.add_message(msg)
                 return agoproto.response_success(None, 'Tweet posted successfully')
-            else:
-                self.log.error('CommandHandler: failed to tweet [%s]' % error)
-                return agoproto.response_failed(error)
 
-        elif command=='sendsms':
+            self.log.error('CommandHandler: failed to tweet [%s]' % error)
+            return agoproto.response_failed(error)
+
+        elif command == 'sendsms':
             #send sms
             if not self.check_command_param(content, 'text')[0]:
                 msg = 'Missing "text" parameter'
@@ -1337,9 +1366,9 @@ class AgoAlert(agoclient.AgoApp):
             if msg:
                 self.sms.add_message(msg)
                 return agoproto.response_success(None, 'SMS sent successfully')
-            else:
-                self.log.error('CommandHandler: failed to send SMS [%s]' % error)
-                return agoproto.response_failed(error)
+
+            self.log.error('CommandHandler: failed to send SMS [%s]' % error)
+            return agoproto.response_failed(error)
 
         elif command == 'sendmail':
             #send mail
@@ -1357,16 +1386,16 @@ class AgoAlert(agoclient.AgoApp):
                 return agoproto.response_missing_parameters(msg)
 
             tos = content['to'].split(';')
-            if not content.has_key('attachment'):
+            if 'attachment' not in content:
                 content['attachment'] = ''
 
             (msg, error) = self.mail.prepare_message({'tos':tos, 'subject':content['subject'], 'body':content['body'], 'attachment':content['attachment']})
             if msg:
                 self.mail.add_message(msg)
                 return agoproto.response_success(None, 'Mail sent successfully')
-            else:
-                self.log.error('CommandHandler: failed to send email [%s]' % error)
-                return agoproto.response_failed(error)
+
+            self.log.error('CommandHandler: failed to send email [%s]' % error)
+            return agoproto.response_failed(error)
 
         elif command == 'sendpush':
             #send push
@@ -1379,9 +1408,9 @@ class AgoAlert(agoclient.AgoApp):
             if msg:
                 self.push.add_message(msg)
                 return agoproto.response_success(None, 'Message pushed successfully')
-            else:
-                self.log.error('CommandHandler: failed to push message [%s]' % error)
-                return agoproto.response_failed(error)
+
+            self.log.error('CommandHandler: failed to push message [%s]' % error)
+            return agoproto.response_failed(error)
 
         #=========================================
         elif command == 'setconfig':
@@ -1389,33 +1418,31 @@ class AgoAlert(agoclient.AgoApp):
                 msg = 'Missing "type" parameter'
                 self.log.error(msg)
                 return agoproto.response_missing_parameters(msg)
-            type = content['type']
+            alert_type = content['type']
 
-            if type == 'twitter':
+            if alert_type == 'twitter':
                 if not self.check_command_param(content, 'accesscode')[0]:
                     msg = 'Missing "accesscode" parameter'
                     self.log.error(msg)
                     return agoproto.response_missing_parameters(msg)
 
-                accessCode = content['accesscode'].strip()
-                if len(accessCode)==0:
+                access_code = content['accesscode'].strip()
+                if len(access_code) == 0:
                     #get authorization url
                     return agoproto.response_success(self.twitter.get_authorization_url())
 
-                elif len(accessCode)>0:
+                if len(access_code) > 0:
                     #set twitter config
-                    (res, key, secret, msg) = self.twitter.get_key_secret(accessCode)
+                    (res, key, secret, msg) = self.twitter.get_key_secret(access_code)
                     if res:
                         self.config['twitter']['key'] = key
                         self.config['twitter']['secret'] = secret
                         if self.twitter.set_config(key, secret) and self.save_config():
                             return agoproto.response_success(None, 'Configuration saved successfully')
-                        else:
-                            return agoproto.response_failed('Failed to save configuration')
-                    else:
-                        return agoproto.response_failed('Unable to get credentials from access code (%s)' % msg)
+                        return agoproto.response_failed('Failed to save configuration')
+                    return agoproto.response_failed('Unable to get credentials from access code (%s)' % msg)
 
-            elif type == 'sms':
+            elif alert_type == 'sms':
                 #set sms config
                 if not self.check_command_param(content, 'provider')[0]:
                     msg = 'Missing "provider" parameter'
@@ -1423,14 +1450,14 @@ class AgoAlert(agoclient.AgoApp):
                     return agoproto.response_missing_parameters(msg)
 
                 provider = content['provider']
-                if provider!=self.sms.name:
+                if provider != self.sms.name:
                     #destroy existing push
                     self.sms.stop()
                     #create new sms
-                    if provider=='freemobile':
-                        sms = SMSFreeMobile(self.log, self.connection, Alert.TYPE_SMS, '', '')
-                    elif provider=='12voip':
-                        sms = SMS12voip(self.log, self.connection, Alert.TYPE_SMS, '', '')
+                    if provider == 'freemobile':
+                        self.sms = SMSFreeMobile(self.log, self.connection, Alert.TYPE_SMS, '', '')
+                    elif provider == '12voip':
+                        self.sms = SMS12voip(self.log, self.connection, Alert.TYPE_SMS, '', '')
                     else:
                         #TODO add here new provider
                         pass
@@ -1453,10 +1480,9 @@ class AgoAlert(agoclient.AgoApp):
                     self.config['12voip']['password'] = content['password']
                     if self.sms.set_config(content['username'], content['password']) and self.save_config():
                         return agoproto.response_success(None, 'Configuration saved successfully')
-                    else:
-                        return agoproto.response_failed('Failed to save configuration')
+                    return agoproto.response_failed('Failed to save configuration')
 
-                elif provider == 'freemobile':
+                if provider == 'freemobile':
                     if not self.check_command_param(content, 'user')[0]:
                         msg = 'Missing "user" parameter'
                         self.log.error(msg)
@@ -1470,14 +1496,11 @@ class AgoAlert(agoclient.AgoApp):
                     self.config['freemobile']['apikey'] = content['apikey']
                     if self.sms.set_config(content['user'], content['apikey']) and self.save_config():
                         return agoproto.response_success(None, 'Configuration saved successfully')
-                    else:
-                        return agoproto.response_failed('Failed to save configuration')
+                    return agoproto.response_failed('Failed to save configuration')
 
-                else:
-                    #TODO add here new provider
-                    pass
+                #TODO add here new provider
 
-            elif type=='mail':
+            elif alert_type == 'mail':
                 #set mail config
                 if not self.check_command_param(content, 'smtp')[0]:
                     msg = 'Missing "smtp" parameter'
@@ -1496,14 +1519,13 @@ class AgoAlert(agoclient.AgoApp):
                     self.log.error(msg)
                     return agoproto.response_missing_parameters(msg)
 
-
                 #format login%_%password
                 login = ''
                 password = ''
                 try:
                     (login, password) = content['loginpassword'].split('%_%')
-                except:
-                    self.log.error('commandHandler: unable to split login%_%password [%s]' % content['loginpassword'])
+                except Exception:
+                    self.log.error('commandHandler: unable to split login%%_%%password [%s]' % content['loginpassword'])
                     return agoproto.response_failed('Internal error')
                 tls = content['tls']
 
@@ -1512,12 +1534,12 @@ class AgoAlert(agoclient.AgoApp):
                 self.config['mail']['login'] = login
                 self.config['mail']['password'] = password
                 self.config['mail']['tls'] = tls
-                if self.mail.set_config(content['smtp'], content['sender'], login , password, tls) and self.save_config():
+                if self.mail.set_config(content['smtp'], content['sender'], login, password, tls) and self.save_config():
                     return agoproto.response_success(None, 'Configuration saved successfully')
-                else:
-                    return agoproto.response_failed('Failed to save configuration')
 
-            elif type=='push':
+                return agoproto.response_failed('Failed to save configuration')
+
+            elif alert_type == 'push':
                 #set push config
                 if not self.check_command_param(content, 'provider')[0]:
                     msg = 'Missing "provider" parameter'
@@ -1525,7 +1547,7 @@ class AgoAlert(agoclient.AgoApp):
                     return agoproto.response_missing_parameters(msg)
 
                 provider = content['provider']
-                if provider!=self.push.name:
+                if provider != self.push.name:
                     #destroy existing push
                     self.push.stop()
                     #create new push
@@ -1551,17 +1573,17 @@ class AgoAlert(agoclient.AgoApp):
                         self.log.error(msg)
                         return agoproto.response_missing_parameters(msg)
 
-                    subCmd = content['subcmd']
-                    if subCmd == 'getdevices':
+                    sub_cmd = content['subcmd']
+                    if sub_cmd == 'getdevices':
                         if not self.check_command_param(content, 'apikey')[0]:
                             msg = 'Missing "apikey" parameter'
                             self.log.error(msg)
                             return agoproto.response_missing_parameters(msg)
 
-                        devices = self.push.getPushbulletDevices(content['apikey'])
+                        devices = self.push.get_pushbullet_devices(content['apikey'])
                         return agoproto.response_success({'devices':devices}, 'Device list retrieved successfully')
 
-                    elif subCmd == 'save':
+                    if sub_cmd == 'save':
                         if not self.check_command_param(content, 'apikey')[0]:
                             msg = 'Missing "apikey" parameter'
                             self.log.error(msg)
@@ -1576,10 +1598,10 @@ class AgoAlert(agoclient.AgoApp):
                         self.config['pushbullet']['devices'] = devices
                         if self.push.set_config(content['apikey'], devices) and self.save_config():
                             return agoproto.response_success(None, 'Configuration saved successfully')
-                        else:
-                            return agoproto.response_failed('Failed to save configuration')
 
-                elif provider == 'pushover':
+                        return agoproto.response_failed('Failed to save configuration')
+
+                if provider == 'pushover':
                     if not self.check_command_param(content, 'userid')[0]:
                         msg = 'Missing "userid" parameter'
                         self.log.error(msg)
@@ -1593,10 +1615,10 @@ class AgoAlert(agoclient.AgoApp):
                     self.config['pushover']['token'] = content['token']
                     if self.push.set_config(content['userid'], content['token']) and self.save_config():
                         return agoproto.response_success(None, 'Configuration saved successfully')
-                    else:
-                        return agoproto.response_failed('Failed to save configuration')
 
-                elif provider == 'pushsafer':
+                    return agoproto.response_failed('Failed to save configuration')
+
+                if provider == 'pushsafer':
                     if not self.check_command_param(content, 'key')[0]:
                         msg = 'Missing "key" parameter'
                         self.log.error(msg)
@@ -1605,10 +1627,10 @@ class AgoAlert(agoclient.AgoApp):
                     self.config['pushsafer']['key'] = content['key']
                     if self.push.set_config(content['key']) and self.save_config():
                         return agoproto.response_success(None, 'Configuration saved successfully')
-                    else:
-                        return agoproto.response_failed('Failed to save configuration')
 
-                elif provider == 'notifymyandroid':
+                    return agoproto.response_failed('Failed to save configuration')
+
+                if provider == 'notifymyandroid':
                     if not self.check_command_param(content, 'apikeys')[0]:
                         msg = 'Missing "apikeys" parameter'
                         self.log.error(msg)
@@ -1617,16 +1639,16 @@ class AgoAlert(agoclient.AgoApp):
                     self.config['notifymyandroid']['apikeys'] = json.dumps(content['apikeys'])
                     if self.push.set_config(content['apikeys']) and self.save_config():
                         return agoproto.response_success(None, 'Configuration saved successfully')
-                    else:
-                        return agoproto.response_failed('Failed to save configuration')
 
-                else:
-                    #TODO add here new provider
-                    pass
+                    return agoproto.response_failed('Failed to save configuration')
+
+                #TODO add here new provider
 
             else:
                 #TODO add here other alert configuration
                 pass
+
+        return agoproto.response_unknown_command()
 
     def create_instances(self):
         """
@@ -1667,6 +1689,7 @@ class AgoAlert(agoclient.AgoApp):
         self.push.start()
 
 
-if __name__=="__main__":
-    a = AgoAlert()
-    a.main()
+if __name__ == "__main__":
+    agoalert = AgoAlert()
+    agoalert.main()
+
