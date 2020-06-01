@@ -23,14 +23,23 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 """
 
-import telnetlib
-import urllib
 from pylmsplayer import Player
+import telnetlib
+try:
+    from urllib.parse import unquote
+    from urllib.parse import unquote_plus
+except ImportError:
+    from urllib import unquote
+    from urllib import unquote_plus
 import threading
 import logging
 import time
+try:
+    unicode('')
+except NameError:
+    unicode = str
 
-class LMSServer(object):
+class LMSServer():
 
     """
     LMS Server access to perform some requests
@@ -58,7 +67,7 @@ class LMSServer(object):
         Destructor
         """
         self.disconnect()
-    
+
     def connect(self, update=True):
         """
         Connect
@@ -74,34 +83,31 @@ class LMSServer(object):
             self.telnet = None
             return False
         return True
-        
+
     def disconnect(self):
         """
         Disconnect
         """
         if self.telnet:
             self.telnet.close()
-            
+
     def is_connected(self):
         """
         is connected?
         """
-        if self.telnet:
-            return True
-        else:
-            return False
-        
+        return bool(self.telnet)
+
     def telnet_connect(self):
         """
         Telnet Connect
         """
         try:
             self.telnet = telnetlib.Telnet(self.hostname, self.cli_port)
-        except Exception as e:
-            self.logger.critical('Unable to connect [%s]' % str(e))
+        except Exception:
+            self.logger.exception('Unable to connect [%s]')
             self.telnet = None
         return self.telnet
-    
+
     def login(self):
         """
         Login
@@ -118,14 +124,14 @@ class LMSServer(object):
         resp = None
         try:
             if self.is_connected():
-                resp = self.telnet.read_until( '\n'.encode(self.charset), timeout)
+                resp = self.telnet.read_until('\n'.encode(self.charset), timeout)
             else:
                 resp = None
         except EOFError:
             #telnet failed (not connected?)
             self.telnet = None #force to reconnect next time
             resp = None
-        except Exception as e:
+        except Exception:
             #something failed
             self.logger.exception("Exception in response:")
             resp = None
@@ -148,14 +154,14 @@ class LMSServer(object):
             #process command line
             self.logger.debug('command="%s"' % command)
             command = command.strip()
-            command_len = len( command.strip().split(' ') )
+            command_len = len(command.strip().split(' '))
             if command.endswith(u'?'):
                 command_len -= 1
             command_encoded = (command.strip()).encode(self.charset)
 
             #send command
-            self.telnet.write( command_encoded + '\n'.encode(self.charset) )
-            response = self.telnet.read_until( '\n'.encode(self.charset) )
+            self.telnet.write(command_encoded + '\n'.encode(self.charset))
+            response = self.telnet.read_until('\n'.encode(self.charset))
             response = response.strip()
             self.logger.debug('response="%s"' % response)
 
@@ -164,7 +170,7 @@ class LMSServer(object):
             response_len = len(response.split(' '))
             self.logger.debug('command_parts=%d' % command_len)
             self.logger.debug('response_parts=%d' % response_len)
-        
+
             #process result
             result = ''
             for i in range(command_len, response_len):
@@ -174,20 +180,20 @@ class LMSServer(object):
                     result += unicode(response_parts[i]) + u' '
             result = result.strip()
             self.logger.debug('result="%s"' % result)
-        
+
         except EOFError:
             #telnet failed (not connected?)
             self.logger('EOFError: telnet failed')
             self.telnet = None #force to reconnect next time
             result = None
 
-        except Exception as e:
+        except Exception:
             #something failed
             self.logger.exception("Exception in request:")
             result = None
 
         return result
-        
+
 
     def request_with_results(self, command):
         """
@@ -202,20 +208,20 @@ class LMSServer(object):
             response = self.request(command, False)
             self.logger.debug('RESPONSE=%s' % response)
             response_parts = response.split(' ')
-            if len(response)>0:
+            if len(response) > 0:
                 if response.startswith('count'):
                     self.logger.debug('count response')
                     #get number of items
-                    count = int(self._decode(response_parts[0]).split(':',1)[1])
+                    count = int(self._decode(response_parts[0]).split(':', 1)[1])
 
                     #get items separator
-                    separator = self._decode(response_parts[1]).split(':',1)[0]
+                    separator = self._decode(response_parts[1]).split(':', 1)[0]
 
                     #get items
                     sub_items = None
                     for i in range(1, len(response_parts)):
-                        (key,val) = self._decode(response_parts[i]).split(':',1)
-                        if key==separator:
+                        (key, val) = self._decode(response_parts[i]).split(':', 1)
+                        if key == separator:
                             #save current sub_items
                             if sub_items:
                                 items.append(sub_items)
@@ -232,18 +238,18 @@ class LMSServer(object):
                     sub_items = {}
                     count = 1
                     for i in range(len(response_parts)):
-                        (key,val) = self._decode(response_parts[i]).split(':',1)
+                        (key, val) = self._decode(response_parts[i]).split(':', 1)
                         sub_items[key] = val
                     items.append(sub_items)
 
             else:
                 #no response:S bad request surely
-                return 0,[],True
+                return 0, [], True
 
-        except Exception as e:
+        except Exception:
             #error parsing results (not correct?)
             self.logger.exception('Exception occured in request_with_results:')
-            return 0,[],True
+            return 0, [], True
 
         return count, items, False
 
@@ -269,7 +275,7 @@ class LMSServer(object):
                 player_name = str(player.name).lower()
                 player_mac = str(player.mac).lower()
                 self.logger.debug('compare %s==%s or in %s' % (ref, player_mac, player_name))
-                if ref==player_mac or ref in player_name:
+                if ref == player_mac or ref in player_name:
                     return player
         return None
 
@@ -279,7 +285,7 @@ class LMSServer(object):
         """
         self.version = self.request("version ?")
         return self.version
-    
+
     def get_player_count(self):
         """
         Get Number Of Players
@@ -291,12 +297,13 @@ class LMSServer(object):
         """
         Search term in database
         """
-        if mode=='albums':
+        if mode == 'albums':
             return self.request_with_results("albums 0 50 tags:%s search:%s" % ("l", term))
-        elif mode=='songs':
+        if mode == 'songs':
             return self.request_with_results("songs 0 50 tags:%s search:%s" % ("", term))
-        elif mode=='artists':
+        if mode == 'artists':
             return self.request_with_results("artists 0 50 search:%s" % (term))
+        return None
 
     def rescan(self, mode='fast'):
         """
@@ -306,27 +313,26 @@ class LMSServer(object):
         is_scanning = True
         try:
             is_scanning = bool(self.request("rescan ?"))
-        except:
+        except Exception:
             pass
-        
+
         if not is_scanning:
-            if mode=='fast':
+            if mode == 'fast':
                 return self.request("rescan")
-            elif mode=='full':
+            if mode == 'full':
                 return self.request("wipecache")
-            elif mode=='playlists':
+            if mode == 'playlists':
                 return self.request("rescan playlists")
-        else:
-            return ""
-        
+        return ""
+
     def rescanprogress(self):
         """
         Return current rescan progress
         """
         return self.request_with_results("rescanprogress")
-    
+
     def _decode(self, string):
-        return urllib.unquote_plus(string).encode(self.charset)
+        return unquote_plus(string).encode(self.charset)
 
 
 
@@ -341,12 +347,12 @@ class LMSServerNotifications(threading.Thread, LMSServer):
         LMSServer.__init__(self, hostname, cli_port, username, password, charset)
         threading.Thread.__init__(self)
         self.logger = logging.getLogger("LMSServerNotifications")
-        
+
         #members
         self.__running = True
         self._player_ids = []
         self._callback = notifications_callback
-        
+
     def __del__(self):
         """
         Destructor
@@ -359,16 +365,16 @@ class LMSServerNotifications(threading.Thread, LMSServer):
         Stop process
         """
         self.__running = False
-            
+
     def subscribe_players(self, player_ids):
         """
         Subscribe to specified players notifications
         """
         if not player_ids:
             self._player_ids = []
-        elif type(player_ids) is list:
+        elif isinstance(player_ids, list):
             self._player_ids = player_ids
-        elif type(player_ids) is string:
+        elif isinstance(player_ids, str):
             self._player_ids = [player_ids]
         else:
             self._player_ids = []
@@ -390,19 +396,19 @@ class LMSServerNotifications(threading.Thread, LMSServer):
                 if self.connect():
                     #subscribe to notifications
                     self.request('listen 1')
-        
+
             if self.is_connected():
                 response = self.response(timeout=1)
-    
+
                 if response:
                     #there is something
                     #self.logger.debug('RAW=%s' % response.strip())
-                    
+
                     #split response
                     items = response.split(' ')
                     #and unquote all items
                     for i in range(len(items)):
-                        items[i] = urllib.unquote(items[i].strip())
+                        items[i] = unquote(items[i].strip())
 
                     #finally process response
                     if self._player_ids:
@@ -421,10 +427,10 @@ class LMSServerNotifications(threading.Thread, LMSServer):
 
 
 
-"""
-TESTS
-"""
-if __name__=="__main__":
+if __name__ == "__main__":
+    """
+    TESTS
+    """
     import gobject; gobject.threads_init()
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -450,4 +456,6 @@ if __name__=="__main__":
         logger.debug('====> KEYBOARD INTERRUPT <====')
         logger.debug('Waiting for threads to stop...')
         mainloop.quit()
-#notif.stop()
+    finally:
+        notif.stop()
+
