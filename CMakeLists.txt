@@ -220,6 +220,9 @@ log_pkg_found(OpenZWave "${OpenZWave_FOUND}" "${OpenZWave_VERSION}" STATUS "")
 find_package(EibClient)
 log_pkg_found(EibClient "${EibClient_FOUND}" "${EibClient_VERSION}" STATUS "")
 
+pkg_search_module(TinyXML2 tinyxml2)
+log_pkg_found(TinyXML2 "${TinyXML2_FOUND}" "${TinyXML2_VERSION}" STATUS "")
+
 pkg_check_modules(OpenLighting libola)
 log_pkg_found(OpenLighting "${OpenLighting_FOUND}" "${OpenLighting_VERSION}" STATUS "")
 

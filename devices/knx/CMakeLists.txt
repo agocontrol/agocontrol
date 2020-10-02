@@ -4,7 +4,7 @@ file (GLOB_RECURSE DEVICE_SOURCE_FILES *.cpp)
 
 set (DEVICE_EXTRA_LIBRARIES
     ${EibClient_LIBRARIES}
-    tinyxml2
+    ${TinyXML2_LIBRARIES}
     agoclient
 )
 

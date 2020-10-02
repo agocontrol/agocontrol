@@ -64,9 +64,9 @@ if(NOT OpenZWave_FOUND)
     message(STATUS "OpenZWave not found, not building zwave device")
 ENDIF ()
 
-if(NOT EibClient_FOUND)
+if(NOT EibClient_FOUND OR NOT TinyXML2_FOUND)
     list(REMOVE_ITEM AGODEVICES knx)
-    message(STATUS "eibclient not found, not building knx device")
+    message(STATUS "eibclient or libxml2 not found, not building knx device")
 ENDIF ()
 
 if(NOT OpenLighting_FOUND)
