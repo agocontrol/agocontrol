@@ -62,7 +62,7 @@ function RoomConfig(agocontrol)
                 self.roomName('');
                 self.agocontrol.rooms.push({
                     uuid : res.data.uuid,
-                    name : content.name,
+                    name : ko.observable(content.name),
                     location : "",
                     action : ""
                 });
