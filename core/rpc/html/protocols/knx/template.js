@@ -132,12 +132,33 @@ function KNX(agocontrol)
         $('#fileupload').fileupload({
             url: location.protocol + "//" + location.hostname + (location.port && ":" + location.port) + location.pathname + 'upload',
             dataType: 'json',
+            autoUpload: true,
             formData: { 
                 uuid: self.controllerUuid
             },
             done: function(e, data) {
-                //TODO fill ga directly
-                self.getGAContent();
+                console.log("done:", e, data);
+                $('#progress').css('width', '0%');
+                if(!data.result.files || data.result.files.length != 1) {
+                    notif.error('Unexpected upload response, no files entry. See console for details.');
+                    console.error("Unexpected upload response:", data);
+                    return;
+                }
+
+                var f = data.result.files[0];
+
+                if(f.error) {
+                    notif.error('Upload failed: ' + f.error.message);
+                    return;
+                }
+
+                // f.result holds {data:{groupmap:{...}}}
+                self.handleGAResponse(f.result);
+                notif.success('GA map updated');
+            },
+            fail: function(e, data){
+                notif.error('Failed to upload, please see console for details');
+                console.log("upload total fail:", e, data);
             },
             progressall: function (e, data) {
                 var progress = parseInt(data.loaded / data.total * 100, 10);
@@ -155,10 +176,11 @@ function KNX(agocontrol)
               return ({}).toString.call(obj).match(/\s([a-zA-Z]+)/)[1].toLowerCase()
         };
 
-        var iterateItem = function(item)
+        var iterateItem = function(item, path)
         {
             var branch = [];
-            for( var el in item )
+            var myPath;
+            for(var el in item)
             {
                 var elem = {};
                 if( toType(item[el])=='object' )
@@ -166,18 +188,31 @@ function KNX(agocontrol)
                     //branch
                     elem['text'] = el;
                     elem['selectable'] = false;
-                    elem['nodes'] = iterateItem(item[el]);
+                    var nodes = elem['nodes'] = iterateItem(item[el]);
+                    if(nodes.length > 0 && myPath == null) {
+                        var pathParts = nodes[0]['value'].split('/');
+                        myPath = pathParts.slice(0, pathParts.length - 1);
+                        myPath = myPath.join('/');
+                    }
+                    elem['value'] = myPath;
                 }
                 else
                 {
                     //leaf
-                    elem['text'] = el + ' (' + item[el] + ')';
+                    var ga = item[el];
+                    elem['text'] = el + ' (' + ga + ')';
                     elem['selectable'] = true;
-                    elem['value'] = item[el];
-                    self.gaIdValue[item[el]] = el;
+                    elem['value'] = ga;
+                    self.gaIdValue[ga] = el;
                 }
                 branch.push(elem);
             }
+
+            branch.sort(function(a,b){
+                a = a['value'].split('/');
+                b = b['value'].split('/');
+                return a[a.length-1] - b[b.length-1];
+            });
             return branch;
         };
 
@@ -185,27 +220,7 @@ function KNX(agocontrol)
         self.gaIdValue = {};
 
         //create treeview
-        var tree = [];
-        for( var el in self.ga )
-        {
-            var elem = {};
-            if( toType(self.ga[el])=='object' )
-            {
-                //branch
-                elem['text'] = el;
-                elem['selectable'] = false;
-                elem['nodes'] = iterateItem(self.ga[el]);
-            }
-            else
-            {
-                //leaf
-                elem['text'] = el + ' (' + item[el] + ')';
-                elem['selectable'] = true;
-                elem['value'] = item[el];
-                self.gaIdValue[item[el]] = el;
-            }
-            tree.push(elem);
-        }
+        var tree = iterateItem(self.ga);
 
         $('#tree').treeview({data:tree, highlightSearchResults:false});
         $('#tree').on('nodeSelected', function(event, data) {
@@ -231,21 +246,11 @@ function KNX(agocontrol)
 
         self.agocontrol.sendCommand(content)
             .then(function(res) {
-                if( res.data.groupmap )
-                {
-                    self.ga = res.data.groupmap;
-                    self.buildTreeview();
-                }
-                else
-                {
-                    self.ga = null;
-                }
-
-                //we have ga content, we can get devices
-                self.getDevices();
+                self.handleGAResponse(res);
             })
             .catch(function(err){
-                notif.error('Unable to get file content');
+                console.log(err);
+                notif.error('Unable to load Group map');
                 self.ga = null;
             })
             .finally(function() {
@@ -258,6 +263,21 @@ function KNX(agocontrol)
                     self.gaLoaded(true);
                 }
             });
+    };
+
+    self.handleGAResponse = function(res) {
+        if( res.data.groupmap )
+        {
+            self.ga = res.data.groupmap;
+            self.buildTreeview();
+        }
+        else
+        {
+            self.ga = null;
+        }
+
+        //we have ga content, we can get devices
+        self.getDevices();
     };
 
     //get devices
@@ -275,8 +295,8 @@ function KNX(agocontrol)
                     var device = {};
                     var infos = self.getDeviceInfos(uuid);
                     device['uuid'] = uuid;
-                    device['name'] = infos['name'];
-                    device['room'] = infos['room'];
+                    device['name'] = ko.observable(infos['name']);
+                    device['room'] = ko.observable(infos['room']);
                     device['params'] = [];
                     var searchGAs = '';
                     for( var item in res.data.devices[uuid] )
