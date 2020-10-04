@@ -620,6 +620,7 @@ void AgoRpc::uploadFile_thread(boost::shared_ptr<FileUploadReqRep> reqRep) {
     boost::unique_lock<boost::mutex> lock(reqRep->mutex);
     reqRep->jsonResponse["count"] = i;
     reqRep->responseReady = true;
+    reqRep->setResponseCode(200);
 
     AGO_TRACE() << "Leaving upload thread " << reqRep.get();
     lock.unlock(); // Must NOT hold lock when calling wakup
