@@ -295,8 +295,8 @@ function KNX(agocontrol)
                     var device = {};
                     var infos = self.getDeviceInfos(uuid);
                     device['uuid'] = uuid;
-                    device['name'] = ko.observable(infos['name']);
-                    device['room'] = ko.observable(infos['room']);
+                    device['name'] = ko.observable(infos['name'] || '');
+                    device['room'] = ko.observable(infos['room'] || '');
                     device['params'] = [];
                     var searchGAs = '';
                     for( var item in res.data.devices[uuid] )
@@ -317,7 +317,7 @@ function KNX(agocontrol)
                         }
                     }
                     device['searchgas'] = searchGAs;
-                    device['text'] = (device['name'].length>0 ? device['name'] : device['uuid']);
+                    device['text'] = device['name']().length>0 ? device['name']() : (device['uuid'] + ' (' + device['params'].map(function(p){return p.label;}).join(", ") + ')');
                     devices.push(device);
                 }
                 self.knxDevices(devices);
