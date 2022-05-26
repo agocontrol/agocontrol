@@ -5,6 +5,8 @@
 #include "yamaha_device.h"
 
 namespace asio = boost::asio;
+using namespace boost::placeholders;
+
 
 YamahaDeviceBase::YamahaDeviceBase(asio::io_service &io_service,
         const ip::address &addr, unsigned short port)

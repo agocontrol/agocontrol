@@ -62,6 +62,7 @@
 using namespace agocontrol;
 namespace fs = ::boost::filesystem;
 namespace pt = ::boost::posix_time;
+using namespace boost::placeholders;
 
 class AgoResolver: public AgoApp {
 private:

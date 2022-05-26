@@ -55,6 +55,7 @@
 namespace fs = ::boost::filesystem;
 using namespace agocontrol;
 using namespace agocontrol::agohttp;
+using namespace boost::placeholders;
 
 // struct and map for json-rpc event subscriptions
 struct Subscriber

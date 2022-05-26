@@ -17,6 +17,7 @@
 
 using namespace agocontrol::log;
 using namespace boost_options_validator;
+using namespace boost::placeholders;
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
 

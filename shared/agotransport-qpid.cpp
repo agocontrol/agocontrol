@@ -13,6 +13,7 @@
 #include "agolog.h"
 
 namespace agotransport = agocontrol::transport;
+using namespace boost::placeholders;
 
 //static AGO_LOGGER(qpid); // no logging from qpid C++ library
 static AGO_LOGGER(transport);

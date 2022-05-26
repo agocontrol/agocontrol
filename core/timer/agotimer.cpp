@@ -18,6 +18,7 @@
 #include "agoapp.h"
 
 using namespace agocontrol;
+using namespace boost::placeholders;
 
 namespace pt = boost::posix_time;
 namespace greg = boost::gregorian;

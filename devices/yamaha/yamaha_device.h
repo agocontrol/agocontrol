@@ -2,6 +2,7 @@
 #define YAMAHA_DEVICE_H
 
 #include <queue>
+#include <map>
 #include <boost/asio.hpp> 
 
 namespace ip = boost::asio::ip;

@@ -23,6 +23,7 @@
 namespace fs = ::boost::filesystem;
 using namespace agocontrol;
 using namespace agocontrol::agohttp;
+using namespace boost::placeholders;
 
 class AgoImperiHome : public AgoApp {
 private:

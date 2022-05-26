@@ -22,6 +22,7 @@
 #include "agotransport-mqtt.h"
 
 namespace fs = ::boost::filesystem;
+using namespace boost::placeholders;
 
 static AGO_LOGGER_ALIAS(connection, "connnection");
 

@@ -15,6 +15,7 @@
 #define PUBLISH_TOPIC TOPIC_BASE "legacy"
 
 namespace agotransport = agocontrol::transport;
+using namespace boost::placeholders;
 
 static AGO_LOGGER(mqtt);
 static AGO_LOGGER(transport);
